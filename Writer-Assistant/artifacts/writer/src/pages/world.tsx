@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useLocation, Link } from "wouter";
 import { useListWorldEntities, useCreateWorldEntity, useUpdateWorldEntity, useDeleteWorldEntity, getListWorldEntitiesQueryKey } from "@workspace/api-client-react";
 import { useAiGenerateImage } from "@workspace/api-client-react";
@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Plus, Pencil, Trash2, Loader2, User, MapPin, Package, Wand2, Sparkles } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, Loader2, User, MapPin, Package, Wand2, Sparkles, Upload, X } from "lucide-react";
 import { usePro } from "@/lib/pro-context";
 import { UpgradeModal } from "@/components/upgrade-modal";
 
@@ -45,6 +45,8 @@ function EntityForm({ entity, onSave, onCancel, documentId, isLoading }: any) {
   const [fields, setFields] = useState<Record<string, string>>(entity?.fields || {});
   const [imageUrl, setImageUrl] = useState(entity?.imageUrl || "");
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const aiImage = useAiGenerateImage();
   const { useRequest } = usePro();
   const { toast } = useToast();
@@ -65,6 +67,24 @@ function EntityForm({ entity, onSave, onCancel, documentId, isLoading }: any) {
       },
       onError: () => { setIsGeneratingImage(false); toast({ title: "Image generation failed", variant: "destructive" }); }
     });
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Upload failed"); }
+      const data = await res.json();
+      setImageUrl(data.url);
+    } catch (err: any) {
+      toast({ title: err.message || "Upload failed", variant: "destructive" });
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const buildImagePrompt = () => {
@@ -96,13 +116,26 @@ function EntityForm({ entity, onSave, onCancel, documentId, isLoading }: any) {
       <div className="space-y-2">
         <label className="text-sm font-medium flex items-center justify-between">
           <span>Illustration</span>
-          <Button variant="ghost" size="sm" onClick={handleGenerateImage} disabled={isGeneratingImage} className="h-7 text-xs gap-1">
-            {isGeneratingImage ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
-            {isGeneratingImage ? "Generating..." : "AI Generate"}
-          </Button>
+          <div className="flex gap-1">
+            <Button variant="ghost" size="sm" onClick={handleGenerateImage} disabled={isGeneratingImage} className="h-7 text-xs gap-1">
+              {isGeneratingImage ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
+              {isGeneratingImage ? "Generating..." : "AI Generate"}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => fileInputRef.current?.click()} disabled={isUploading} className="h-7 text-xs gap-1">
+              {isUploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+              Upload
+            </Button>
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+          </div>
         </label>
-        {imageUrl && <div className="rounded-lg overflow-hidden border"><img src={imageUrl} alt="Entity illustration" className="w-full h-48 object-cover" /></div>}
-        <Input value={imageUrl.startsWith("data:") ? "" : imageUrl} onChange={e => setImageUrl(e.target.value)} placeholder="Or paste an image URL..." className="text-sm" />
+        {imageUrl && (
+          <div className="relative rounded-lg overflow-hidden border">
+            <img src={imageUrl} alt="Entity illustration" className="w-full h-48 object-cover" />
+            <Button variant="destructive" size="icon" className="absolute top-2 right-2 h-6 w-6 rounded-full" onClick={() => setImageUrl("")}>
+              <X className="w-3 h-3" />
+            </Button>
+          </div>
+        )}
       </div>
       <div className="flex gap-2 pt-2">
         <Button onClick={() => onSave({ name, fields, imageUrl: imageUrl || null })} disabled={!name.trim() || isLoading} className="flex-1">

@@ -1,6 +1,8 @@
 import express, { type Express } from "express";
 import cors from "cors";
+import path from "path";
 import pinoHttp from "pino-http";
+import multer from "multer";
 import { clerkMiddleware } from "@clerk/express";
 import { publishableKeyFromHost } from "@clerk/shared/keys";
 import {
@@ -39,6 +41,8 @@ app.use(cors({ credentials: true, origin: true }));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
+app.use("/uploads", express.static(path.join(import.meta.dirname, "..", "uploads")));
+
 const skipAuth = !process.env.CLERK_SECRET_KEY;
 
 if (!skipAuth) {
@@ -60,5 +64,14 @@ app.use((req, _res, next) => {
 });
 
 app.use("/api", router);
+
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  if (err instanceof multer.MulterError || err.message?.includes("Only image files")) {
+    res.status(400).json({ error: err.message });
+  } else {
+    logger.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 export default app;

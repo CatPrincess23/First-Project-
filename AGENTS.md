@@ -66,6 +66,14 @@ Both servers must run in the background (use `nohup ... &` or `run_in_background
 - **Don't commit `.env` files or secrets.** The `.gitignore` covers standard patterns. Double-check before staging.
 - **Don't commit `node_modules`, `dist`, or `*.tsbuildinfo`.** Already covered by `.gitignore`.
 
+## Debugging save failures
+
+- **`guest-id.ts` monkey-patches `window.fetch`.** When adding headers, use `Headers.forEach()` to copy existing headers into a plain object — do NOT spread a `Headers` instance (`...headers`), as this silently drops all headers in some runtimes, including `Content-Type`. Without `Content-Type: application/json`, Express won't parse the JSON body and the save returns 400.
+- **Check API server logs for `content-type` and body.** A save returning 400 with `content-type: text/plain` and `body: undefined` means the JSON body was lost — the `guest-id.ts` header patch is the likely culprit.
+- **The OpenAPI `DocumentUpdate` schema** must not have `minLength: 1` on `title` (only `DocumentInput` for creation needs it). Otherwise an empty title string `""` fails Zod validation and blocks the entire save including content.
+- **After editing `openapi.yaml`**, run `pnpm --filter @workspace/api-spec run codegen` to regenerate Zod schemas and API client, then rebuild the API server (`pnpm --filter @workspace/api-server run build`).
+- **Typecheck conflicts in generated code** (e.g. duplicate `ListWorldEntitiesParams`) may require trimming `api-zod/src/index.ts` — remove `export * from "./generated/types"` if it collides with `api.ts` exports.
+
 ## When running local commands / dev servers
 
 - **Long-running processes must run in the background.** Use `nohup ... &` or `run_in_background: true`. Verify with `curl localhost:PORT/api/healthz`.
