@@ -414,7 +414,6 @@ components:
       properties:
         title:
           type: string
-          minLength: 1
         content:
           type: string
         goalWordCount:

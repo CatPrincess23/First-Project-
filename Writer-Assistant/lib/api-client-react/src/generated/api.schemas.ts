@@ -28,7 +28,6 @@ export interface DocumentInput {
 }
 
 export interface DocumentUpdate {
-  /** @minLength 1 */
   title?: string;
   content?: string;
   /** @nullable */

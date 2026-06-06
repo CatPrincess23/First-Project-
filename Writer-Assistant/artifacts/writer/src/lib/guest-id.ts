@@ -19,12 +19,16 @@ export function setupGuestId() {
       newReq.headers.append("x-guest-id", guestId);
       return originalFetch(newReq);
     } else {
-      args[1] = args[1] || {};
-      args[1].headers = {
-        ...args[1].headers,
-        "x-guest-id": guestId,
-      };
-      return originalFetch(...args);
+      const init = args[1] || {};
+      const plainHeaders: Record<string, string> = {};
+      if (init.headers instanceof Headers) {
+        init.headers.forEach((value, key) => { plainHeaders[key] = value; });
+      } else if (init.headers) {
+        Object.assign(plainHeaders, init.headers);
+      }
+      plainHeaders["x-guest-id"] = guestId;
+      args[1] = { ...init, headers: plainHeaders };
+      return originalFetch(args[0], args[1]);
     }
   };
 }

@@ -70,11 +70,8 @@ export const UpdateDocumentParams = zod.object({
   "id": zod.coerce.number()
 })
 
-
-
-
 export const UpdateDocumentBody = zod.object({
-  "title": zod.string().min(1).optional(),
+  "title": zod.string().optional(),
   "content": zod.string().optional(),
   "goalWordCount": zod.number().nullish()
 })
