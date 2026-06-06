@@ -1,0 +1,44 @@
+Your task is to design and build a comprehensive, cross-platform web and desktop application tailored specifically for authors and novelists. The app requires a clean, distraction-free UI, secure user authentication, auto-save cloud storage, and deep AI integrations.
+
+Implement the following features and specifications:
+
+#### 1. User Authentication & Cloud Storage
+* **Account System:** Secure user sign-up, login, and password recovery.
+* **Main File Drive:** A centralized dashboard/drive where users can organize multiple book projects, folders, and archives.
+* **Auto-Save & Sync:** Every keystroke and update must automatically save to the cloud, allowing real-time access across devices.
+* **Version History:** Track document revisions over time, allowing authors to view, compare, and restore previous versions of their chapters.
+
+#### 2. The Smart Editor (Core Writing Space)
+* **Real-Time Linter:** Automatically highlight grammar, syntax, style, and spelling errors as the user writes.
+* **Persistent AI Sidebar:** A floating or dockable panel that stays accessible within the manuscript file. This AI assistant provides:
+    * Inline writing help and text expansion.
+    * Brainstorming prompts and "what to write next" predictive suggestions based on the current chapter context.
+* **Goal Tracker:** A visual tracker where authors can set, monitor, and visualize daily word counts or total project word count goals.
+
+#### 3. AI Document Processing & Summarization
+* **Book Summarizer:** A tool that can scan the entire manuscript (or specific chapters) and generate concise summaries.
+* **Prologue Generator:** An AI feature that analyzes the core plot of the book to draft a compelling prologue.
+
+#### 4. World-Building Portfolios (Wiki/Database System)
+* An integrated database system within each book project where authors can create structured files/profiles for:
+    * **Characters:** Fields for appearance, personality, arc, and role.
+    * **Places:** Fields for geography, lore, culture, and climate.
+    * **Items/Stuff:** Fields for magical objects, technology, family heirlooms, etc.
+* These portfolios must link directly back to the editor for quick reference.
+
+#### 5. AI Image Generation Engine
+* An integrated text-to-image generator.
+* **Context Scanning:** The AI should be able to scan a selected paragraph, character file, or location portfolio to automatically generate a prompt.
+* **Customization:** Allow the user to manually add, tweak, or refine specific details (e.g., clothing style, art style, lighting) before rendering the image of a person, place, or object.
+
+#### 6. Export Options
+* Allow users to download and compile their manuscripts into standard, publication-ready formats: **PDF, DOCX, and EPUB**.
+
+#### 7. Monetization Tier System
+* **Free Tier:** Access to the basic editor, standard spellcheck, limited file drive storage, and a restricted number of AI queries per month.
+* **Pro (Paid) Tier:** Unlimited cloud storage, unlimited AI writing assistance, full access to the AI image maker, advanced deep-dive summarization, version history, and priority customer support.
+
+#### UI/UX Guidelines
+* Clean, minimalistic, modern design prioritizing readability (e.g., Notion meets Scrivener).
+* Toggleable Dark Mode and Light Mode.
+* Seamless, intuitive navigation between the manuscript editor, the world-building portfolios, and the media gallery.

@@ -1,0 +1,619 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.1.0
+  description: WriteAI API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: documents
+    description: Document operations
+  - name: world
+    description: World-building entity operations
+  - name: ai
+    description: AI operations
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /documents:
+    get:
+      operationId: listDocuments
+      tags: [documents]
+      summary: List all documents for the current user
+      responses:
+        "200":
+          description: List of documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Document"
+    post:
+      operationId: createDocument
+      tags: [documents]
+      summary: Create a new document
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentInput"
+      responses:
+        "201":
+          description: Created document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+
+  /documents/{id}:
+    get:
+      operationId: getDocument
+      tags: [documents]
+      summary: Get a document by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateDocument
+      tags: [documents]
+      summary: Update a document
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentUpdate"
+      responses:
+        "200":
+          description: Updated document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+    delete:
+      operationId: deleteDocument
+      tags: [documents]
+      summary: Delete a document
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /documents/stats:
+    get:
+      operationId: getDocumentStats
+      tags: [documents]
+      summary: Get document stats for the current user
+      responses:
+        "200":
+          description: Stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentStats"
+
+  /documents/{id}/versions:
+    get:
+      operationId: listDocumentVersions
+      tags: [documents]
+      summary: List version history for a document
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of versions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DocumentVersion"
+    post:
+      operationId: createDocumentVersion
+      tags: [documents]
+      summary: Save a named version snapshot
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentVersionInput"
+      responses:
+        "201":
+          description: Created version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentVersion"
+
+  /world/{documentId}/entities:
+    get:
+      operationId: listWorldEntities
+      tags: [world]
+      summary: List world-building entities for a document
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [character, place, item]
+      responses:
+        "200":
+          description: List of entities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorldEntity"
+    post:
+      operationId: createWorldEntity
+      tags: [world]
+      summary: Create a world-building entity
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorldEntityInput"
+      responses:
+        "201":
+          description: Created entity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorldEntity"
+
+  /world/{documentId}/entities/{entityId}:
+    patch:
+      operationId: updateWorldEntity
+      tags: [world]
+      summary: Update a world-building entity
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: entityId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorldEntityUpdate"
+      responses:
+        "200":
+          description: Updated entity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorldEntity"
+    delete:
+      operationId: deleteWorldEntity
+      tags: [world]
+      summary: Delete a world-building entity
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: entityId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /ai/suggest:
+    post:
+      operationId: aiSuggest
+      tags: [ai]
+      summary: Get AI writing suggestions for selected text
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiSuggestInput"
+      responses:
+        "200":
+          description: AI suggestions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiSuggestResult"
+
+  /ai/grammar:
+    post:
+      operationId: aiGrammarCheck
+      tags: [ai]
+      summary: Check grammar and spelling for text
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiGrammarInput"
+      responses:
+        "200":
+          description: Grammar check results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiGrammarResult"
+
+  /ai/image:
+    post:
+      operationId: aiGenerateImage
+      tags: [ai]
+      summary: Generate an image from a prompt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiImageInput"
+      responses:
+        "200":
+          description: Generated image
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiImageResult"
+
+  /ai/summarize:
+    post:
+      operationId: aiSummarize
+      tags: [ai]
+      summary: Summarize a manuscript or chapter
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiSummarizeInput"
+      responses:
+        "200":
+          description: Summary result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiSummarizeResult"
+
+  /ai/prologue:
+    post:
+      operationId: aiGeneratePrologue
+      tags: [ai]
+      summary: Generate a prologue based on manuscript content
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiPrologueInput"
+      responses:
+        "200":
+          description: Prologue result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiPrologueResult"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    Document:
+      type: object
+      required: [id, title, content, userId, createdAt, updatedAt, wordCount]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+        userId:
+          type: string
+        wordCount:
+          type: integer
+        goalWordCount:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    DocumentInput:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+        content:
+          type: string
+
+    DocumentUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        content:
+          type: string
+        goalWordCount:
+          type: ["integer", "null"]
+
+    DocumentStats:
+      type: object
+      required: [totalDocuments, totalWords, recentDocuments]
+      properties:
+        totalDocuments:
+          type: integer
+        totalWords:
+          type: integer
+        recentDocuments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Document"
+
+    DocumentVersion:
+      type: object
+      required: [id, documentId, title, content, wordCount, createdAt]
+      properties:
+        id:
+          type: integer
+        documentId:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+        wordCount:
+          type: integer
+        label:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    DocumentVersionInput:
+      type: object
+      required: [title, content, wordCount]
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        wordCount:
+          type: integer
+        label:
+          type: ["string", "null"]
+
+    WorldEntity:
+      type: object
+      required: [id, documentId, userId, type, name, fields, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        documentId:
+          type: integer
+        userId:
+          type: string
+        type:
+          type: string
+          enum: [character, place, item]
+        name:
+          type: string
+        fields:
+          type: object
+          additionalProperties: true
+        imageUrl:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    WorldEntityInput:
+      type: object
+      required: [type, name]
+      properties:
+        type:
+          type: string
+          enum: [character, place, item]
+        name:
+          type: string
+        fields:
+          type: object
+          additionalProperties: true
+        imageUrl:
+          type: ["string", "null"]
+
+    WorldEntityUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        fields:
+          type: object
+          additionalProperties: true
+        imageUrl:
+          type: ["string", "null"]
+
+    AiSuggestInput:
+      type: object
+      required: [text, type]
+      properties:
+        text:
+          type: string
+        type:
+          type: string
+          enum: [improve, expand, shorten, rephrase, continue]
+        context:
+          type: ["string", "null"]
+
+    AiSuggestResult:
+      type: object
+      required: [suggestion]
+      properties:
+        suggestion:
+          type: string
+
+    AiGrammarInput:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+
+    GrammarError:
+      type: object
+      required: [message, offset, length, type]
+      properties:
+        message:
+          type: string
+        offset:
+          type: integer
+        length:
+          type: integer
+        type:
+          type: string
+          enum: [grammar, spelling, style]
+        suggestion:
+          type: ["string", "null"]
+
+    AiGrammarResult:
+      type: object
+      required: [errors, correctedText]
+      properties:
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/GrammarError"
+        correctedText:
+          type: string
+
+    AiImageInput:
+      type: object
+      required: [prompt]
+      properties:
+        prompt:
+          type: string
+        size:
+          type: string
+          enum: ["1024x1024", "1536x1024", "1024x1536"]
+
+    AiImageResult:
+      type: object
+      required: [b64_json]
+      properties:
+        b64_json:
+          type: string
+
+    AiSummarizeInput:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+        title:
+          type: ["string", "null"]
+
+    AiSummarizeResult:
+      type: object
+      required: [summary]
+      properties:
+        summary:
+          type: string
+
+    AiPrologueInput:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+        title:
+          type: ["string", "null"]
+
+    AiPrologueResult:
+      type: object
+      required: [prologue]
+      properties:
+        prologue:
+          type: string
