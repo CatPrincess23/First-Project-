@@ -68,7 +68,7 @@ Both servers must run in the background (use `nohup ... &` or `run_in_background
 
 ## Debugging save failures
 
-- **`guest-id.ts` monkey-patches `window.fetch`.** When adding headers, use `Headers.forEach()` to copy existing headers into a plain object — do NOT spread a `Headers` instance (`...headers`), as this silently drops all headers in some runtimes, including `Content-Type`. Without `Content-Type: application/json`, Express won't parse the JSON body and the save returns 400.
+- **`guest-id.ts` monkey-patches `window.fetch`.** It always constructs a `Request` object and appends `x-guest-id` via `req.headers.append()` — do NOT manually build a `headers` plain object, as that can suppress auto-set `Content-Type` (both `application/json` and `multipart/form-data`). Without the correct Content-Type, Express won't parse the body and returns 400.
 - **Check API server logs for `content-type` and body.** A save returning 400 with `content-type: text/plain` and `body: undefined` means the JSON body was lost — the `guest-id.ts` header patch is the likely culprit.
 - **The OpenAPI `DocumentUpdate` schema** must not have `minLength: 1` on `title` (only `DocumentInput` for creation needs it). Otherwise an empty title string `""` fails Zod validation and blocks the entire save including content.
 - **After editing `openapi.yaml`**, run `pnpm --filter @workspace/api-spec run codegen` to regenerate Zod schemas and API client, then rebuild the API server (`pnpm --filter @workspace/api-server run build`).
@@ -90,5 +90,7 @@ Both servers must run in the background (use `nohup ... &` or `run_in_background
 | Frontend pages | `Writer-Assistant/artifacts/writer/src/pages/` |
 | UI components | `Writer-Assistant/artifacts/writer/src/components/ui/` |
 | AI integration | `Writer-Assistant/artifacts/api-server/src/routes/ai.ts` |
+| Image upload route | `Writer-Assistant/artifacts/api-server/src/routes/upload.ts` |
 | Auth setup | `Writer-Assistant/artifacts/api-server/src/app.ts` |
 | Vite config (proxy) | `Writer-Assistant/artifacts/writer/vite.config.ts` |
+| Error handling (multer) | `Writer-Assistant/artifacts/api-server/src/app.ts` (bottom of file) |
