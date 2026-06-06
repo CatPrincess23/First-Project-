@@ -1,0 +1,59 @@
+{
+  "name": "Hackathon Dev Environment",
+  "build": {
+    "dockerfile": "Dockerfile.local"
+  },
+  "postCreateCommand": "for d in ~/.vscode-remote/data/Machine ~/.vscode-server/data/Machine; do mkdir -p \"$d\" && for f in /usr/local/share/hackathon-template/*; do [ -e \"$f\" ] || continue; [ -f \"$d/$(basename \"$f\")\" ] || cp \"$f\" \"$d/\"; done; done",
+  "postStartCommand": "for d in ~/.vscode-remote/data/Machine ~/.vscode-server/data/Machine; do mkdir -p \"$d\" && for f in /usr/local/share/hackathon-template/*; do [ -e \"$f\" ] || continue; [ -f \"$d/$(basename \"$f\")\" ] || cp \"$f\" \"$d/\"; done; done",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "sst-dev.opencode",
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "bradlc.vscode-tailwindcss",
+        "yzhang.markdown-all-in-one",
+        "mikestead.dotenv"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "github.copilot.enable": {
+          "*": false
+        },
+        "github.copilot.editor.enableAutoCompletions": false,
+        "chat.commandCenter.enabled": false
+      }
+    }
+  },
+  "forwardPorts": [
+    3000,
+    5173,
+    8000,
+    8080
+  ],
+  "portsAttributes": {
+    "3000": {
+      "label": "Frontend",
+      "onAutoForward": "notify"
+    },
+    "5173": {
+      "label": "Vite",
+      "onAutoForward": "notify"
+    },
+    "8000": {
+      "label": "Backend Python",
+      "onAutoForward": "notify"
+    },
+    "8080": {
+      "label": "Backend Go/Node",
+      "onAutoForward": "notify"
+    }
+  },
+  "hostRequirements": {
+    "cpus": 2,
+    "memory": "4gb",
+    "storage": "32gb"
+  }
+}

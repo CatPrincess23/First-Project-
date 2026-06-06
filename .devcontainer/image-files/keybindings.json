@@ -1,0 +1,6 @@
+[
+  {
+    "key": "alt+o",
+    "command": "opencode.openTerminal"
+  }
+]

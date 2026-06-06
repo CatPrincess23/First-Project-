@@ -1,0 +1,18 @@
+# syntax=docker/dockerfile:1.7
+#
+# Thin wrapper around the published prebuilt image to pin linux/amd64.
+# Used by devcontainer.json's `build:` stanza.
+#
+# Why a wrapper and not just `runArgs: --platform=...`:
+# at the time of writing, Dev Containers layers `features` via
+# `docker buildx build` BEFORE runArgs takes effect, so the platform must
+# be pinned at build time, not just at container start.
+#
+# On Apple Silicon Macs this runs under Rosetta 2 — adequate for a dev env.
+# On amd64 hosts (Codespaces, x64 Linux/Windows) there's no emulation
+# overhead — buildx resolves the amd64 manifest as it would have anyway.
+#
+# Image contents live in the sibling `Dockerfile`, which CI publishes to
+# GHCR. Do not add tools / apt installs / npm globals here — edit the
+# sibling Dockerfile instead so all attendees get them.
+FROM --platform=linux/amd64 ghcr.io/zainrizvi/hackathon-template-env:latest
