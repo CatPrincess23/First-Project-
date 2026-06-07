@@ -60,60 +60,113 @@ router.post("/suggest", async (req, res) => {
 });
 
 function classifyError(orig: string, corr: string): "spelling" | "grammar" | "style" {
-  // Single word, different spelling → spelling
-  if (!orig.includes(" ") && !corr.includes(" ")) return "spelling";
-  // Adding/removing contraction apostrophe → spelling
-  if (orig.replace(/['']/g, "") === corr.replace(/['']/g, "")) return "spelling";
+  const o = orig.trim(), c = corr.trim();
+  if (!o && !c) return "grammar";
+  if (o === c) return "grammar";
+  if (o.toLowerCase() === c.toLowerCase() && o !== c) return "spelling";
+  if (o.replace(/['']/g, "") === c.replace(/['']/g, "")) return "spelling";
+  if (!o.includes(" ") && !c.includes(" ")) {
+    const dist = levenshtein(o, c);
+    if (dist <= 2) return "spelling";
+    return "grammar";
+  }
+  if (o.includes(" ") || c.includes(" ")) return "style";
   return "grammar";
 }
 
+function levenshtein(a: string, b: string): number {
+  const m = a.length, n = b.length;
+  let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  let curr = new Array(n + 1);
+  for (let i = 1; i <= m; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= n; j++) {
+      curr[j] = a[i - 1] === b[j - 1]
+        ? prev[j - 1]
+        : 1 + Math.min(prev[j], curr[j - 1], prev[j - 1]);
+    }
+    [prev, curr] = [curr, prev];
+  }
+  return prev[n];
+}
+
 function wordDiff(original: string, corrected: string) {
-  const tokenRe = /\S+|\s+/g;
-  const ot: { text: string; offset: number }[] = [];
+  // Tokenize into words (no whitespace tokens), tracking character offsets
+  const oWords: { text: string; offset: number }[] = [];
+  const wordRe = /\S+/g;
   let m: RegExpExecArray | null;
-  while ((m = tokenRe.exec(original)) !== null) ot.push({ text: m[0], offset: m.index });
-  const ct = [...corrected.matchAll(tokenRe)].map(x => x[0]);
+  while ((m = wordRe.exec(original)) !== null) {
+    oWords.push({ text: m[0], offset: m.index });
+  }
+  const cWords = [...corrected.matchAll(wordRe)].map(x => x[0]);
 
+  const n = oWords.length, cl = cWords.length;
+
+  // Longest Common Subsequence DP
+  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array(cl + 1).fill(0));
+  for (let i = 1; i <= n; i++) {
+    for (let j = 1; j <= cl; j++) {
+      if (oWords[i - 1].text === cWords[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+  }
+
+  // Backtrack to find edit operations
+  const ops: { op: "match" | "del" | "ins"; oi: number; ci: number }[] = [];
+  let i = n, j = cl;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oWords[i - 1].text === cWords[j - 1]) {
+      ops.push({ op: "match", oi: i - 1, ci: j - 1 });
+      i--; j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      ops.push({ op: "ins", oi: -1, ci: j - 1 });
+      j--;
+    } else {
+      ops.push({ op: "del", oi: i - 1, ci: -1 });
+      i--;
+    }
+  }
+  ops.reverse();
+
+  // Group consecutive non-match ops into error blocks
   const errors: { message: string; suggestion: string; offset: number; length: number; type: string }[] = [];
-  let oi = 0, ci = 0;
+  let k = 0;
+  while (k < ops.length) {
+    if (ops[k].op === "match") { k++; continue; }
 
-  while (oi < ot.length || ci < ct.length) {
-    // Skip matching tokens
-    while (oi < ot.length && ci < ct.length && ot[oi].text === ct[ci]) { oi++; ci++; }
+    const origWords: string[] = [];
+    const corrWords: string[] = [];
+    let blockStart = original.length;
+    let blockEnd = 0;
 
-    if (oi >= ot.length && ci >= ct.length) break;
-    if (oi >= ot.length) break; // insertion only (shouldn't happen with corrections)
-    if (ci >= ct.length) break; // deletion only (shouldn't happen)
-
-    // Found a difference — collect the error span in original
-    const errStart = ot[oi].offset;
-    let errEnd = ot[oi].offset + ot[oi].text.length;
-    const origWords: string[] = [ot[oi].text];
-    const corrWords: string[] = [ct[ci]];
-    oi++; ci++;
-
-    // Try to find next matching token to bound the error
-    while (oi < ot.length && ci < ct.length && ot[oi].text !== ct[ci]) {
-      errEnd = ot[oi].offset + ot[oi].text.length;
-      origWords.push(ot[oi].text);
-      corrWords.push(ct[ci]);
-      oi++; ci++;
+    while (k < ops.length && ops[k].op !== "match") {
+      if (ops[k].oi >= 0) {
+        const w = oWords[ops[k].oi];
+        blockStart = Math.min(blockStart, w.offset);
+        blockEnd = Math.max(blockEnd, w.offset + w.text.length);
+        origWords.push(w.text);
+      }
+      if (ops[k].ci >= 0) {
+        corrWords.push(cWords[ops[k].ci]);
+      }
+      k++;
     }
 
-    const origStr = origWords.join("").replace(/\s+/g, " ").trim();
-    const corrStr = corrWords.join("").replace(/\s+/g, " ").trim();
-    const errText = original.slice(errStart, errEnd);
-    const errorLen = errText.length;
+    if (origWords.length === 0) continue;
 
-    if (origStr && corrStr) {
-      errors.push({
-        message: `${origStr} → ${corrStr}`,
-        suggestion: corrStr,
-        offset: errStart,
-        length: errorLen,
-        type: classifyError(origStr, corrStr),
-      });
-    }
+    const errSpan = original.slice(blockStart, blockEnd);
+    const corrStr = corrWords.join(" ");
+
+    errors.push({
+      message: `${origWords.join(" ")} → ${corrStr}`,
+      suggestion: corrStr,
+      offset: blockStart,
+      length: blockEnd - blockStart,
+      type: classifyError(errSpan, corrStr),
+    });
   }
 
   return errors;
@@ -129,16 +182,28 @@ router.post("/grammar", async (req, res) => {
   // Get corrected text from AI
   const fixCompletion = await getClient().chat.completions.create({
     model: MODEL,
-    temperature: 0,
+    temperature: 0.1,
     messages: [
-      { role: "system", content: "You are a proofreader. Fix ALL spelling, grammar, punctuation, and word choice errors in the text. Return ONLY the corrected text — no explanations, no JSON, no markdown." },
+      {
+        role: "system",
+        content: `You are an expert professional proofreader and copy editor. Your task is to carefully review text and fix EVERY error you find — be thorough and precise. Fix ALL of the following:
+
+1. **Spelling**: Typos, misspelled words, incorrect homophones (their/there/they're, your/you're, its/it's, to/too/two, etc.)
+2. **Grammar**: Subject-verb agreement, verb tense consistency, pronoun agreement, article usage (a/an/the), pluralization, comparatives
+3. **Punctuation**: Missing or incorrect commas, periods, apostrophes, quotation marks, semicolons, colons, dashes, hyphens
+4. **Capitalization**: Sentence starts, proper nouns, titles
+5. **Word choice**: Awkward phrasing, incorrect word usage, redundancies, clunky constructions
+6. **Sentence structure**: Run-on sentences, fragments, awkward constructions
+
+Return ONLY the corrected text with all errors fixed. Do NOT add any explanations, commentary, JSON formatting, or markdown. If there are no errors at all, return the text exactly as provided.`,
+      },
       { role: "user", content: text },
     ],
     max_tokens: 2000,
   });
-  const corrected = fixCompletion.choices[0]?.message?.content?.trim() || text;
+  const corrected = fixCompletion.choices[0]?.message?.content?.trim() || text.trim();
 
-  if (corrected === text) return res.json({ errors: [], correctedText: text });
+  if (corrected === text.trim()) return res.json({ errors: [], correctedText: text });
 
   const errors = wordDiff(text, corrected);
   res.json({ errors, correctedText: corrected });

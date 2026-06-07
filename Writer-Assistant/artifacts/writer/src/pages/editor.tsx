@@ -276,6 +276,31 @@ export default function Editor({ params }: { params: { id: string } }) {
     setGrammarErrors([]); setCorrectedText("");
   };
 
+  const handleApplySingleError = (index: number) => {
+    const err = grammarErrors[index];
+    if (!err) return;
+    const before = content.slice(0, err.offset);
+    const after = content.slice(err.offset + err.length);
+    const suggestion = err.suggestion || "";
+    const newContent = before + suggestion + after;
+    setContent(newContent);
+
+    const delta = suggestion.length - err.length;
+    const newErrors = grammarErrors
+      .filter((_, i) => i !== index)
+      .map(e => {
+        if (e.offset > err.offset) return { ...e, offset: e.offset + delta };
+        return e;
+      });
+
+    if (newErrors.length === 0) {
+      setGrammarErrors([]);
+      setCorrectedText("");
+    } else {
+      setGrammarErrors(newErrors);
+    }
+  };
+
   const scrollToError = useCallback((offset: number, length: number) => {
     const ta = contentRef.current;
     if (!ta) return;
@@ -563,17 +588,31 @@ export default function Editor({ params }: { params: { id: string } }) {
                 </div>
                 {grammarErrors.length > 0 && (
                   <div className="space-y-3">
-                    <p className="text-xs font-medium text-muted-foreground">{grammarErrors.length} issues found</p>
+                    <p className="text-xs font-medium text-muted-foreground">{grammarErrors.length} issue{grammarErrors.length !== 1 ? "s" : ""} found</p>
                     {grammarErrors.map((err, i) => (
-                      <div key={i} className="p-3 bg-secondary/50 rounded-lg text-xs space-y-1.5 cursor-pointer hover:bg-secondary/80 transition-colors" onClick={() => scrollToError(err.offset, err.length)}>
+                      <div key={i} className="p-3 bg-secondary/50 rounded-lg text-xs space-y-2 cursor-pointer hover:bg-secondary/80 transition-colors" onClick={() => scrollToError(err.offset, err.length)}>
                         <div className="flex items-start justify-between gap-2">
-                          <span className="font-medium">{err.message}</span>
-                          <Badge variant="outline" className="capitalize text-[10px] py-0 shrink-0">{err.type}</Badge>
+                          <Badge variant="outline" className={`
+                            capitalize text-[10px] py-0 shrink-0
+                            ${err.type === "spelling" ? "border-red-500 text-red-600 bg-red-50 dark:bg-red-950/30" : ""}
+                            ${err.type === "grammar" ? "border-amber-500 text-amber-600 bg-amber-50 dark:bg-amber-950/30" : ""}
+                            ${err.type === "style" ? "border-blue-500 text-blue-600 bg-blue-50 dark:bg-blue-950/30" : ""}
+                          `}>{err.type}</Badge>
                         </div>
-                        {err.suggestion && <div className="text-muted-foreground bg-background p-1.5 rounded border">→ <span className="font-medium text-foreground">{err.suggestion}</span></div>}
+                        <div className="space-y-1">
+                          <div className="text-muted-foreground line-through bg-background/70 p-1.5 rounded border border-dashed">{content.slice(err.offset, err.offset + err.length)}</div>
+                          {err.suggestion && (
+                            <div
+                              className="bg-green-50 dark:bg-green-950/30 p-1.5 rounded border border-green-200 dark:border-green-800 cursor-pointer hover:bg-green-100 dark:hover:bg-green-950/50 transition-colors"
+                              onClick={(e) => { e.stopPropagation(); handleApplySingleError(i); }}
+                            >
+                              <span className="font-medium text-green-700 dark:text-green-400">{err.suggestion}</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     ))}
-                    {correctedText && <Button onClick={handleApplyGrammar} variant="secondary" className="w-full" size="sm">Apply All Corrections</Button>}
+                    {correctedText && <Button onClick={handleApplyGrammar} className="w-full gap-1.5" size="sm">Apply All {grammarErrors.length} Correction{grammarErrors.length !== 1 ? "s" : ""}</Button>}
                   </div>
                 )}
                 {correctedText && grammarErrors.length === 0 && <p className="text-sm text-muted-foreground text-center py-6">✓ No issues found</p>}
