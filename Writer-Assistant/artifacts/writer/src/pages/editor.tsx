@@ -602,7 +602,10 @@ export default function Editor({ params }: { params: { id: string } }) {
                           `}>{err.type}</Badge>
                         </div>
                         <div className="space-y-1">
-                          <div className="text-muted-foreground line-through bg-background/70 p-1.5 rounded border border-dashed">{content.slice(err.offset, err.offset + err.length)}</div>
+                          <div
+                            className="text-muted-foreground line-through bg-background/70 p-1.5 rounded border border-dashed cursor-pointer hover:bg-muted/50 transition-colors"
+                            onClick={(e) => { e.stopPropagation(); scrollToError(err.offset, err.length); }}
+                          >{content.slice(err.offset, err.offset + err.length)}</div>
                           {err.suggestion && (
                             <div
                               className="bg-green-50 dark:bg-green-950/30 p-1.5 rounded border border-green-200 dark:border-green-800 cursor-pointer hover:bg-green-100 dark:hover:bg-green-950/50 transition-colors"
