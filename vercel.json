@@ -1,0 +1,15 @@
+{
+  "buildCommand": "cd Writer-Assistant && bash build-vercel.sh",
+  "outputDirectory": "Writer-Assistant/artifacts/writer/dist/public",
+  "installCommand": "cd Writer-Assistant && pnpm install --frozen-lockfile",
+  "functions": {
+    "Writer-Assistant/api/index.js": {
+      "memory": 512,
+      "maxDuration": 120
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
