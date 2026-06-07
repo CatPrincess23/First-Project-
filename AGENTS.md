@@ -25,15 +25,11 @@ Guidance for AI coding assistants (Claude Code, opencode, Copilot, Cursor, etc.)
 All commands run from `Writer-Assistant/`:
 
 ```bash
-# Start PostgreSQL (local instance on port 5433)
-/usr/lib/postgresql/16/bin/pg_ctl -D /home/vscode/pgdata -o "-p 5433 -k /home/vscode/pgdata" -l /home/vscode/pgdata/pg.log start
+# Push DB schema to Neon (remote PostgreSQL)
+pnpm --filter @workspace/db run push
 
-# Push DB schema
-cd Writer-Assistant
-DATABASE_URL="postgresql://localhost:5433/writer_assistant" pnpm --filter @workspace/db run push
-
-# API server (requires OPENROUTER_API_KEY)
-PORT=5000 NODE_ENV=development DATABASE_URL="postgresql://localhost:5433/writer_assistant" \
+# API server (requires DATABASE_URL and OPENROUTER_API_KEY)
+PORT=5000 NODE_ENV=development \
   OPENROUTER_API_KEY="<key>" pnpm --filter @workspace/api-server run dev
 
 # Frontend dev server
@@ -41,6 +37,19 @@ PORT=8080 BASE_PATH=/ pnpm --filter @workspace/writer run dev
 
 # Typecheck everything
 pnpm run typecheck
+```
+
+### Database
+
+The app uses **Neon (remote PostgreSQL)**. The connection string is stored in `Writer-Assistant/.env` (gitignored). The app does **not** auto-load `.env` files — you must pass `DATABASE_URL` in the command or export it:
+
+```bash
+export DATABASE_URL=$(grep DATABASE_URL Writer-Assistant/.env | cut -d= -f2-)
+```
+
+Or inline:
+```bash
+DATABASE_URL="postgresql://..." pnpm --filter @workspace/api-server run dev
 ```
 
 Both servers must run in the background (use `nohup ... &` or `run_in_background: true`).
@@ -63,7 +72,8 @@ Both servers must run in the background (use `nohup ... &` or `run_in_background
 - **Editor auto-save** happens on three triggers: 800ms debounce after typing stops, Ctrl+S/Cmd+S, and every 60 seconds via interval.
 - **TypeScript is strict.** Run `pnpm run typecheck` after changes. The build step typechecks before bundling.
 - **Generated code lives in `lib/*/src/generated/`.** Don't hand-edit API client or Zod schema files — regenerate them via the codegen script.
-- **Don't commit `.env` files or secrets.** The `.gitignore` covers standard patterns. Double-check before staging.
+- **Don't commit `.env` files or secrets.** The `.gitignore` covers standard patterns. Double-check before staging. The `Writer-Assistant/.env` file holds `DATABASE_URL` with the Neon connection string.
+- **The app does not auto-load `.env`.** No dotenv dependency. Pass `DATABASE_URL` inline or export it before running commands.
 - **Don't commit `node_modules`, `dist`, or `*.tsbuildinfo`.** Already covered by `.gitignore`.
 
 ## Debugging save failures
