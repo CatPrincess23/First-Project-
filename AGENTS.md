@@ -30,7 +30,12 @@ pnpm --filter @workspace/db run push
 
 # API server (requires DATABASE_URL and OPENROUTER_API_KEY)
 PORT=5000 NODE_ENV=development \
+  DATABASE_URL="postgresql://..." \
   OPENROUTER_API_KEY="<key>" pnpm --filter @workspace/api-server run dev
+
+# Or load both from .env:
+export $(grep -v '^#' Writer-Assistant/.env | xargs) && \
+  PORT=5000 NODE_ENV=development pnpm --filter @workspace/api-server run dev
 
 # Frontend dev server
 PORT=8080 BASE_PATH=/ pnpm --filter @workspace/writer run dev
@@ -54,7 +59,7 @@ DATABASE_URL="postgresql://..." pnpm --filter @workspace/api-server run dev
 
 For convenience, you can export both env vars from `.env`:
 ```bash
-export $(grep -v '^#' Writer-Assistant/.env | xargs) && pnpm --filter @workspace/api-server run dev
+export $(grep -v '^#' Writer-Assistant/.env | xargs) && PORT=5000 NODE_ENV=development pnpm --filter @workspace/api-server run dev
 ```
 
 Both servers must run in the background (use `nohup ... &` or `run_in_background: true`).
