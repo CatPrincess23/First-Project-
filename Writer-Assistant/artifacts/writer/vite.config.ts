@@ -83,6 +83,10 @@ export default defineConfig({
         target: "http://localhost:5000",
         changeOrigin: true,
       },
+      "/api/conversations": {
+        target: "http://localhost:5000",
+        changeOrigin: true,
+      },
       "/api/healthz": {
         target: "http://localhost:5000",
         changeOrigin: true,

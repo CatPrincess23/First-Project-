@@ -4,7 +4,7 @@ Guidance for AI coding assistants (Claude Code, opencode, Copilot, Cursor, etc.)
 
 ## What this repo is
 
-**WriteAI** — an AI-powered writing assistant web app. Users can create documents, write with AI assistance (grammar checking, rewriting, summarization, prologue generation), build fictional worlds with character/place/item profiles, track word count goals, save version snapshots, and export to PDF/DOCX.
+**WriteAI** — an AI-powered writing assistant web app. Users can create documents, write with AI assistance (grammar checking, rewriting, summarization, prologue generation, persistent chat conversations), build fictional worlds with character/place/item profiles, track word count goals, save version snapshots, and export to PDF/DOCX.
 
 ## Repo layout
 
@@ -52,6 +52,11 @@ Or inline:
 DATABASE_URL="postgresql://..." pnpm --filter @workspace/api-server run dev
 ```
 
+For convenience, you can export both env vars from `.env`:
+```bash
+export $(grep -v '^#' Writer-Assistant/.env | xargs) && pnpm --filter @workspace/api-server run dev
+```
+
 Both servers must run in the background (use `nohup ... &` or `run_in_background: true`).
 
 ## Stack
@@ -81,6 +86,7 @@ Both servers must run in the background (use `nohup ... &` or `run_in_background
 - **`guest-id.ts` monkey-patches `window.fetch`.** It always constructs a `Request` object and appends `x-guest-id` via `req.headers.append()` — do NOT manually build a `headers` plain object, as that can suppress auto-set `Content-Type` (both `application/json` and `multipart/form-data`). Without the correct Content-Type, Express won't parse the body and returns 400.
 - **Check API server logs for `content-type` and body.** A save returning 400 with `content-type: text/plain` and `body: undefined` means the JSON body was lost — the `guest-id.ts` header patch is the likely culprit.
 - **The OpenAPI `DocumentUpdate` schema** must not have `minLength: 1` on `title` (only `DocumentInput` for creation needs it). Otherwise an empty title string `""` fails Zod validation and blocks the entire save including content.
+- **AI chat conversations are persisted to the database.** The `POST /api/ai/chat` endpoint accepts an optional `conversationId`. When provided, user and assistant messages are saved to the `messages` table and the conversation title is auto-generated from the first user message. The frontend chat panel in `editor.tsx` includes a conversation selector, new/delete buttons, and loads message history when switching conversations.
 - **After editing `openapi.yaml`**, run `pnpm --filter @workspace/api-spec run codegen` to regenerate Zod schemas and API client, then rebuild the API server (`pnpm --filter @workspace/api-server run build`).
 - **Typecheck conflicts in generated code** (e.g. duplicate `ListWorldEntitiesParams`) may require trimming `api-zod/src/index.ts` — remove `export * from "./generated/types"` if it collides with `api.ts` exports.
 
@@ -89,12 +95,15 @@ Both servers must run in the background (use `nohup ... &` or `run_in_background
 - **Long-running processes must run in the background.** Use `nohup ... &` or `run_in_background: true`. Verify with `curl localhost:PORT/api/healthz`.
 - **Stop background processes you started before declaring a task complete**, unless the user explicitly wants them left running.
 - **API server needs a rebuild after source changes.** Run `pnpm --filter @workspace/api-server run build` before restarting.
+- **Vite proxy config must list every API path prefix.** The `server.proxy` block in `artifacts/writer/vite.config.ts` only forwards requests matching listed prefixes (e.g. `/api/documents`, `/api/conversations`). Adding a new API route without adding its prefix to the proxy will cause silent failures (browser gets HTML instead of JSON).
 
 ## Where things live
 
 | What | Where |
 |------|-------|
 | DB schema | `Writer-Assistant/lib/db/src/schema/documents.ts` |
+| DB schema (conversations) | `Writer-Assistant/lib/db/src/schema/conversations.ts` |
+| DB schema (messages) | `Writer-Assistant/lib/db/src/schema/messages.ts` |
 | API routes | `Writer-Assistant/artifacts/api-server/src/routes/` |
 | API spec | `Writer-Assistant/lib/api-spec/openapi.yaml` |
 | Frontend pages | `Writer-Assistant/artifacts/writer/src/pages/` |

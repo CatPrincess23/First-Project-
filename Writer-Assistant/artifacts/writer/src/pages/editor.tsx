@@ -310,8 +310,8 @@ export default function Editor({ params }: { params: { id: string } }) {
       try {
         const conv = await createConversation();
         convId = conv.id;
-      } catch {
-        toast({ title: "Failed to start conversation", variant: "destructive" });
+      } catch (e) {
+        toast({ title: `Failed to start conversation: ${e instanceof Error ? e.message : "Unknown error"}`, variant: "destructive" });
         return;
       }
     }
