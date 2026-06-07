@@ -18,6 +18,7 @@ import {
   LayoutDashboard, Sparkles, BookOpen, Image as ImageIcon, History,
   CheckCircle, Wand2, Crown, User, ChevronRight,
 } from "lucide-react";
+import { useAuth, RedirectToSignIn, UserButton } from "@clerk/react";
 
 type View = "documents" | "world" | "ai-features" | "stats";
 
@@ -47,6 +48,11 @@ export default function Documents() {
   const { theme, toggleTheme } = useTheme();
   const [activeView, setActiveView] = useState<View>("documents");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  const { isSignedIn, isLoaded } = useAuth();
+  const clerkEnabled = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+  if (clerkEnabled && !isLoaded) return <div className="min-h-screen flex items-center justify-center bg-background"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
+  if (clerkEnabled && !isSignedIn) return <RedirectToSignIn />;
 
   const { data: documents, isLoading: isLoadingDocs, isError: isDocsError } = useListDocuments({ query: { queryKey: getListDocumentsQueryKey() } });
   const { data: stats, isLoading: isLoadingStats } = useGetDocumentStats({ query: { queryKey: getGetDocumentStatsQueryKey() } });
@@ -137,6 +143,11 @@ export default function Documents() {
               <Crown className="w-3.5 h-3.5 shrink-0" />
               <span className="font-medium">Upgrade to Pro</span>
             </button>
+          )}
+          {clerkEnabled && (
+            <div className="flex justify-center mb-2">
+              <UserButton />
+            </div>
           )}
           <div className={`flex items-center ${sidebarCollapsed ? "flex-col gap-2" : "justify-between"}`}>
             <Button variant="ghost" size="icon" onClick={toggleTheme} className="text-muted-foreground h-8 w-8">

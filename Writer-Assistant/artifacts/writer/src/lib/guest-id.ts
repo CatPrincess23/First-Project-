@@ -16,6 +16,17 @@ export function setupGuestId() {
 
     const req = args[0] instanceof Request ? new Request(args[0]) : new Request(args[0], args[1]);
     req.headers.append("x-guest-id", guestId);
+
+    try {
+      const clerk = (window as any).Clerk;
+      if (clerk?.session) {
+        const token = await clerk.session.getToken();
+        if (token) req.headers.set("Authorization", `Bearer ${token}`);
+      }
+    } catch {
+      // Clerk not available
+    }
+
     return originalFetch(req);
   };
 }

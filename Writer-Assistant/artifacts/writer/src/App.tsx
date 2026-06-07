@@ -11,12 +11,14 @@ import Documents from "@/pages/documents";
 import Editor from "@/pages/editor";
 import WorldBuilding from "@/pages/world";
 import { useCreateDocument, getListDocumentsQueryKey } from "@workspace/api-client-react";
+import { SignIn, SignUp } from "@clerk/react";
 
 setupGuestId();
 
 const queryClient = new QueryClient();
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+const hasClerkKey = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
 function HomeRedirect() {
   const [, setLocation] = useLocation();
@@ -37,6 +39,29 @@ function EditorNewRedirect() {
 }
 
 function Router() {
+  if (hasClerkKey) {
+    return (
+      <Switch>
+        <Route path="/sign-in/*">
+          <div className="min-h-screen flex items-center justify-center bg-background">
+            <SignIn routing="path" path="/sign-in" signUpUrl="/sign-up" />
+          </div>
+        </Route>
+        <Route path="/sign-up/*">
+          <div className="min-h-screen flex items-center justify-center bg-background">
+            <SignUp routing="path" path="/sign-up" signInUrl="/sign-in" />
+          </div>
+        </Route>
+        <Route path="/" component={HomeRedirect} />
+        <Route path="/documents" component={Documents} />
+        <Route path="/editor/new" component={EditorNewRedirect} />
+        <Route path="/editor/:id" component={Editor} />
+        <Route path="/world/:id" component={WorldBuilding} />
+        <Route component={NotFound} />
+      </Switch>
+    );
+  }
+
   return (
     <Switch>
       <Route path="/" component={HomeRedirect} />
