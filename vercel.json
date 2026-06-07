@@ -1,7 +1,7 @@
 {
   "buildCommand": "cd Writer-Assistant && bash build-vercel.sh",
   "outputDirectory": "Writer-Assistant/artifacts/writer/dist/public",
-  "installCommand": "cd Writer-Assistant && pnpm install --frozen-lockfile",
+  "installCommand": "cd Writer-Assistant && corepack enable pnpm && pnpm install --no-frozen-lockfile",
   "functions": {
     "Writer-Assistant/api/index.js": {
       "memory": 512,
