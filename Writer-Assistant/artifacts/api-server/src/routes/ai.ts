@@ -29,6 +29,12 @@ function getClient(): OpenAI {
 
 const MODEL = "deepseek/deepseek-v4-flash";
 
+const IMAGE_MODELS = [
+  "openai/gpt-5.4-image-2",
+  "openai/gpt-5-image",
+  "black-forest-labs/flux-schnell",
+];
+
 function checkKey(res: any): boolean {
   if (!OPENROUTER_KEY) {
     res.status(503).json({ error: "AI features unavailable: no OPENROUTER_API_KEY configured" });
@@ -232,7 +238,7 @@ Return ONLY the corrected text with all errors fixed. Do NOT add any explanation
 // POST /api/ai/scan-entities
 router.post("/scan-entities", async (req, res) => {
   if (!checkKey(res)) return;
-  const { type, documentContent } = req.body;
+  const { type, entityName, documentContent } = req.body;
   if (!type || !documentContent) {
     return res.status(400).json({ error: "type and documentContent are required" });
   }
@@ -243,6 +249,48 @@ router.post("/scan-entities", async (req, res) => {
 
   const article = type === "animal" ? "an" : "a";
   const plural = type === "person" ? "people" : type === "animal" ? "animals" : type === "place" ? "places" : "things";
+  const singular = type;
+
+  // If a specific entity name is provided, search for just that entity
+  if (entityName) {
+    const completion = await getClient().chat.completions.create({
+      model: MODEL,
+      temperature: 0.3,
+      messages: [
+        {
+          role: "system",
+          content: `You are ${article} literary analyst. Scan the document below and find the specific ${singular} named "${entityName}". Extract:
+1. Their name (or "Unnamed" if not named)
+2. A detailed visual description based ONLY on what the text says — appearance, personality, role, traits
+3. Key characteristics mentioned
+
+Return the results as JSON ONLY — no other text. Format:
+{
+  "entities": [
+    {
+      "name": "Entity Name",
+      "description": "Detailed visual description based on the text",
+      "details": "Key characteristics, role, personality traits"
+    }
+  ]
+}
+
+If "${entityName}" is not found in the document, return { "entities": [] }.`,
+        },
+        { role: "user", content: documentContent },
+      ],
+      max_tokens: 2000,
+    });
+
+    const raw = completion.choices[0]?.message?.content?.trim() || '{"entities":[]}';
+    try {
+      const parsed = JSON.parse(raw);
+      res.json(parsed);
+    } catch {
+      res.json({ entities: [{ name: entityName, description: raw.slice(0, 500), details: "" }] });
+    }
+    return;
+  }
 
   const completion = await getClient().chat.completions.create({
     model: MODEL,
@@ -268,7 +316,7 @@ Return the results as JSON ONLY — no other text. Format:
 
 If no ${plural} are found, return { "entities": [] }.`,
       },
-      { role: "user", content: documentContent.slice(0, 15000) },
+      { role: "user", content: documentContent },
     ],
     max_tokens: 2000,
   });
@@ -306,7 +354,7 @@ router.post("/image", async (req, res) => {
 
 Return a single detailed image generation prompt (2-3 sentences) describing this ${entityType} visually. Do NOT include any meta text, just the prompt.`,
         },
-        { role: "user", content: `Document content:\n\n${documentContent.slice(0, 12000)}\n\nFocus on the character "${entityName}."` },
+        { role: "user", content: `Document content:\n\n${documentContent}\n\nFocus on the character "${entityName}."` },
       ],
       max_tokens: 500,
     });
@@ -317,37 +365,116 @@ Return a single detailed image generation prompt (2-3 sentences) describing this
     return res.status(400).json({ error: "prompt is required" });
   }
 
+  // Generate image using OpenRouter's images API
+  let imgResult: { b64_json: string; mime: string } | null = null;
+  for (const imgModel of IMAGE_MODELS) {
+    try {
+      const gen = await getClient().images.generate({
+        model: imgModel,
+        prompt: finalPrompt,
+        n: 1,
+        size: "1024x1024",
+        response_format: "b64_json",
+      });
+      const data = gen.data?.[0];
+      if (data?.b64_json) {
+        imgResult = { b64_json: data.b64_json, mime: "image/png" };
+        console.log("[image] Success with", imgModel);
+        break;
+      }
+      if (data?.url) {
+        imgResult = { b64_json: data.url, mime: "image/png" };
+        console.log("[image] Success with", imgModel, "(url)");
+        break;
+      }
+    } catch (imgErr: any) {
+      console.log("[image]", imgModel, "failed:", imgErr.message);
+    }
+  }
+
+  if (imgResult) {
+    return res.json(imgResult);
+  }
+
+  // Fallback: SVG generation via deepseek
   try {
-    const completion = await getClient().chat.completions.create({
-      model: MODEL,
-      temperature: 0.5,
-      messages: [
-        {
-          role: "system",
-          content: `You are an expert SVG illustrator. Generate a beautiful, detailed SVG illustration based on the user's description.
+    function extractSvg(raw: string): string | null {
+      const blockMatch = raw.match(/```(?:svg)?\s*([\s\S]*?)```/i);
+      if (blockMatch) {
+        const svg = blockMatch[1].trim();
+        if (svg.startsWith("<svg")) return svg;
+      }
+      const svgMatch = raw.match(/(<svg[\s\S]*?<\/svg>)/i);
+      if (svgMatch) return svgMatch[1];
+      const idx = raw.indexOf("<svg");
+      if (idx >= 0) {
+        const endIdx = raw.indexOf("</svg>", idx);
+        if (endIdx >= 0) return raw.slice(idx, endIdx + 6);
+      }
+      return null;
+    }
 
-RULES:
-- Return ONLY valid SVG code — NO markdown, NO code fences, NO explanations
-- Use viewBox="0 0 800 600" with responsive width="100%" height="100%"
-- Use modern styling: gradients, shadows, layered elements
-- Include a <defs> section with gradients and filters
-- Make it visually rich with proper colors, composition, and depth
-- Use proper SVG elements (rect, circle, path, ellipse, polygon, text, etc.)
-- Keep the design clean and artistic
-- NO html wrapping, just the <svg> element`,
-        },
-        { role: "user", content: finalPrompt },
-      ],
-      max_tokens: 3000,
-    });
+    let svg: string | null = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const sysMsg = `Create an SVG illustration matching the user's description.
 
-    let svg = completion.choices[0]?.message?.content?.trim() || "";
-    // Strip markdown code fences if present
-    svg = svg.replace(/```svg\s*/gi, "").replace(/```\s*/g, "").trim();
-    if (!svg.startsWith("<svg")) {
+OUTPUT FORMAT: Put the SVG inside \`\`\`svg ... \`\`\` tags.
+- viewBox="0 0 800 600" width="100%" height="100%"
+- Use gradient backgrounds
+- If the user describes a PERSON, draw them with: circle for head, path for body/clothes, lines for arms, circle for sun/moon
+- Add surrounding scene elements (trees, mountains, stars, etc.)
+- Use <defs> with linearGradient for sky and ground
+- Keep it under 50 SVG elements
+- NO text explanations, just the SVG in code blocks
+
+Example structure:
+\`\`\`svg
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#1a1a3e"/><stop offset="100%" stop-color="#2d4a6a"/></linearGradient></defs>
+  <rect width="800" height="600" fill="url(#g)"/>
+  <circle cx="400" cy="300" r="25" fill="#e8c9a0"/>
+  <path d="M375 330 L425 330 L435 420 L365 420 Z" fill="#2a4a7a"/>
+</svg>
+\`\`\``;
+
+        const completion = await getClient().chat.completions.create({
+          model: MODEL,
+          temperature: attempt === 0 ? 0.2 : 0,
+          messages: [
+            { role: "system", content: sysMsg },
+            { role: "user", content: finalPrompt },
+          ],
+          max_tokens: 1500,
+        });
+
+        const raw = completion.choices[0]?.message?.content?.trim() || "";
+        const extracted = extractSvg(raw);
+        if (extracted) { svg = extracted; break; }
+      } catch {
+        // retry
+      }
+    }
+
+    if (!svg) {
+      const fbEsc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
       svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
-  <rect width="800" height="600" fill="#1a1a2e"/>
-  <text x="400" y="300" text-anchor="middle" fill="white" font-family="serif" font-size="24">${finalPrompt.slice(0, 100)}</text>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a1a2e"/>
+      <stop offset="50%" stop-color="#16213e"/>
+      <stop offset="100%" stop-color="#0f3460"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.1)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#sky)"/>
+  <rect width="800" height="600" fill="url(#glow)"/>
+  <circle cx="400" cy="200" r="150" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+  <circle cx="400" cy="200" r="100" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.04)" stroke-width="0.5"/>
+  <text x="400" y="290" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-family="Georgia, serif" font-size="22" font-style="italic">${fbEsc(finalPrompt.slice(0, 80))}</text>
 </svg>`;
     }
 

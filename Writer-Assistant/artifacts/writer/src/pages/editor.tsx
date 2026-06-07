@@ -85,6 +85,7 @@ export default function Editor({ params }: { params: { id: string } }) {
   const [generatedImage, setGeneratedImage] = useState("");
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [entityType, setEntityType] = useState<"person" | "animal" | "place" | "thing" | "">("");
+  const [entityNameInput, setEntityNameInput] = useState("");
   const [scannedEntities, setScannedEntities] = useState<{ name: string; description: string; details: string }[]>([]);
   const [selectedEntity, setSelectedEntity] = useState<{ name: string; description: string; details: string } | null>(null);
   const [isScanningEntities, setIsScanningEntities] = useState(false);
@@ -365,16 +366,23 @@ export default function Editor({ params }: { params: { id: string } }) {
     setScannedEntities([]);
     setSelectedEntity(null);
     try {
+      const body: Record<string, unknown> = { type: entityType, documentContent: content };
+      if (entityNameInput.trim()) {
+        body.entityName = entityNameInput.trim();
+      }
       const res = await fetch("/api/ai/scan-entities", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: entityType, documentContent: content }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error("Scan failed");
       const data = await res.json();
       setScannedEntities(data.entities || []);
       if (!data.entities?.length) {
         toast({ title: `No ${entityType}s found in the document` });
+      } else if (entityNameInput.trim() && data.entities.length === 1) {
+        setSelectedEntity(data.entities[0]);
+        setImagePrompt(data.entities[0].description + ". Fantasy illustration, detailed, artistic.");
       }
     } catch {
       toast({ title: "Entity scan failed", variant: "destructive" });
@@ -607,7 +615,7 @@ export default function Editor({ params }: { params: { id: string } }) {
         </div>
 
         {/* AI Sidebar */}
-        <div className="w-80 border-l bg-card flex flex-col shrink-0 hidden md:flex">
+        <div className="w-80 border-l bg-card flex flex-col shrink-0">
           <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="flex flex-col h-full">
             <div className="px-3 py-2.5 border-b shrink-0">
               <TabsList className="grid w-full grid-cols-6 h-8">
@@ -620,9 +628,9 @@ export default function Editor({ params }: { params: { id: string } }) {
               </TabsList>
             </div>
 
-            <ScrollArea className="flex-1">
+            <div className="flex-1 min-h-0">
               {/* Grammar Panel */}
-              <TabsContent value="grammar" className="p-4 m-0 space-y-4">
+              <TabsContent value="grammar" className="p-4 m-0 space-y-4 h-full overflow-y-auto">
                 <div>
                   <h3 className="font-medium text-sm mb-1">Grammar & Style</h3>
                   <p className="text-xs text-muted-foreground mb-3">Check your writing for errors and improvements.</p>
@@ -668,7 +676,7 @@ export default function Editor({ params }: { params: { id: string } }) {
               </TabsContent>
 
               {/* Suggest Panel */}
-              <TabsContent value="suggest" className="p-4 m-0 space-y-4">
+              <TabsContent value="suggest" className="p-4 m-0 space-y-4 h-full overflow-y-auto">
                 <div>
                   <h3 className="font-medium text-sm mb-3">AI Rewrite</h3>
                   <div className="grid grid-cols-2 gap-2">
@@ -694,7 +702,7 @@ export default function Editor({ params }: { params: { id: string } }) {
               </TabsContent>
 
               {/* AI Tools Panel (Summarize + Prologue) */}
-              <TabsContent value="ai-tools" className="p-4 m-0 space-y-4">
+              <TabsContent value="ai-tools" className="p-4 m-0 space-y-4 h-full overflow-y-auto">
                 <div>
                   <h3 className="font-medium text-sm mb-1">AI Document Tools</h3>
                   <p className="text-xs text-muted-foreground mb-3">Analyze your full manuscript.</p>
@@ -726,7 +734,7 @@ export default function Editor({ params }: { params: { id: string } }) {
               </TabsContent>
 
               {/* Image Panel */}
-              <TabsContent value="image" className="p-4 m-0 space-y-4">
+              <TabsContent value="image" className="p-4 m-0 space-y-4 h-full overflow-y-auto">
                 <div>
                   <h3 className="font-medium text-sm mb-1">Generate Image</h3>
                   <p className="text-xs text-muted-foreground mb-3">Create illustrations for your story.</p>
@@ -737,13 +745,20 @@ export default function Editor({ params }: { params: { id: string } }) {
                     <div className="flex gap-1.5 flex-wrap">
                       {(["person", "animal", "place", "thing"] as const).map((t) => (
                         <Button key={t} variant={entityType === t ? "default" : "outline"} size="sm"
-                          onClick={() => { setEntityType(t); setScannedEntities([]); setSelectedEntity(null); }}
+                          onClick={() => { setEntityType(t); setEntityNameInput(""); setScannedEntities([]); setSelectedEntity(null); }}
                           className="capitalize text-xs h-7"
                         >
                           {t}s
                         </Button>
                       ))}
                     </div>
+                    <input
+                      type="text"
+                      value={entityNameInput}
+                      onChange={(e) => setEntityNameInput(e.target.value)}
+                      placeholder={`Search for a specific ${entityType || "entity"} by name... (optional)`}
+                      className="w-full text-xs bg-background border rounded-md px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/60"
+                    />
                     <Button onClick={handleScanEntities} disabled={!entityType || isScanningEntities || !content.trim()}
                       className="w-full gap-2" size="sm" variant="secondary"
                     >
@@ -901,7 +916,7 @@ export default function Editor({ params }: { params: { id: string } }) {
               </TabsContent>
 
               {/* Version History Panel */}
-              <TabsContent value="history" className="p-4 m-0 space-y-4">
+              <TabsContent value="history" className="p-4 m-0 space-y-4 h-full overflow-y-auto">
                 <div>
                   <h3 className="font-medium text-sm mb-1">Version History</h3>
                   <p className="text-xs text-muted-foreground mb-3">Save snapshots to track your progress.</p>
@@ -932,7 +947,7 @@ export default function Editor({ params }: { params: { id: string } }) {
                   </div>
                 )}
               </TabsContent>
-            </ScrollArea>
+            </div>
           </Tabs>
         </div>
       </div>
