@@ -19,6 +19,7 @@ import {
   CheckCircle, Wand2, Crown, User, ChevronRight,
 } from "lucide-react";
 import { useAuth, RedirectToSignIn, UserButton } from "@clerk/react";
+import OnboardingTour from "@/components/onboarding-tour";
 
 type View = "documents" | "world" | "ai-features" | "stats";
 
@@ -84,6 +85,14 @@ export default function Documents() {
     });
   };
 
+  const DOCS_TOUR_STEPS = [
+    { target: "#tour-docs-header", title: "Your Writing Hub", description: "All your manuscripts, chapters, and notes live right here. Click any document to open it in the editor.", placement: "bottom" as const },
+    { target: "#tour-docs-new", title: "Create a New Document", description: "Start a fresh manuscript with one click. Each document gets its own AI chat, versions, and world-building space.", placement: "right" as const },
+    { target: "#tour-docs-ai-features", title: "AI-Powered Tools", description: "Grammar checks, rewrites, summarization, prologue generation, and image creation — all built into the editor sidebar.", placement: "right" as const },
+    { target: "#tour-docs-stats", title: "Track Your Progress", description: "See your word count trends, daily writing streaks, and goal completion at a glance.", placement: "right" as const },
+    { target: "#tour-docs-world", title: "Build Your World", description: "Create character profiles, map out locations, and define key items for your fictional universe.", placement: "right" as const },
+  ];
+
   return (
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
@@ -100,7 +109,7 @@ export default function Documents() {
         </div>
 
         {/* New Document Button */}
-        <div className="p-3 border-b shrink-0">
+        <div id="tour-docs-new" className="p-3 border-b shrink-0">
           <Button
             onClick={handleCreateDocument}
             disabled={createDoc.isPending}
@@ -117,6 +126,7 @@ export default function Documents() {
           {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
+              id={`tour-docs-${id}`}
               onClick={() => setActiveView(id)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors text-left
                 ${activeView === id
@@ -168,7 +178,7 @@ export default function Documents() {
         {activeView === "documents" && (
           <div className="p-6 md:p-8 space-y-8">
             <div>
-              <h1 className="text-2xl font-serif font-bold">My Documents</h1>
+              <h1 id="tour-docs-header" className="text-2xl font-serif font-bold">My Documents</h1>
               <p className="text-muted-foreground text-sm mt-1">Your manuscripts, chapters, and notes.</p>
             </div>
 
@@ -441,6 +451,7 @@ export default function Documents() {
           </div>
         )}
       </main>
+      <OnboardingTour steps={DOCS_TOUR_STEPS} tourKey="documents" />
     </div>
   );
 }

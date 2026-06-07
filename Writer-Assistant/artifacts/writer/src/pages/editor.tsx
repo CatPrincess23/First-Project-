@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { useAuth, RedirectToSignIn, UserButton } from "@clerk/react";
 import { UpgradeModal } from "@/components/upgrade-modal";
+import OnboardingTour from "@/components/onboarding-tour";
 import { format } from "date-fns";
 
 export default function Editor({ params }: { params: { id: string } }) {
@@ -557,6 +558,14 @@ export default function Editor({ params }: { params: { id: string } }) {
   const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
   const goalProgress = goalWordCount ? Math.min(100, Math.round((wordCount / goalWordCount) * 100)) : null;
 
+  const EDITOR_TOUR_STEPS = [
+    { target: "#tour-editor-title", title: "Name Your Work", description: "Give your document a title. Changes auto-save within a second after you stop typing.", placement: "bottom" as const },
+    { target: "#tour-editor-textarea", title: "Your Canvas", description: "This is where the magic happens. Write freely — grammar highlights, AI suggestions, and word count tracking work in real-time.", placement: "bottom" as const },
+    { target: "#tour-editor-sidebar", title: "AI Writing Assistant", description: "Grammar check, AI rewrites, summarization, prologue generation, chat with the AI about your document, and image creation — all in one sidebar.", placement: "left" as const },
+    { target: "#tour-editor-undo", title: "Undo & Redo", description: "Made a mistake? Undo (Ctrl+Z) and Redo (Ctrl+Shift+Z) let you step through your editing history.", placement: "bottom" as const },
+    { target: "#tour-editor-export", title: "Export Your Work", description: "When you're ready, export your document as a polished PDF or DOCX file with one click.", placement: "bottom" as const },
+  ];
+
   return (
     <div className="flex flex-col h-screen bg-background">
       {/* Toolbar */}
@@ -566,6 +575,7 @@ export default function Editor({ params }: { params: { id: string } }) {
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <Input
+            id="tour-editor-title"
             value={title}
             onChange={(e) => { isTypingRef.current = true; setTitle(e.target.value); }}
             className="border-0 shadow-none font-serif text-lg bg-transparent px-0 focus-visible:ring-0 min-w-0"
@@ -585,7 +595,7 @@ export default function Editor({ params }: { params: { id: string } }) {
             )}
           </div>
 
-          <div className="flex items-center gap-0.5">
+          <div id="tour-editor-undo" className="flex items-center gap-0.5">
             <Button variant="ghost" size="icon" onClick={() => undoRedoAction("undo")} className="text-muted-foreground h-8 w-8" title="Undo (Ctrl+Z)" disabled={undoStackRef.current.length === 0}>
               <Undo2 className="w-4 h-4" />
             </Button>
@@ -607,7 +617,8 @@ export default function Editor({ params }: { params: { id: string } }) {
             <Globe className="w-4 h-4" />
           </Button>
 
-          <Select onValueChange={(v) => handleExport(v as "pdf" | "docx")} disabled={isExporting}>
+          <div id="tour-editor-export">
+            <Select onValueChange={(v) => handleExport(v as "pdf" | "docx")} disabled={isExporting}>
             <SelectTrigger className="h-8 w-auto gap-1 text-xs border-dashed px-2">
               {isExporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileDown className="w-3 h-3" />}
               Export
@@ -617,6 +628,7 @@ export default function Editor({ params }: { params: { id: string } }) {
               <SelectItem value="docx">Export as DOCX</SelectItem>
             </SelectContent>
           </Select>
+          </div>
           {clerkEnabled && <UserButton />}
         </div>
       </header>
@@ -635,7 +647,7 @@ export default function Editor({ params }: { params: { id: string } }) {
       <div className="flex flex-1 overflow-hidden">
         {/* Editor Area */}
         <div className="flex-1 overflow-y-auto p-8 md:p-12 lg:p-24 flex justify-center">
-          <div className="w-full max-w-3xl">
+          <div id="tour-editor-textarea" className="w-full max-w-3xl">
             <div className="relative">
               {grammarErrors.length > 0 && (
                 <div
@@ -666,7 +678,7 @@ export default function Editor({ params }: { params: { id: string } }) {
         </div>
 
         {/* AI Sidebar */}
-        <div className="w-80 border-l bg-card flex flex-col shrink-0">
+        <div id="tour-editor-sidebar" className="w-80 border-l bg-card flex flex-col shrink-0">
           <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="flex flex-col h-full">
             <div className="px-3 py-2.5 border-b shrink-0">
               <TabsList className="grid w-full grid-cols-6 h-8">
@@ -1045,6 +1057,7 @@ export default function Editor({ params }: { params: { id: string } }) {
       </Dialog>
 
       <UpgradeModal />
+      <OnboardingTour steps={EDITOR_TOUR_STEPS} tourKey="editor" />
     </div>
   );
 }
