@@ -69,7 +69,7 @@ Both servers must run in the background (use `nohup ... &`, `run_in_background: 
 - **Frontend:** React 19, Vite 7, Tailwind CSS 4, shadcn/ui, Wouter routing, TanStack React Query
 - **Backend:** Express 5, esbuild (bundled ESM build)
 - **Database:** PostgreSQL 16 + Drizzle ORM
-- **AI:** OpenRouter with `deepseek/deepseek-v4-flash` model (OpenAI-compatible SDK)
+- **AI:** OpenRouter with `deepseek/deepseek-v4-flash` (free) — OpenAI-compatible SDK (`baseURL: "https://openrouter.ai/api/v1"`)
 - **Auth:** Clerk (currently bypassed for local dev — see conventions)
 - **Validation:** Zod v4, drizzle-zod
 - **API codegen:** Orval (from OpenAPI spec)

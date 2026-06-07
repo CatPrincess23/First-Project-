@@ -31,7 +31,7 @@ const MODEL = "deepseek/deepseek-v4-flash";
 
 function checkKey(res: any): boolean {
   if (!OPENROUTER_KEY) {
-    res.status(503).json({ error: "AI features unavailable: no API key configured" });
+    res.status(503).json({ error: "AI features unavailable: no OPENROUTER_API_KEY configured" });
     return false;
   }
   return true;
@@ -59,24 +59,89 @@ router.post("/suggest", async (req, res) => {
   res.json({ suggestion: completion.choices[0]?.message?.content?.trim() || "" });
 });
 
+function classifyError(orig: string, corr: string): "spelling" | "grammar" | "style" {
+  // Single word, different spelling → spelling
+  if (!orig.includes(" ") && !corr.includes(" ")) return "spelling";
+  // Adding/removing contraction apostrophe → spelling
+  if (orig.replace(/['']/g, "") === corr.replace(/['']/g, "")) return "spelling";
+  return "grammar";
+}
+
+function wordDiff(original: string, corrected: string) {
+  const tokenRe = /\S+|\s+/g;
+  const ot: { text: string; offset: number }[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = tokenRe.exec(original)) !== null) ot.push({ text: m[0], offset: m.index });
+  const ct = [...corrected.matchAll(tokenRe)].map(x => x[0]);
+
+  const errors: { message: string; suggestion: string; offset: number; length: number; type: string }[] = [];
+  let oi = 0, ci = 0;
+
+  while (oi < ot.length || ci < ct.length) {
+    // Skip matching tokens
+    while (oi < ot.length && ci < ct.length && ot[oi].text === ct[ci]) { oi++; ci++; }
+
+    if (oi >= ot.length && ci >= ct.length) break;
+    if (oi >= ot.length) break; // insertion only (shouldn't happen with corrections)
+    if (ci >= ct.length) break; // deletion only (shouldn't happen)
+
+    // Found a difference — collect the error span in original
+    const errStart = ot[oi].offset;
+    let errEnd = ot[oi].offset + ot[oi].text.length;
+    const origWords: string[] = [ot[oi].text];
+    const corrWords: string[] = [ct[ci]];
+    oi++; ci++;
+
+    // Try to find next matching token to bound the error
+    while (oi < ot.length && ci < ct.length && ot[oi].text !== ct[ci]) {
+      errEnd = ot[oi].offset + ot[oi].text.length;
+      origWords.push(ot[oi].text);
+      corrWords.push(ct[ci]);
+      oi++; ci++;
+    }
+
+    const origStr = origWords.join("").replace(/\s+/g, " ").trim();
+    const corrStr = corrWords.join("").replace(/\s+/g, " ").trim();
+    const errText = original.slice(errStart, errEnd);
+    const errorLen = errText.length;
+
+    if (origStr && corrStr) {
+      errors.push({
+        message: `${origStr} → ${corrStr}`,
+        suggestion: corrStr,
+        offset: errStart,
+        length: errorLen,
+        type: classifyError(origStr, corrStr),
+      });
+    }
+  }
+
+  return errors;
+}
+
 // POST /api/ai/grammar
 router.post("/grammar", async (req, res) => {
   if (!checkKey(res)) return;
   const parse = AiGrammarCheckBody.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid input" });
   const { text } = parse.data;
-  const completion = await getClient().chat.completions.create({
+
+  // Get corrected text from AI
+  const fixCompletion = await getClient().chat.completions.create({
     model: MODEL,
+    temperature: 0,
     messages: [
-      { role: "system", content: `You are a grammar and spelling checker. Analyze the text and return a JSON object with:\n- "errors": array of { "message": string, "offset": number, "length": number, "type": "grammar"|"spelling"|"style", "suggestion": string|null }\n- "correctedText": the full corrected version\nReturn ONLY valid JSON, no markdown.` },
-      { role: "user", content: `Check this text:\n\n${text}` },
+      { role: "system", content: "You are a proofreader. Fix ALL spelling, grammar, punctuation, and word choice errors in the text. Return ONLY the corrected text — no explanations, no JSON, no markdown." },
+      { role: "user", content: text },
     ],
     max_tokens: 2000,
   });
-  const raw = completion.choices[0]?.message?.content || '{"errors":[],"correctedText":""}';
-  let result;
-  try { result = JSON.parse(raw); } catch { result = { errors: [], correctedText: text }; }
-  res.json({ errors: result.errors || [], correctedText: result.correctedText || text });
+  const corrected = fixCompletion.choices[0]?.message?.content?.trim() || text;
+
+  if (corrected === text) return res.json({ errors: [], correctedText: text });
+
+  const errors = wordDiff(text, corrected);
+  res.json({ errors, correctedText: corrected });
 });
 
 // POST /api/ai/image

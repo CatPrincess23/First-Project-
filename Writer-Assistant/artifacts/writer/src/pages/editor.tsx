@@ -58,6 +58,7 @@ export default function Editor({ params }: { params: { id: string } }) {
   const initRef = useRef<number | null>(null);
   const lastSavedRef = useRef({ title: "", content: "" });
   const contentRef = useRef<HTMLTextAreaElement>(null);
+  const highlightRef = useRef<HTMLDivElement>(null);
   const isTypingRef = useRef(false);
 
   // Sidebar tabs
@@ -215,6 +216,7 @@ export default function Editor({ params }: { params: { id: string } }) {
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     isTypingRef.current = true;
     setContent(e.currentTarget.value);
+    if (grammarErrors.length > 0) { setGrammarErrors([]); setCorrectedText(""); }
   };
 
   const handleBlur = useCallback(() => {
@@ -232,6 +234,33 @@ export default function Editor({ params }: { params: { id: string } }) {
     return () => window.removeEventListener("keydown", handler);
   }, [doSave]);
 
+  const buildHighlightSegments = useCallback((text: string, errors: any[]) => {
+    if (!errors.length) return [{ text }];
+    const sorted = [...errors].sort((a, b) => a.offset - b.offset);
+    const segments: { text: string; error?: { type: string; message: string } }[] = [];
+    let pos = 0;
+    for (const err of sorted) {
+      if (err.offset > pos) segments.push({ text: text.slice(pos, err.offset) });
+      const end = Math.min(err.offset + err.length, text.length);
+      segments.push({ text: text.slice(err.offset, end), error: { type: err.type, message: err.message } });
+      pos = end;
+    }
+    if (pos < text.length) segments.push({ text: text.slice(pos) });
+    return segments;
+  }, []);
+
+  const errorHighlightClass = (type: string) =>
+    type === "spelling" ? "border-b-2 border-red-500 bg-red-500/15" :
+    type === "grammar" ? "border-b-2 border-amber-500 bg-amber-500/15" :
+    "border-b-2 border-blue-500 bg-blue-500/15";
+
+  const syncHighlightScroll = useCallback(() => {
+    if (highlightRef.current && contentRef.current) {
+      highlightRef.current.scrollTop = contentRef.current.scrollTop;
+      highlightRef.current.scrollLeft = contentRef.current.scrollLeft;
+    }
+  }, []);
+
   const handleGrammarCheck = () => {
     if (!content.trim() || !useRequest()) return;
     setIsCheckingGrammar(true);
@@ -246,6 +275,18 @@ export default function Editor({ params }: { params: { id: string } }) {
     setContent(correctedText);
     setGrammarErrors([]); setCorrectedText("");
   };
+
+  const scrollToError = useCallback((offset: number, length: number) => {
+    const ta = contentRef.current;
+    if (!ta) return;
+    ta.focus();
+    ta.setSelectionRange(offset, offset + length);
+    // Ensure selection is visible
+    const lineHeight = parseInt(getComputedStyle(ta).lineHeight) || 28;
+    const before = ta.value.slice(0, offset);
+    const line = before.split("\n").length - 1;
+    ta.scrollTop = Math.max(0, line * lineHeight - ta.clientHeight / 3);
+  }, []);
 
   const handleSuggest = (type: AiSuggestInputType) => {
     if (!content.trim() || !useRequest()) return;
@@ -466,14 +507,32 @@ export default function Editor({ params }: { params: { id: string } }) {
         {/* Editor Area */}
         <div className="flex-1 overflow-y-auto p-8 md:p-12 lg:p-24 flex justify-center">
           <div className="w-full max-w-3xl">
-            <textarea
-              ref={contentRef}
-              value={content}
-              onChange={handleInput}
-              onBlur={handleBlur}
-              placeholder="Start writing..."
-              className="w-full min-h-[60vh] resize-none outline-none font-serif text-lg leading-relaxed text-foreground bg-transparent border-0 focus-visible:ring-0"
-            />
+            <div className="relative">
+              {grammarErrors.length > 0 && (
+                <div
+                  ref={highlightRef}
+                  aria-hidden="true"
+                  className="absolute inset-0 pointer-events-none overflow-hidden whitespace-pre-wrap break-words font-serif text-lg leading-relaxed text-transparent py-[2px] px-[1px]"
+                >
+                  {buildHighlightSegments(content, grammarErrors).map((seg, i) =>
+                    seg.error ? (
+                      <span key={i} className={errorHighlightClass(seg.error.type)} title={seg.error.message}>{seg.text}</span>
+                    ) : (
+                      <span key={i}>{seg.text}</span>
+                    )
+                  )}
+                </div>
+              )}
+              <textarea
+                ref={contentRef}
+                value={content}
+                onChange={handleInput}
+                onBlur={handleBlur}
+                onScroll={syncHighlightScroll}
+                placeholder="Start writing..."
+                className="w-full min-h-[60vh] resize-none outline-none font-serif text-lg leading-relaxed text-foreground bg-transparent border-0 focus-visible:ring-0 relative"
+              />
+            </div>
           </div>
         </div>
 
@@ -506,7 +565,7 @@ export default function Editor({ params }: { params: { id: string } }) {
                   <div className="space-y-3">
                     <p className="text-xs font-medium text-muted-foreground">{grammarErrors.length} issues found</p>
                     {grammarErrors.map((err, i) => (
-                      <div key={i} className="p-3 bg-secondary/50 rounded-lg text-xs space-y-1.5">
+                      <div key={i} className="p-3 bg-secondary/50 rounded-lg text-xs space-y-1.5 cursor-pointer hover:bg-secondary/80 transition-colors" onClick={() => scrollToError(err.offset, err.length)}>
                         <div className="flex items-start justify-between gap-2">
                           <span className="font-medium">{err.message}</span>
                           <Badge variant="outline" className="capitalize text-[10px] py-0 shrink-0">{err.type}</Badge>
