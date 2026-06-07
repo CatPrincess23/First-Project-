@@ -22,7 +22,7 @@ import { exportToPDF, exportToDOCX } from "@/lib/export";
 import {
   ArrowLeft, Sparkles, Image as ImageIcon, CheckCircle, Save, Loader2, Wand2,
   Globe, History, FileDown, Sun, Moon, BookOpen, Target, Clock, RotateCcw, MessageCircle,
-  Plus, Trash2,
+  Plus, Trash2, Undo2, Redo2,
 } from "lucide-react";
 import { UpgradeModal } from "@/components/upgrade-modal";
 import { format } from "date-fns";
@@ -60,6 +60,11 @@ export default function Editor({ params }: { params: { id: string } }) {
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
   const isTypingRef = useRef(false);
+  const undoStackRef = useRef<string[]>([]);
+  const redoStackRef = useRef<string[]>([]);
+  const isUndoRedoingRef = useRef(false);
+  const contentSnapshotRef = useRef(content);
+  contentSnapshotRef.current = content;
 
   // Sidebar tabs
   const [activeTab, setActiveTab] = useState<"grammar" | "suggest" | "ai-tools" | "image" | "history" | "chat">("grammar");
@@ -219,6 +224,11 @@ export default function Editor({ params }: { params: { id: string } }) {
   }, [documentId, doSave]);
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (!isTypingRef.current && !isUndoRedoingRef.current) {
+      undoStackRef.current.push(contentSnapshotRef.current);
+      redoStackRef.current = [];
+      if (undoStackRef.current.length > 50) undoStackRef.current.shift();
+    }
     isTypingRef.current = true;
     setContent(e.currentTarget.value);
     if (grammarErrors.length > 0) { setGrammarErrors([]); setCorrectedText(""); }
@@ -228,11 +238,36 @@ export default function Editor({ params }: { params: { id: string } }) {
     doSave();
   }, [doSave]);
 
+  function undoRedoAction(action: "undo" | "redo") {
+    const stack = action === "undo" ? undoStackRef : redoStackRef;
+    const other = action === "undo" ? redoStackRef : undoStackRef;
+    if (stack.current.length === 0) return;
+    isUndoRedoingRef.current = true;
+    const current = contentSnapshotRef.current;
+    const target = stack.current.pop()!;
+    other.current.push(current);
+    setContent(target);
+    if (contentRef.current) {
+      contentRef.current.value = target;
+      contentRef.current.focus();
+      contentRef.current.selectionStart = target.length;
+    }
+    setTimeout(() => { isUndoRedoingRef.current = false; }, 200);
+  }
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "s") {
         e.preventDefault();
         doSave();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undoRedoAction("undo");
+      }
+      if ((e.ctrlKey || e.metaKey) && ((e.key === "z" && e.shiftKey) || e.key === "y")) {
+        e.preventDefault();
+        undoRedoAction("redo");
       }
     };
     window.addEventListener("keydown", handler);
@@ -542,6 +577,15 @@ export default function Editor({ params }: { params: { id: string } }) {
                 / {goalWordCount?.toLocaleString()} ({goalProgress}%)
               </span>
             )}
+          </div>
+
+          <div className="flex items-center gap-0.5">
+            <Button variant="ghost" size="icon" onClick={() => undoRedoAction("undo")} className="text-muted-foreground h-8 w-8" title="Undo (Ctrl+Z)" disabled={undoStackRef.current.length === 0}>
+              <Undo2 className="w-4 h-4" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={() => undoRedoAction("redo")} className="text-muted-foreground h-8 w-8" title="Redo (Ctrl+Shift+Z)" disabled={redoStackRef.current.length === 0}>
+              <Redo2 className="w-4 h-4" />
+            </Button>
           </div>
 
           <Button variant="ghost" size="icon" onClick={toggleTheme} className="text-muted-foreground h-8 w-8">
