@@ -323,8 +323,9 @@ export default function Editor({ params }: { params: { id: string } }) {
 
     const docContext = content.trim();
     if (docContext) chatDocContent.current = docContext;
+    const wordCount = chatDocContent.current ? chatDocContent.current.trim().split(/\s+/).length : 0;
     const contextMsg = chatDocContent.current
-      ? { role: "system" as const, content: `You are analyzing the user's document. The document is titled "${title}". Here is the full content:\n\n${chatDocContent.current}\n\n---\nWhen the user asks about their writing, refer directly to their document content above. Give specific feedback, point out strengths/weaknesses, and suggest improvements based on what they've written.` }
+      ? { role: "system" as const, content: `The user's document is titled "${title}" (${wordCount} words). Here is the full content — READ IT ALL:\n\n${chatDocContent.current}\n\n---\nYou have the COMPLETE document above. Scan and analyze it entirely. Give specific feedback based on the actual text: point out strengths, weaknesses, style, pacing, character development, plot structure. Quote examples. Offer concrete improvements. Be proactive — mention things the user didn't ask for if you notice something important.` }
       : null;
 
     const messagesPayload = contextMsg ? [contextMsg, userMsg] : [userMsg];

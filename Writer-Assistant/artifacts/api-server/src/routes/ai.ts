@@ -138,8 +138,10 @@ router.post("/chat", async (req, res) => {
       await db.insert(messages).values({ conversationId: convId, role: userMsg.role, content: userMsg.content });
     }
 
+    const incomingSystemMsgs = incomingMessages.filter(m => m.role === "system");
+
     const historyMsgs = await db.select().from(messages).where(eq(messages.conversationId, convId)).orderBy(messages.createdAt);
-    allMessages = historyMsgs.map(m => ({ role: m.role as "user" | "assistant" | "system", content: m.content }));
+    allMessages = [...incomingSystemMsgs, ...historyMsgs.map(m => ({ role: m.role as "user" | "assistant" | "system", content: m.content }))];
 
     const isFirstMessage = historyMsgs.filter(m => m.role === "assistant").length === 0;
     if (isFirstMessage && userMsg) {
@@ -148,13 +150,20 @@ router.post("/chat", async (req, res) => {
     }
   }
 
+  const sysMessages = allMessages.filter(m => m.role === "system");
+  const nonSysMessages = allMessages.filter(m => m.role !== "system");
+  const docContent = sysMessages.map(m => m.content).join("\n\n");
+  const unifiedPrompt = docContent
+    ? `You are a helpful writing assistant. Help users with their writing — give feedback, answer questions, suggest improvements, and discuss their story. Be friendly and constructive.\n\n${docContent}`
+    : "You are a helpful writing assistant. Help users with their writing — give feedback, answer questions, suggest improvements, and discuss their story. Be friendly and constructive.";
+
   const completion = await getClient().chat.completions.create({
     model: MODEL,
     messages: [
-      { role: "system", content: "You are a helpful writing assistant. Help users with their writing — give feedback, answer questions, suggest improvements, and discuss their story. Be friendly and constructive." },
-      ...allMessages.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
+      { role: "system", content: unifiedPrompt },
+      ...nonSysMessages.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
     ],
-    max_tokens: 1500,
+    max_tokens: 4000,
   });
   const reply = completion.choices[0]?.message?.content?.trim() || "";
 
