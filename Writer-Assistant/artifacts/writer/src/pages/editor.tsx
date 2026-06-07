@@ -252,6 +252,7 @@ export default function Editor({ params }: { params: { id: string } }) {
   const errorHighlightClass = (type: string) =>
     type === "spelling" ? "border-b-2 border-red-500 bg-red-500/15" :
     type === "grammar" ? "border-b-2 border-amber-500 bg-amber-500/15" :
+    type === "punctuation" ? "border-b-2 border-purple-500 bg-purple-500/15" :
     "border-b-2 border-blue-500 bg-blue-500/15";
 
   const syncHighlightScroll = useCallback(() => {
@@ -596,6 +597,7 @@ export default function Editor({ params }: { params: { id: string } }) {
                             capitalize text-[10px] py-0 shrink-0
                             ${err.type === "spelling" ? "border-red-500 text-red-600 bg-red-50 dark:bg-red-950/30" : ""}
                             ${err.type === "grammar" ? "border-amber-500 text-amber-600 bg-amber-50 dark:bg-amber-950/30" : ""}
+                            ${err.type === "punctuation" ? "border-purple-500 text-purple-600 bg-purple-50 dark:bg-purple-950/30" : ""}
                             ${err.type === "style" ? "border-blue-500 text-blue-600 bg-blue-50 dark:bg-blue-950/30" : ""}
                           `}>{err.type}</Badge>
                         </div>

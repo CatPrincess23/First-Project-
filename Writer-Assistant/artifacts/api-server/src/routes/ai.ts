@@ -59,10 +59,13 @@ router.post("/suggest", async (req, res) => {
   res.json({ suggestion: completion.choices[0]?.message?.content?.trim() || "" });
 });
 
-function classifyError(orig: string, corr: string): "spelling" | "grammar" | "style" {
+function classifyError(orig: string, corr: string): "spelling" | "grammar" | "style" | "punctuation" {
   const o = orig.trim(), c = corr.trim();
   if (!o && !c) return "grammar";
   if (o === c) return "grammar";
+  const stripNonAlpha = (s: string) => s.replace(/[a-zA-Z0-9\s]/g, "");
+  const alphaOnly = (s: string) => s.replace(/[^a-zA-Z0-9\s]/g, "");
+  if (stripNonAlpha(o) !== stripNonAlpha(c) && alphaOnly(o) === alphaOnly(c)) return "punctuation";
   if (o.toLowerCase() === c.toLowerCase() && o !== c) return "spelling";
   if (o.replace(/['']/g, "") === c.replace(/['']/g, "")) return "spelling";
   if (!o.includes(" ") && !c.includes(" ")) {
@@ -178,6 +181,23 @@ router.post("/grammar", async (req, res) => {
   const parse = AiGrammarCheckBody.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid input" });
   const { text } = parse.data;
+
+  // Quick pre-scan: check if the text has any errors before doing a full correction
+  const scanCompletion = await getClient().chat.completions.create({
+    model: MODEL,
+    temperature: 0,
+    messages: [
+      {
+        role: "system",
+        content: `You are an expert proofreader. Scan the text for ANY errors — spelling, grammar, punctuation, capitalization, word choice, or sentence structure issues. Reply with ONLY "YES" if there are errors to fix, or "NO" if the text is perfectly error-free. Do not provide any other response.`,
+      },
+      { role: "user", content: text },
+    ],
+    max_tokens: 5,
+  });
+  const scanResult = (scanCompletion.choices[0]?.message?.content || "").trim().toUpperCase();
+
+  if (scanResult === "NO") return res.json({ errors: [], correctedText: text });
 
   // Get corrected text from AI
   const fixCompletion = await getClient().chat.completions.create({
