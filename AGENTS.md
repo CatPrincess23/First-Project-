@@ -62,7 +62,7 @@ For convenience, you can export both env vars from `.env`:
 export $(grep -v '^#' Writer-Assistant/.env | xargs) && PORT=5000 NODE_ENV=development pnpm --filter @workspace/api-server run dev
 ```
 
-Both servers must run in the background (use `nohup ... &` or `run_in_background: true`).
+Both servers must run in the background (use `nohup ... &`, `run_in_background: true`, or `tmux new-session -d -s <name> '<command>'`). The `tmux` approach is more reliable in shell environments where nohup'd children get killed when the parent shell exits.
 
 ## Stack
 
@@ -79,6 +79,8 @@ Both servers must run in the background (use `nohup ... &` or `run_in_background
 
 - **No Clerk auth in local dev.** Auth is skipped when `CLERK_SECRET_KEY` is unset (`app.ts` sets `req.auth = { userId: "dev-user" }`). Production deploys need `CLERK_SECRET_KEY` and `CLERK_PUBLISHABLE_KEY` set.
 - **AI uses OpenRouter.** The `OPENROUTER_API_KEY` env var is read at startup. Model is `deepseek/deepseek-v4-flash`. Image generation is disabled (not supported via OpenRouter). The OpenAI SDK is configured with `baseURL: "https://openrouter.ai/api/v1"`.
+- **AI chat sends full document context.** On every chat message, the frontend (`editor.tsx`) embeds the full editor content in a system message. The backend (`ai.ts`) merges that system message with the base system prompt into a **single unified system message** before calling the AI, so the model sees the document as part of its instructions. `max_tokens` is 4000 for the chat endpoint (vs 1500 for other AI endpoints) to allow thorough analysis.
+- **System messages are NOT persisted to DB** — only user and assistant messages are saved in the `messages` table. The document context is rebuilt fresh from the current editor content on every request, so it always reflects the latest edits.
 - **Editor auto-save** happens on three triggers: 800ms debounce after typing stops, Ctrl+S/Cmd+S, and every 60 seconds via interval.
 - **TypeScript is strict.** Run `pnpm run typecheck` after changes. The build step typechecks before bundling.
 - **Generated code lives in `lib/*/src/generated/`.** Don't hand-edit API client or Zod schema files — regenerate them via the codegen script.
@@ -98,6 +100,7 @@ Both servers must run in the background (use `nohup ... &` or `run_in_background
 ## When running local commands / dev servers
 
 - **Long-running processes must run in the background.** Use `nohup ... &` or `run_in_background: true`. Verify with `curl localhost:PORT/api/healthz`.
+- **Sleep a few seconds** after starting a background server before checking it. The `tmux` approach (`tmux new-session -d -s <name> '<command>'`) is more reliable in shell environments where nohup'd children get killed when the parent shell exits.
 - **Stop background processes you started before declaring a task complete**, unless the user explicitly wants them left running.
 - **API server needs a rebuild after source changes.** Run `pnpm --filter @workspace/api-server run build` before restarting.
 - **Vite proxy config must list every API path prefix.** The `server.proxy` block in `artifacts/writer/vite.config.ts` only forwards requests matching listed prefixes (e.g. `/api/documents`, `/api/conversations`). Adding a new API route without adding its prefix to the proxy will cause silent failures (browser gets HTML instead of JSON).
@@ -114,6 +117,7 @@ Both servers must run in the background (use `nohup ... &` or `run_in_background
 | Frontend pages | `Writer-Assistant/artifacts/writer/src/pages/` |
 | UI components | `Writer-Assistant/artifacts/writer/src/components/ui/` |
 | AI integration | `Writer-Assistant/artifacts/api-server/src/routes/ai.ts` |
+| AI chat (frontend) | `Writer-Assistant/artifacts/writer/src/pages/editor.tsx` (handles conversation CRUD, document context injection, chat UI) |
 | Image upload route | `Writer-Assistant/artifacts/api-server/src/routes/upload.ts` |
 | Auth setup | `Writer-Assistant/artifacts/api-server/src/app.ts` |
 | Vite config (proxy) | `Writer-Assistant/artifacts/writer/vite.config.ts` |
