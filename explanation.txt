@@ -1,0 +1,15 @@
+Why your documents aren't showing up on Neon:
+
+1. The app on this computer saves documents to a database also on this computer (the old one).
+
+2. We put the Neon connection string in the .env file, but the app doesn't read that file automatically. It's like writing a phone number on a sticky note but never dialing it.
+
+3. To make the app use Neon, you'd need to tell the app "use this number" when you start it, like:
+   DATABASE_URL="postgresql://neondb_owner:..." pnpm run dev
+
+4. Even if the app did use Neon, old documents you already wrote are still in the old database on this computer — they wouldn't magically move to Neon.
+
+What needs to happen:
+- Start the servers with the Neon connection string
+- Any NEW documents you create will then go to Neon
+- Old documents stay here and won't transfer unless someone copies them over
