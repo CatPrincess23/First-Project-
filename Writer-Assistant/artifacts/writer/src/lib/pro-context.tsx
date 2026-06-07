@@ -13,7 +13,7 @@ const PRO_EMAILS: string[] = [];
 const ProContext = createContext<ProContextType | null>(null);
 
 export function ProProvider({ children }: { children: React.ReactNode }) {
-  const [isPro] = useState(false);
+  const [isPro] = useState(true);
   const [requestsLeft, setRequestsLeft] = useState(3);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 

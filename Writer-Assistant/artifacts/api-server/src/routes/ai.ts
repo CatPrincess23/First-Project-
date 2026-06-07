@@ -1,8 +1,14 @@
 import { Router } from "express";
 import OpenAI from "openai";
-import { AiSuggestBody, AiGrammarCheckBody, AiGenerateImageBody, AiSummarizeBody, AiGeneratePrologueBody } from "@workspace/api-zod";
+import { AiSuggestBody, AiGrammarCheckBody, AiGenerateImageBody, AiSummarizeBody, AiGeneratePrologueBody, AiChatBody } from "@workspace/api-zod";
+import { db, messages, conversations } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
 
 const router = Router();
+
+function getUserId(req: any): string {
+  return req.auth?.userId || req.headers["x-guest-id"] || "guest";
+}
 
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
 
@@ -110,6 +116,53 @@ router.post("/prologue", async (req, res) => {
     max_tokens: 800,
   });
   res.json({ prologue: completion.choices[0]?.message?.content?.trim() || "" });
+});
+
+// POST /api/ai/chat
+router.post("/chat", async (req, res) => {
+  if (!checkKey(res)) return;
+  const parse = AiChatBody.safeParse(req.body);
+  if (!parse.success) return res.status(400).json({ error: "Invalid input" });
+  const { messages: incomingMessages, conversationId } = parse.data;
+  const userId = getUserId(req);
+
+  let convId = conversationId;
+  let allMessages = incomingMessages;
+
+  if (convId) {
+    const [conv] = await db.select().from(conversations).where(and(eq(conversations.id, convId), eq(conversations.userId, userId)));
+    if (!conv) return res.status(404).json({ error: "Conversation not found" });
+
+    const userMsg = incomingMessages.find(m => m.role === "user");
+    if (userMsg) {
+      await db.insert(messages).values({ conversationId: convId, role: userMsg.role, content: userMsg.content });
+    }
+
+    const historyMsgs = await db.select().from(messages).where(eq(messages.conversationId, convId)).orderBy(messages.createdAt);
+    allMessages = historyMsgs.map(m => ({ role: m.role as "user" | "assistant" | "system", content: m.content }));
+
+    const isFirstMessage = historyMsgs.filter(m => m.role === "assistant").length === 0;
+    if (isFirstMessage && userMsg) {
+      const title = userMsg.content.slice(0, 100).replace(/\n/g, " ");
+      await db.update(conversations).set({ title }).where(eq(conversations.id, convId));
+    }
+  }
+
+  const completion = await getClient().chat.completions.create({
+    model: MODEL,
+    messages: [
+      { role: "system", content: "You are a helpful writing assistant. Help users with their writing — give feedback, answer questions, suggest improvements, and discuss their story. Be friendly and constructive." },
+      ...allMessages.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
+    ],
+    max_tokens: 1500,
+  });
+  const reply = completion.choices[0]?.message?.content?.trim() || "";
+
+  if (convId) {
+    await db.insert(messages).values({ conversationId: convId, role: "assistant", content: reply });
+  }
+
+  res.json({ reply, conversationId: convId || undefined });
 });
 
 export default router;

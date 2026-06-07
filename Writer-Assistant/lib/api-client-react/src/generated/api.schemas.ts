@@ -198,6 +198,68 @@ export interface AiPrologueResult {
   prologue: string;
 }
 
+export type ChatMessageRole = typeof ChatMessageRole[keyof typeof ChatMessageRole];
+
+
+export const ChatMessageRole = {
+  user: 'user',
+  assistant: 'assistant',
+  system: 'system',
+} as const;
+
+export interface ChatMessage {
+  role: ChatMessageRole;
+  content: string;
+}
+
+export interface AiChatInput {
+  messages: ChatMessage[];
+  /** If provided, messages are persisted to this conversation */
+  conversationId?: number;
+}
+
+export interface AiChatResult {
+  reply: string;
+  conversationId?: number;
+}
+
+export interface Conversation {
+  id: number;
+  documentId: number;
+  userId: string;
+  title: string;
+  createdAt: string;
+}
+
+export interface ConversationInput {
+  documentId: number;
+  title?: string;
+}
+
+export interface ConversationUpdate {
+  title: string;
+}
+
+export type MessageRole = typeof MessageRole[keyof typeof MessageRole];
+
+
+export const MessageRole = {
+  user: 'user',
+  assistant: 'assistant',
+} as const;
+
+export interface Message {
+  id: number;
+  conversationId: number;
+  role: MessageRole;
+  content: string;
+  createdAt: string;
+}
+
+export type ConversationWithMessages = Conversation & {
+  messages: Message[];
+};
+
 export type ListWorldEntitiesParams = {
 type?: ListWorldEntitiesType;
 };
@@ -210,4 +272,8 @@ export const ListWorldEntitiesType = {
   place: 'place',
   item: 'item',
 } as const;
+
+export type ListConversationsParams = {
+documentId: number;
+};
 

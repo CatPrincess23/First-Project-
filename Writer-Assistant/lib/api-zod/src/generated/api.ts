@@ -297,3 +297,98 @@ export const AiGeneratePrologueResponse = zod.object({
 })
 
 
+/**
+ * @summary Chat with the AI writing assistant
+ */
+export const AiChatBody = zod.object({
+  "messages": zod.array(zod.object({
+  "role": zod.enum(['user', 'assistant', 'system']),
+  "content": zod.string()
+})),
+  "conversationId": zod.number().optional().describe('If provided, messages are persisted to this conversation')
+})
+
+export const AiChatResponse = zod.object({
+  "reply": zod.string(),
+  "conversationId": zod.number().optional()
+})
+
+
+/**
+ * @summary List conversations for a document
+ */
+export const ListConversationsQueryParams = zod.object({
+  "documentId": zod.coerce.number()
+})
+
+export const ListConversationsResponseItem = zod.object({
+  "id": zod.number(),
+  "documentId": zod.number(),
+  "userId": zod.string(),
+  "title": zod.string(),
+  "createdAt": zod.string()
+})
+export const ListConversationsResponse = zod.array(ListConversationsResponseItem)
+
+
+/**
+ * @summary Create a new conversation
+ */
+export const CreateConversationBody = zod.object({
+  "documentId": zod.number(),
+  "title": zod.string().optional()
+})
+
+
+/**
+ * @summary Get a conversation with its messages
+ */
+export const GetConversationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetConversationResponse = zod.object({
+  "id": zod.number(),
+  "documentId": zod.number(),
+  "userId": zod.string(),
+  "title": zod.string(),
+  "createdAt": zod.string()
+}).and(zod.object({
+  "messages": zod.array(zod.object({
+  "id": zod.number(),
+  "conversationId": zod.number(),
+  "role": zod.enum(['user', 'assistant']),
+  "content": zod.string(),
+  "createdAt": zod.string()
+}))
+}))
+
+
+/**
+ * @summary Update conversation title
+ */
+export const UpdateConversationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateConversationBody = zod.object({
+  "title": zod.string()
+})
+
+export const UpdateConversationResponse = zod.object({
+  "id": zod.number(),
+  "documentId": zod.number(),
+  "userId": zod.string(),
+  "title": zod.string(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a conversation
+ */
+export const DeleteConversationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+

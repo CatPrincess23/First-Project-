@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './aiChatInput';
+export * from './aiChatResult';
 export * from './aiGrammarInput';
 export * from './aiGrammarResult';
 export * from './aiImageInput';
@@ -18,6 +20,12 @@ export * from './aiSuggestInputType';
 export * from './aiSuggestResult';
 export * from './aiSummarizeInput';
 export * from './aiSummarizeResult';
+export * from './chatMessage';
+export * from './chatMessageRole';
+export * from './conversation';
+export * from './conversationInput';
+export * from './conversationUpdate';
+export * from './conversationWithMessages';
 export * from './document';
 export * from './documentInput';
 export * from './documentStats';
@@ -27,8 +35,11 @@ export * from './documentVersionInput';
 export * from './grammarError';
 export * from './grammarErrorType';
 export * from './healthStatus';
+export * from './listConversationsParams';
 export * from './listWorldEntitiesParams';
 export * from './listWorldEntitiesType';
+export * from './message';
+export * from './messageRole';
 export * from './worldEntity';
 export * from './worldEntityFields';
 export * from './worldEntityInput';

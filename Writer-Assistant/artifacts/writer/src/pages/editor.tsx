@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import {
   useGetDocument, useUpdateDocument, useAiSuggest, useAiGrammarCheck, useAiGenerateImage,
-  useAiSummarize, useAiGeneratePrologue, useListDocumentVersions, useCreateDocumentVersion,
+  useAiSummarize, useAiGeneratePrologue, useAiChat, useListDocumentVersions, useCreateDocumentVersion,
   getGetDocumentQueryKey, getListDocumentVersionsQueryKey,
 } from "@workspace/api-client-react";
 import { AiSuggestInputType, AiImageInputSize } from "@workspace/api-client-react";
@@ -21,7 +21,8 @@ import { useToast } from "@/hooks/use-toast";
 import { exportToPDF, exportToDOCX } from "@/lib/export";
 import {
   ArrowLeft, Sparkles, Image as ImageIcon, CheckCircle, Save, Loader2, Wand2,
-  Globe, History, FileDown, Sun, Moon, BookOpen, Target, Clock, RotateCcw,
+  Globe, History, FileDown, Sun, Moon, BookOpen, Target, Clock, RotateCcw, MessageCircle,
+  Plus, Trash2,
 } from "lucide-react";
 import { UpgradeModal } from "@/components/upgrade-modal";
 import { format } from "date-fns";
@@ -44,6 +45,7 @@ export default function Editor({ params }: { params: { id: string } }) {
   const aiImage = useAiGenerateImage();
   const aiSummarize = useAiSummarize();
   const aiPrologue = useAiGeneratePrologue();
+  const aiChat = useAiChat();
   const createVersion = useCreateDocumentVersion();
   const { data: versions = [] } = useListDocumentVersions(documentId, {
     query: { enabled: !isNaN(documentId), queryKey: getListDocumentVersionsQueryKey(documentId) }
@@ -59,7 +61,7 @@ export default function Editor({ params }: { params: { id: string } }) {
   const isTypingRef = useRef(false);
 
   // Sidebar tabs
-  const [activeTab, setActiveTab] = useState<"grammar" | "suggest" | "ai-tools" | "image" | "history">("grammar");
+  const [activeTab, setActiveTab] = useState<"grammar" | "suggest" | "ai-tools" | "image" | "history" | "chat">("grammar");
 
   // Grammar
   const [grammarErrors, setGrammarErrors] = useState<any[]>([]);
@@ -81,6 +83,73 @@ export default function Editor({ params }: { params: { id: string } }) {
   const [imageSize, setImageSize] = useState<AiImageInputSize>(AiImageInputSize["1024x1024"]);
   const [generatedImage, setGeneratedImage] = useState("");
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+
+  // Chat
+  const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant", content: string }[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
+  const [isLoadingConversations, setIsLoadingConversations] = useState(false);
+  const chatDocContent = useRef("");
+
+  // Conversation API helpers
+  const apiBase = "/api";
+
+  const loadConversations = useCallback(async () => {
+    if (!documentId || isNaN(documentId)) return;
+    setIsLoadingConversations(true);
+    try {
+      const res = await fetch(`${apiBase}/conversations?documentId=${documentId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setConversations(data);
+      }
+    } catch {} finally {
+      setIsLoadingConversations(false);
+    }
+  }, [documentId]);
+
+  const createConversation = useCallback(async () => {
+    const res = await fetch(`${apiBase}/conversations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ documentId }),
+    });
+    if (!res.ok) throw new Error("Failed to create conversation");
+    const conv = await res.json();
+    setConversations(prev => [conv, ...prev]);
+    setActiveConversationId(conv.id);
+    setChatMessages([]);
+    return conv;
+  }, [documentId]);
+
+  const deleteConversation = useCallback(async (id: number) => {
+    const res = await fetch(`${apiBase}/conversations/${id}`, { method: "DELETE" });
+    if (!res.ok) return;
+    setConversations(prev => prev.filter(c => c.id !== id));
+    if (activeConversationId === id) {
+      setActiveConversationId(null);
+      setChatMessages([]);
+    }
+  }, [activeConversationId]);
+
+  const loadConversationMessages = useCallback(async (id: number) => {
+    try {
+      const res = await fetch(`${apiBase}/conversations/${id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setChatMessages(data.messages || []);
+      }
+    } catch {}
+  }, []);
+
+  // Load conversations when document loads
+  useEffect(() => {
+    if (documentId && !isNaN(documentId)) {
+      loadConversations();
+    }
+  }, [documentId, loadConversations]);
 
   // Goal tracker
   const [goalWordCount, setGoalWordCount] = useState<number | null>(null);
@@ -233,6 +302,48 @@ export default function Editor({ params }: { params: { id: string } }) {
     if (excerpt) setImagePrompt(excerpt + ". Fantasy illustration style.");
   };
 
+  const handleSendChat = async () => {
+    if (!chatInput.trim() || !useRequest()) return;
+
+    let convId = activeConversationId;
+    if (!convId) {
+      try {
+        const conv = await createConversation();
+        convId = conv.id;
+      } catch {
+        toast({ title: "Failed to start conversation", variant: "destructive" });
+        return;
+      }
+    }
+
+    const userMsg = { role: "user" as const, content: chatInput };
+    setChatMessages(prev => [...prev, userMsg]);
+    setChatInput("");
+    setIsChatLoading(true);
+
+    const docContext = content.trim();
+    if (docContext) chatDocContent.current = docContext;
+    const contextMsg = chatDocContent.current
+      ? { role: "system" as const, content: `You are analyzing the user's document. The document is titled "${title}". Here is the full content:\n\n${chatDocContent.current}\n\n---\nWhen the user asks about their writing, refer directly to their document content above. Give specific feedback, point out strengths/weaknesses, and suggest improvements based on what they've written.` }
+      : null;
+
+    const messagesPayload = contextMsg ? [contextMsg, userMsg] : [userMsg];
+    aiChat.mutate(
+      { data: { messages: messagesPayload, conversationId: convId ?? undefined } },
+      {
+        onSuccess: (result) => {
+          setChatMessages(prev => [...prev, { role: "assistant", content: result.reply }]);
+          setIsChatLoading(false);
+          loadConversations();
+        },
+        onError: () => {
+          setIsChatLoading(false);
+          toast({ title: "Chat failed", variant: "destructive" });
+        },
+      }
+    );
+  };
+
   const handleSaveVersion = () => {
     const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
     createVersion.mutate(
@@ -369,11 +480,12 @@ export default function Editor({ params }: { params: { id: string } }) {
         <div className="w-80 border-l bg-card flex flex-col shrink-0 hidden md:flex">
           <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="flex flex-col h-full">
             <div className="px-3 py-2.5 border-b shrink-0">
-              <TabsList className="grid w-full grid-cols-5 h-8">
+              <TabsList className="grid w-full grid-cols-6 h-8">
                 <TabsTrigger value="grammar" title="Grammar" className="text-xs px-1"><CheckCircle className="w-3.5 h-3.5" /></TabsTrigger>
                 <TabsTrigger value="suggest" title="AI Rewrite" className="text-xs px-1"><Sparkles className="w-3.5 h-3.5" /></TabsTrigger>
                 <TabsTrigger value="ai-tools" title="Summarize / Prologue" className="text-xs px-1"><BookOpen className="w-3.5 h-3.5" /></TabsTrigger>
                 <TabsTrigger value="image" title="Generate Image" className="text-xs px-1"><ImageIcon className="w-3.5 h-3.5" /></TabsTrigger>
+                <TabsTrigger value="chat" title="AI Chat" className="text-xs px-1"><MessageCircle className="w-3.5 h-3.5" /></TabsTrigger>
                 <TabsTrigger value="history" title="Version History" className="text-xs px-1"><History className="w-3.5 h-3.5" /></TabsTrigger>
               </TabsList>
             </div>
@@ -501,6 +613,93 @@ export default function Editor({ params }: { params: { id: string } }) {
                     <p className="text-[10px] text-muted-foreground text-center">Right-click to save image</p>
                   </div>
                 )}
+              </TabsContent>
+
+              {/* Chat Panel */}
+              <TabsContent value="chat" className="p-4 m-0 space-y-4 flex flex-col h-full">
+                <div>
+                  <h3 className="font-medium text-sm mb-1">AI Chat</h3>
+                  <p className="text-xs text-muted-foreground mb-3">Ask questions about your writing, get feedback, or brainstorm ideas.</p>
+                  {content.trim() && <Badge variant="secondary" className="text-[10px] mb-2 gap-1"><BookOpen className="w-2.5 h-2.5" /> Document synced ({wordCount} words)</Badge>}
+                </div>
+
+                {/* Conversation selector */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <select
+                    value={activeConversationId ?? ""}
+                    onChange={(e) => {
+                      const id = e.target.value ? Number(e.target.value) : null;
+                      setActiveConversationId(id);
+                      if (id) loadConversationMessages(id);
+                      else setChatMessages([]);
+                    }}
+                    className="flex-1 text-xs bg-background border rounded-md px-2 py-1.5 outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="">{isLoadingConversations ? "Loading..." : "New conversation"}</option>
+                    {conversations.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.title.length > 40 ? c.title.slice(0, 40) + "..." : c.title}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 w-7 p-0 shrink-0"
+                    title="New chat"
+                    onClick={() => { setActiveConversationId(null); setChatMessages([]); }}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </Button>
+                  {activeConversationId && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 w-7 p-0 shrink-0 text-destructive hover:text-destructive"
+                      title="Delete conversation"
+                      onClick={() => deleteConversation(activeConversationId)}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
+                </div>
+
+                <div className="flex-1 space-y-3 overflow-y-auto min-h-0">
+                  {chatMessages.length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-8">Start a conversation with your writing assistant.</p>
+                  )}
+                  {chatMessages.map((msg, i) => (
+                    <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                      <div className={`max-w-[85%] p-3 rounded-lg text-sm ${
+                        msg.role === "user"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-secondary/70 text-secondary-foreground"
+                      }`}>
+                        <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {isChatLoading && (
+                    <div className="flex justify-start">
+                      <div className="bg-secondary/70 p-3 rounded-lg">
+                        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2 pt-2 border-t shrink-0">
+                  <textarea
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendChat(); } }}
+                    placeholder="Type a message..."
+                    className="flex-1 text-sm bg-background border rounded-lg px-3 py-2 resize-none outline-none focus:ring-1 focus:ring-primary min-h-[36px] max-h-20"
+                    rows={1}
+                  />
+                  <Button onClick={handleSendChat} disabled={isChatLoading || !chatInput.trim()} size="sm" className="shrink-0 self-end">
+                    {isChatLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5" />}
+                  </Button>
+                </div>
               </TabsContent>
 
               {/* Version History Panel */}
