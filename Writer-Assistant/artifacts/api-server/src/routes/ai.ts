@@ -229,9 +229,133 @@ Return ONLY the corrected text with all errors fixed. Do NOT add any explanation
   res.json({ errors, correctedText: corrected });
 });
 
+// POST /api/ai/scan-entities
+router.post("/scan-entities", async (req, res) => {
+  if (!checkKey(res)) return;
+  const { type, documentContent } = req.body;
+  if (!type || !documentContent) {
+    return res.status(400).json({ error: "type and documentContent are required" });
+  }
+  const validTypes = ["person", "animal", "place", "thing"];
+  if (!validTypes.includes(type)) {
+    return res.status(400).json({ error: `type must be one of: ${validTypes.join(", ")}` });
+  }
+
+  const article = type === "animal" ? "an" : "a";
+  const plural = type === "person" ? "people" : type === "animal" ? "animals" : type === "place" ? "places" : "things";
+
+  const completion = await getClient().chat.completions.create({
+    model: MODEL,
+    temperature: 0.3,
+    messages: [
+      {
+        role: "system",
+        content: `You are ${article} literary analyst. Scan the document below and find all ${plural} (characters/${plural}). For each one, extract:
+1. Their name (or "Unnamed" if not named)
+2. A detailed visual description based ONLY on what the text says — appearance, personality, role, traits
+3. Key characteristics mentioned
+
+Return the results as JSON ONLY — no other text. Format:
+{
+  "entities": [
+    {
+      "name": "Entity Name",
+      "description": "Detailed visual description based on the text",
+      "details": "Key characteristics, role, personality traits"
+    }
+  ]
+}
+
+If no ${plural} are found, return { "entities": [] }.`,
+      },
+      { role: "user", content: documentContent.slice(0, 15000) },
+    ],
+    max_tokens: 2000,
+  });
+
+  const raw = completion.choices[0]?.message?.content?.trim() || '{"entities":[]}';
+  try {
+    const parsed = JSON.parse(raw);
+    res.json(parsed);
+  } catch {
+    res.json({ entities: [{ name: "Character", description: raw.slice(0, 500), details: "" }] });
+  }
+});
+
 // POST /api/ai/image
-router.post("/image", async (_req, res) => {
-  res.status(501).json({ error: "Image generation is not available via OpenRouter. Use DALL-E 3 with an OpenAI key." });
+router.post("/image", async (req, res) => {
+  if (!checkKey(res)) return;
+  const { prompt, entityType, entityName, documentContent } = req.body;
+
+  let finalPrompt = prompt;
+
+  // If entity info is provided, use AI to build a detailed prompt from the document
+  if (entityType && entityName && documentContent) {
+    const article = entityType === "animal" ? "an" : "a";
+    const completion = await getClient().chat.completions.create({
+      model: MODEL,
+      temperature: 0.4,
+      messages: [
+        {
+          role: "system",
+          content: `You are ${article} literary visual artist. Based on the document content, extract ALL visual details about "${entityName}" (${article} ${entityType}). Focus on:
+- Physical appearance (age, height, build, hair, eyes, skin, clothing)
+- Personality that would show in expression/posture
+- Surroundings and setting
+- Any distinctive features or items
+
+Return a single detailed image generation prompt (2-3 sentences) describing this ${entityType} visually. Do NOT include any meta text, just the prompt.`,
+        },
+        { role: "user", content: `Document content:\n\n${documentContent.slice(0, 12000)}\n\nFocus on the character "${entityName}."` },
+      ],
+      max_tokens: 500,
+    });
+    finalPrompt = completion.choices[0]?.message?.content?.trim() || prompt;
+  }
+
+  if (!finalPrompt) {
+    return res.status(400).json({ error: "prompt is required" });
+  }
+
+  try {
+    const completion = await getClient().chat.completions.create({
+      model: MODEL,
+      temperature: 0.5,
+      messages: [
+        {
+          role: "system",
+          content: `You are an expert SVG illustrator. Generate a beautiful, detailed SVG illustration based on the user's description.
+
+RULES:
+- Return ONLY valid SVG code — NO markdown, NO code fences, NO explanations
+- Use viewBox="0 0 800 600" with responsive width="100%" height="100%"
+- Use modern styling: gradients, shadows, layered elements
+- Include a <defs> section with gradients and filters
+- Make it visually rich with proper colors, composition, and depth
+- Use proper SVG elements (rect, circle, path, ellipse, polygon, text, etc.)
+- Keep the design clean and artistic
+- NO html wrapping, just the <svg> element`,
+        },
+        { role: "user", content: finalPrompt },
+      ],
+      max_tokens: 3000,
+    });
+
+    let svg = completion.choices[0]?.message?.content?.trim() || "";
+    // Strip markdown code fences if present
+    svg = svg.replace(/```svg\s*/gi, "").replace(/```\s*/g, "").trim();
+    if (!svg.startsWith("<svg")) {
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  <rect width="800" height="600" fill="#1a1a2e"/>
+  <text x="400" y="300" text-anchor="middle" fill="white" font-family="serif" font-size="24">${finalPrompt.slice(0, 100)}</text>
+</svg>`;
+    }
+
+    const b64_json = Buffer.from(svg, "utf-8").toString("base64");
+    res.json({ b64_json, mime: "image/svg+xml" });
+  } catch (err: any) {
+    res.status(500).json({ error: `Image generation failed: ${err.message}` });
+  }
 });
 
 // POST /api/ai/summarize

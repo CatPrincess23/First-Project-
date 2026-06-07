@@ -84,6 +84,10 @@ export default function Editor({ params }: { params: { id: string } }) {
   const [imageSize, setImageSize] = useState<AiImageInputSize>(AiImageInputSize["1024x1024"]);
   const [generatedImage, setGeneratedImage] = useState("");
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [entityType, setEntityType] = useState<"person" | "animal" | "place" | "thing" | "">("");
+  const [scannedEntities, setScannedEntities] = useState<{ name: string; description: string; details: string }[]>([]);
+  const [selectedEntity, setSelectedEntity] = useState<{ name: string; description: string; details: string } | null>(null);
+  const [isScanningEntities, setIsScanningEntities] = useState(false);
 
   // Chat
   const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant", content: string }[]>([]);
@@ -355,11 +359,50 @@ export default function Editor({ params }: { params: { id: string } }) {
     setAiToolResult("");
   };
 
+  const handleScanEntities = async () => {
+    if (!entityType || !content.trim() || !useRequest()) return;
+    setIsScanningEntities(true);
+    setScannedEntities([]);
+    setSelectedEntity(null);
+    try {
+      const res = await fetch("/api/ai/scan-entities", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: entityType, documentContent: content }),
+      });
+      if (!res.ok) throw new Error("Scan failed");
+      const data = await res.json();
+      setScannedEntities(data.entities || []);
+      if (!data.entities?.length) {
+        toast({ title: `No ${entityType}s found in the document` });
+      }
+    } catch {
+      toast({ title: "Entity scan failed", variant: "destructive" });
+    } finally {
+      setIsScanningEntities(false);
+    }
+  };
+
+  const handleSelectEntity = (entity: { name: string; description: string; details: string }) => {
+    setSelectedEntity(entity);
+    setImagePrompt(entity.description + ". Fantasy illustration, detailed, artistic.");
+  };
+
   const handleGenerateImage = () => {
     if (!imagePrompt.trim() || !useRequest()) return;
     setIsGeneratingImage(true);
-    aiImage.mutate({ data: { prompt: imagePrompt, size: imageSize } }, {
-      onSuccess: (result) => { setGeneratedImage(`data:image/png;base64,${result.b64_json}`); setIsGeneratingImage(false); },
+    const body: any = { prompt: imagePrompt, size: imageSize };
+    if (selectedEntity) {
+      body.entityType = entityType;
+      body.entityName = selectedEntity.name;
+      body.documentContent = content;
+    }
+    aiImage.mutate({ data: body }, {
+      onSuccess: (result) => {
+        const mime = (result as any).mime || "image/png";
+        setGeneratedImage(`data:${mime};base64,${result.b64_json}`);
+        setIsGeneratingImage(false);
+      },
       onError: () => { setIsGeneratingImage(false); toast({ title: "Image generation failed", variant: "destructive" }); }
     });
   };
@@ -367,6 +410,7 @@ export default function Editor({ params }: { params: { id: string } }) {
   const handleScanForImage = () => {
     const excerpt = content.trim().slice(0, 300);
     if (excerpt) setImagePrompt(excerpt + ". Fantasy illustration style.");
+    setSelectedEntity(null);
   };
 
   const handleSendChat = async () => {
@@ -686,30 +730,80 @@ export default function Editor({ params }: { params: { id: string } }) {
                 <div>
                   <h3 className="font-medium text-sm mb-1">Generate Image</h3>
                   <p className="text-xs text-muted-foreground mb-3">Create illustrations for your story.</p>
-                  <div className="space-y-3">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-medium">Prompt</label>
-                        <Button variant="ghost" size="sm" className="h-6 text-xs gap-1 px-2" onClick={handleScanForImage}>
-                          <Wand2 className="w-3 h-3" /> Scan text
+
+                  {/* Entity scanner */}
+                  <div className="space-y-3 pb-3 border-b mb-3">
+                    <p className="text-xs font-medium">Scan document for</p>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {(["person", "animal", "place", "thing"] as const).map((t) => (
+                        <Button key={t} variant={entityType === t ? "default" : "outline"} size="sm"
+                          onClick={() => { setEntityType(t); setScannedEntities([]); setSelectedEntity(null); }}
+                          className="capitalize text-xs h-7"
+                        >
+                          {t}s
                         </Button>
-                      </div>
-                      <Input value={imagePrompt} onChange={(e) => setImagePrompt(e.target.value)} placeholder="A mysterious forest at dusk..." className="text-sm" />
+                      ))}
                     </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium">Size</label>
-                      <Select value={imageSize} onValueChange={(v: any) => setImageSize(v)}>
-                        <SelectTrigger className="text-xs h-8"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {Object.values(AiImageInputSize).map(size => <SelectItem key={size} value={size} className="text-xs">{size}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Button onClick={handleGenerateImage} disabled={isGeneratingImage || !imagePrompt.trim()} className="w-full gap-2" size="sm">
-                      {isGeneratingImage ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
-                      {isGeneratingImage ? "Generating..." : "Generate"}
+                    <Button onClick={handleScanEntities} disabled={!entityType || isScanningEntities || !content.trim()}
+                      className="w-full gap-2" size="sm" variant="secondary"
+                    >
+                      {isScanningEntities ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
+                      {isScanningEntities ? "Scanning..." : `Find ${entityType || "..."}s in document`}
                     </Button>
+
+                    {/* Scanned entities list */}
+                    {scannedEntities.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-xs font-medium text-muted-foreground">Found {scannedEntities.length} {entityType}{scannedEntities.length !== 1 ? "s" : ""}</p>
+                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                          {scannedEntities.map((e, i) => (
+                            <button key={i}
+                              onClick={() => handleSelectEntity(e)}
+                              className={`w-full text-left p-2 rounded-md text-xs border transition-colors ${
+                                selectedEntity?.name === e.name
+                                  ? "border-primary bg-primary/10"
+                                  : "border-border hover:bg-secondary/50"
+                              }`}
+                            >
+                              <span className="font-medium">{e.name}</span>
+                              <span className="text-muted-foreground block truncate">{e.details?.slice(0, 80)}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
+
+                  {/* Prompt */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-medium">Prompt</label>
+                      <Button variant="ghost" size="sm" className="h-6 text-xs gap-1 px-2" onClick={handleScanForImage}>
+                        <Wand2 className="w-3 h-3" /> First 300 chars
+                      </Button>
+                    </div>
+                    <textarea
+                      value={imagePrompt}
+                      onChange={(e) => setImagePrompt(e.target.value)}
+                      placeholder="A mysterious forest at dusk..."
+                      className="w-full text-sm bg-background border rounded-lg px-3 py-2 resize-none outline-none focus:ring-1 focus:ring-primary min-h-[60px]"
+                      rows={3}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium">Size</label>
+                    <Select value={imageSize} onValueChange={(v: any) => setImageSize(v)}>
+                      <SelectTrigger className="text-xs h-8"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {Object.values(AiImageInputSize).map(size => <SelectItem key={size} value={size} className="text-xs">{size}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button onClick={handleGenerateImage} disabled={isGeneratingImage || !imagePrompt.trim()} className="w-full gap-2" size="sm">
+                    {isGeneratingImage ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
+                    {isGeneratingImage ? "Generating..." : "Generate"}
+                  </Button>
                 </div>
                 {generatedImage && (
                   <div className="space-y-2 pt-3 border-t">
