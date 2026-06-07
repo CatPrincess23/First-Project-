@@ -1,7 +1,7 @@
 {
   "buildCommand": "bash build-vercel.sh",
   "outputDirectory": "artifacts/writer/dist/public",
-  "installCommand": "corepack enable pnpm && pnpm install --no-frozen-lockfile",
+  "installCommand": "pnpm install --no-frozen-lockfile",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index" },
     { "source": "/(.*)", "destination": "/index.html" }
