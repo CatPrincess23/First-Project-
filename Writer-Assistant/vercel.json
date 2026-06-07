@@ -2,12 +2,6 @@
   "buildCommand": "bash build-vercel.sh",
   "outputDirectory": "artifacts/writer/dist/public",
   "installCommand": "corepack enable pnpm && pnpm install --no-frozen-lockfile",
-  "functions": {
-    "api/index.js": {
-      "memory": 512,
-      "maxDuration": 120
-    }
-  },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index" },
     { "source": "/(.*)", "destination": "/index.html" }
