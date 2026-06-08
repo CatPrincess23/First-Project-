@@ -1,9 +1,8 @@
 {
-  "buildCommand": "cd Writer-Assistant && bash build-vercel.sh",
+  "installCommand": "echo skip",
+  "buildCommand": "echo skip",
   "outputDirectory": "Writer-Assistant/artifacts/writer/dist/public",
-  "installCommand": "cd Writer-Assistant && pnpm install --no-frozen-lockfile",
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

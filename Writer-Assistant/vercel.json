@@ -1,9 +1,8 @@
 {
-  "buildCommand": "bash build-vercel.sh",
+  "installCommand": "echo skip",
+  "buildCommand": "echo skip",
   "outputDirectory": "artifacts/writer/dist/public",
-  "installCommand": "pnpm install --no-frozen-lockfile",
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
