@@ -1,5 +1,6 @@
 {
-  "buildCommand": "cd Writer-Assistant && pnpm install && pnpm --filter @workspace/writer run build",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm --filter @workspace/writer run build",
   "outputDirectory": "Writer-Assistant/artifacts/writer/dist",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
