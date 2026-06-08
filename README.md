@@ -1,6 +1,6 @@
 # Hackathon Starter Template
 
-Welcome! This template gives you a fully-configured cloud dev environment in about 1-2 minutes. No installs on your laptop, no "works on my machine." You just click a few buttons in the browser and you're coding.
+Welcome! This template gives you a fully-configured cloud dev environment in about 1-2 minutes. No installs on your laptop, no "works on my machine." You just click a few buttons in the browser and[...]
 
 ## Getting started
 
@@ -42,15 +42,15 @@ opencode is an AI coding agent that lives in your terminal. Open a terminal in V
 opencode
 ```
 
-**It just works out of the box.** This template ships an `opencode.json` that defaults to `opencode/deepseek-v4-flash-free` — a free model served through opencode's hosted gateway, no API key needed. Start chatting immediately.
+**It just works out of the box.** This template ships an `opencode.json` that defaults to `opencode/deepseek-v4-flash-free` — a free model served through opencode's hosted gateway, no API key ne[...]
 
-The template also ships a few **skills** opencode auto-loads when relevant — including building good-looking UIs, deploying to Vercel without the usual env-var/domain footguns, and drawing architecture diagrams from your code. You don't have to invoke them; just describe what you want and opencode will pull in the right context.
+The template also ships a few **skills** opencode auto-loads when relevant — including building good-looking UIs, deploying to Vercel without the usual env-var/domain footguns, and drawing archi[...]
 
 ### Want a different / more powerful model?
 
 If your project gets serious and you want to switch to a paid model (Claude, GPT-4, DeepSeek V4 Pro, etc.), you have a few options:
 
-**Use a shared org API key (if organizers set one up):** organizers can pre-provision an API key as an env var — opencode will pick it up automatically. Edit `opencode.json` to point at the model you want and the corresponding provider (e.g. `"model": "anthropic/claude-sonnet-4-5"`).
+**Use a shared org API key (if organizers set one up):** organizers can pre-provision an API key as an env var — opencode will pick it up automatically. Edit `opencode.json` to point at the mode[...]
 
 **Bring your own key:**
 ```bash
@@ -109,4 +109,4 @@ Push your code to GitHub first if you want to keep it!
 
 ## Stuck?
 
-Most issues during the event will be auth-related — your AI tool or deploy CLI asking for credentials. Re-read the opencode section above, or ask an organizer. Happy hacking!
+Most issues during the event will be auth-related — your AI tool or deploy CLI asking for credentials. Re-read the opencode section above, or ask an organizer. Happy hacking!.
