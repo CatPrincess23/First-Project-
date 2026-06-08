@@ -1,5 +1,5 @@
 {
-  "installCommand": "cd Writer-Assistant && pnpm install",
+  "installCommand": "cd Writer-Assistant && corepack enable && pnpm install --no-frozen-lockfile",
   "buildCommand": "cd Writer-Assistant && pnpm run build:vercel",
   "outputDirectory": "Writer-Assistant/artifacts/writer/dist/public",
   "rewrites": [
