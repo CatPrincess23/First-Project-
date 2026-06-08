@@ -1,8 +1,9 @@
 {
-  "installCommand": "cd Writer-Assistant && pnpm install --frozen-lockfile",
-  "buildCommand": "cd Writer-Assistant && pnpm install --frozen-lockfile && pnpm --filter @workspace/writer run build",
-  "outputDirectory": "Writer-Assistant/artifacts/writer/dist",
+  "installCommand": "cd Writer-Assistant && pnpm install",
+  "buildCommand": "cd Writer-Assistant && pnpm run build:vercel",
+  "outputDirectory": "Writer-Assistant/artifacts/writer/dist/public",
   "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

@@ -1,7 +1,7 @@
 {
-  "buildCommand": "echo skip",
+  "buildCommand": "pnpm run build:vercel",
   "outputDirectory": "artifacts/writer/dist/public",
-  "installCommand": "echo skip",
+  "installCommand": "pnpm install",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index" },
     { "source": "/(.*)", "destination": "/index.html" }

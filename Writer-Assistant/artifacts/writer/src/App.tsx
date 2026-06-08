@@ -11,14 +11,8 @@ import { setupGuestId } from "@/lib/guest-id";
 import Documents from "@/pages/documents";
 import Editor from "@/pages/editor";
 import WorldBuilding from "@/pages/world";
-import { useCreateDocument, getListDocumentsQueryKey, setBaseUrl } from "@workspace/api-client-react";
+import { useCreateDocument, getListDocumentsQueryKey } from "@workspace/api-client-react";
 import { SignIn, SignUp } from "@clerk/react";
-
-// API base URL — configure VITE_API_BASE_URL in Vercel env vars for production
-if (typeof window !== "undefined" && !window.location.hostname.includes("localhost")) {
-  const apiUrl = import.meta.env.VITE_API_BASE_URL;
-  if (apiUrl) setBaseUrl(apiUrl);
-}
 
 setupGuestId();
 
