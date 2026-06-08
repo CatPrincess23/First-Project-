@@ -165,6 +165,7 @@ function wordDiff(original: string, corrected: string) {
     }
 
     if (origWords.length === 0) continue;
+    if (corrWords.length === 0) continue;
 
     const errSpan = original.slice(blockStart, blockEnd);
     const corrStr = corrWords.join(" ");
@@ -220,6 +221,8 @@ router.post("/grammar", async (req, res) => {
 4. **Capitalization**: Sentence starts, proper nouns, titles
 5. **Word choice**: Awkward phrasing, incorrect word usage, redundancies, clunky constructions
 6. **Sentence structure**: Run-on sentences, fragments, awkward constructions
+
+CRITICAL RULE: Never delete or remove text. Every word or phrase that needs correction must be replaced with a corrected version — never simply removed. Keep the text length as close to the original as possible.
 
 Return ONLY the corrected text with all errors fixed. Do NOT add any explanations, commentary, JSON formatting, or markdown. If there are no errors at all, return the text exactly as provided.`,
       },

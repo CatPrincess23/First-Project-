@@ -5,8 +5,15 @@ import fs from "fs";
 
 const router = Router();
 
-const uploadsDir = path.join(import.meta.dirname, "..", "uploads");
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+const uploadsDir = (() => {
+  try {
+    const dir = path.join(import.meta.dirname, "..", "uploads");
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    return dir;
+  } catch {
+    return "/tmp/uploads";
+  }
+})();
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadsDir),
