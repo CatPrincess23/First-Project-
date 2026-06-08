@@ -10,8 +10,13 @@ import { setupGuestId } from "@/lib/guest-id";
 import Documents from "@/pages/documents";
 import Editor from "@/pages/editor";
 import WorldBuilding from "@/pages/world";
-import { useCreateDocument, getListDocumentsQueryKey } from "@workspace/api-client-react";
+import { useCreateDocument, getListDocumentsQueryKey, setBaseUrl } from "@workspace/api-client-react";
 import { SignIn, SignUp } from "@clerk/react";
+
+// Use local API server when on Vercel (no serverless API)
+if (typeof window !== "undefined" && !window.location.hostname.includes("localhost")) {
+  setBaseUrl("https://ideal-happiness-6v95j7g75jqx35q6q-5000.app.github.dev");
+}
 
 setupGuestId();
 

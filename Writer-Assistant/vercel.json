@@ -1,8 +1,9 @@
 {
-  "installCommand": "echo skip",
   "buildCommand": "echo skip",
   "outputDirectory": "artifacts/writer/dist/public",
+  "installCommand": "echo skip",
   "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
