@@ -38,7 +38,7 @@ export default function Editor({ params }: { params: { id: string } }) {
   const { theme, toggleTheme } = useTheme();
 
   const { isSignedIn, isLoaded } = useAuth();
-  const clerkEnabled = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+  const clerkEnabled = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
   if (clerkEnabled && !isLoaded) return <div className="min-h-screen flex items-center justify-center bg-background"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
   if (clerkEnabled && !isSignedIn) return <RedirectToSignIn />;
 

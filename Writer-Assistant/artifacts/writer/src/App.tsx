@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -20,7 +20,8 @@ setupGuestId();
 const queryClient = new QueryClient();
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
-const clerkEnabled = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+const isLocalhost = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+const clerkEnabled = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY && isLocalhost;
 
 function HomeRedirect() {
   const [, setLocation] = useLocation();
@@ -41,23 +42,13 @@ function EditorNewRedirect() {
 }
 
 function SignInPage() {
-  const { isLoaded } = useAuth();
   const [, setLocation] = useLocation();
-  const [timedOut, setTimedOut] = useState(false);
+  const { isLoaded } = useAuth();
 
-  useEffect(() => {
-    if (!clerkEnabled) return;
-    const id = setTimeout(() => setTimedOut(true), 5000);
-    return () => clearTimeout(id);
-  }, []);
-
-  const showGuest = timedOut || !clerkEnabled;
-
-  if (clerkEnabled && !isLoaded && !timedOut) {
-    return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
-  }
-
-  if (!showGuest) {
+  if (clerkEnabled) {
+    if (!isLoaded) {
+      return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
+    }
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="w-full max-w-sm space-y-8">
@@ -87,7 +78,7 @@ function SignInPage() {
         <div className="space-y-4">
           <div className="rounded-xl border bg-card p-6 text-center space-y-3 shadow-sm">
             <Sparkles className="w-8 h-8 text-primary mx-auto" />
-            <p className="text-sm text-muted-foreground">{clerkEnabled ? "Authentication service unavailable. " : "Development mode — "}authentication is disabled.</p>
+            <p className="text-sm text-muted-foreground">Development mode — authentication is disabled.</p>
             <Button onClick={() => setLocation("/documents")} className="w-full gap-2">
               Continue as Guest <ArrowRight className="w-4 h-4" />
             </Button>
