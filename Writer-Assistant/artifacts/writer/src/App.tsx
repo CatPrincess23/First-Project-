@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -43,8 +43,15 @@ function EditorNewRedirect() {
 function SignInPage() {
   const { isLoaded } = useAuth();
   const [, setLocation] = useLocation();
+  const [timedOut, setTimedOut] = useState(false);
 
-  if (clerkEnabled && !isLoaded) {
+  useEffect(() => {
+    if (!clerkEnabled) return;
+    const id = setTimeout(() => setTimedOut(true), 5000);
+    return () => clearTimeout(id);
+  }, []);
+
+  if (clerkEnabled && !isLoaded && !timedOut) {
     return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
   }
 
