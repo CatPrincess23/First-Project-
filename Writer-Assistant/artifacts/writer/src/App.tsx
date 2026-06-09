@@ -14,9 +14,10 @@ import WorldBuilding from "@/pages/world";
 import { useCreateDocument, getListDocumentsQueryKey, setBaseUrl } from "@workspace/api-client-react";
 import { SignIn, SignUp } from "@clerk/react";
 
-// Use local API server when on Vercel (no serverless API)
+// API base URL — configure VITE_API_BASE_URL in Vercel env vars for production
 if (typeof window !== "undefined" && !window.location.hostname.includes("localhost")) {
-  setBaseUrl("https://ideal-happiness-6v95j7g75jqx35q6q-5000.app.github.dev");
+  const apiUrl = import.meta.env.VITE_API_BASE_URL;
+  if (apiUrl) setBaseUrl(apiUrl);
 }
 
 setupGuestId();
@@ -54,8 +55,15 @@ function Router() {
   }
 
   // If Clerk is enabled and user is not signed in, redirect to sign-in (except for sign-in/sign-up pages)
-  if (hasClerkKey && !isSignedIn && location !== "/sign-in" && !location.startsWith("/sign-in/") && location !== "/sign-up" && !location.startsWith("/sign-up/")) {
-    return <div className="min-h-screen flex items-center justify-center bg-background"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
+  const isAuthPage = location === "/sign-in" || location.startsWith("/sign-in/") || location === "/sign-up" || location.startsWith("/sign-up/");
+  useEffect(() => {
+    if (hasClerkKey && isLoaded && !isSignedIn && !isAuthPage) {
+      setLocation("/sign-in");
+    }
+  }, [hasClerkKey, isLoaded, isSignedIn, isAuthPage]);
+
+  if (hasClerkKey && isLoaded && !isSignedIn && !isAuthPage) {
+    return null;
   }
 
   if (hasClerkKey) {
