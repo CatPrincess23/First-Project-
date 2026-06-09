@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@clerk/react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
@@ -44,6 +45,19 @@ function EditorNewRedirect() {
 }
 
 function Router() {
+  const { isSignedIn, isLoaded } = useAuth();
+  const [location, setLocation] = useLocation();
+
+  // Show loading while Clerk is initializing
+  if (hasClerkKey && !isLoaded) {
+    return <div className="min-h-screen flex items-center justify-center bg-background"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
+  }
+
+  // If Clerk is enabled and user is not signed in, redirect to sign-in (except for sign-in/sign-up pages)
+  if (hasClerkKey && !isSignedIn && location !== "/sign-in" && !location.startsWith("/sign-in/") && location !== "/sign-up" && !location.startsWith("/sign-up/")) {
+    return <div className="min-h-screen flex items-center justify-center bg-background"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
+  }
+
   if (hasClerkKey) {
     return (
       <Switch>
