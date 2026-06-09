@@ -51,8 +51,27 @@ function SignInPage() {
     return () => clearTimeout(id);
   }, []);
 
+  const showGuest = timedOut || !clerkEnabled;
+
   if (clerkEnabled && !isLoaded && !timedOut) {
     return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
+  }
+
+  if (!showGuest) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="w-full max-w-sm space-y-8">
+          <div className="text-center space-y-3">
+            <div className="w-14 h-14 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center font-serif font-bold text-3xl mx-auto shadow-lg shadow-primary/20">
+              W
+            </div>
+            <h1 className="text-3xl font-serif font-bold tracking-tight">WriteAI</h1>
+            <p className="text-muted-foreground text-sm">Your AI-powered writing companion</p>
+          </div>
+          <SignIn routing="path" path="/sign-in" signUpUrl="/sign-up" />
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -65,20 +84,15 @@ function SignInPage() {
           <h1 className="text-3xl font-serif font-bold tracking-tight">WriteAI</h1>
           <p className="text-muted-foreground text-sm">Your AI-powered writing companion</p>
         </div>
-
-        {clerkEnabled ? (
-          <SignIn routing="path" path="/sign-in" signUpUrl="/sign-up" />
-        ) : (
-          <div className="space-y-4">
-            <div className="rounded-xl border bg-card p-6 text-center space-y-3 shadow-sm">
-              <Sparkles className="w-8 h-8 text-primary mx-auto" />
-              <p className="text-sm text-muted-foreground">Development mode — authentication is disabled.</p>
-              <Button onClick={() => setLocation("/documents")} className="w-full gap-2">
-                Continue as Guest <ArrowRight className="w-4 h-4" />
-              </Button>
-            </div>
+        <div className="space-y-4">
+          <div className="rounded-xl border bg-card p-6 text-center space-y-3 shadow-sm">
+            <Sparkles className="w-8 h-8 text-primary mx-auto" />
+            <p className="text-sm text-muted-foreground">{clerkEnabled ? "Authentication service unavailable. " : "Development mode — "}authentication is disabled.</p>
+            <Button onClick={() => setLocation("/documents")} className="w-full gap-2">
+              Continue as Guest <ArrowRight className="w-4 h-4" />
+            </Button>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
