@@ -159,7 +159,8 @@ export default function WorldBuilding({ params }: { params: { id: string } }) {
   const [editingEntity, setEditingEntity] = useState<any>(null);
 
   const { isSignedIn, isLoaded } = useAuth();
-  const clerkEnabled = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+  const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+  const clerkEnabled = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY && isLocalhost;
   if (clerkEnabled && !isLoaded) return <div className="min-h-screen flex items-center justify-center bg-background"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
   if (clerkEnabled && !isSignedIn) return <RedirectToSignIn />;
 

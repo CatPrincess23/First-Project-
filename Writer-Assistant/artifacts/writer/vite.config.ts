@@ -95,6 +95,10 @@ export default defineConfig({
         target: "http://localhost:5000",
         changeOrigin: true,
       },
+      "/api/__clerk": {
+        target: "http://localhost:5000",
+        changeOrigin: true,
+      },
     },
   },
   preview: {
