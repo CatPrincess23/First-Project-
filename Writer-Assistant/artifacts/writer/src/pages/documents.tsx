@@ -21,9 +21,10 @@ import {
 import { UserButton } from "@clerk/react";
 import OnboardingTour from "@/components/onboarding-tour";
 
-type View = "documents" | "world" | "ai-features" | "stats";
+type View = "home" | "documents" | "world" | "ai-features" | "stats";
 
 const NAV_ITEMS: { id: View; label: string; icon: React.ElementType; description: string }[] = [
+  { id: "home", label: "Home", icon: LayoutDashboard, description: "Your writing dashboard" },
   { id: "documents", label: "My Documents", icon: FileText, description: "All your books & manuscripts" },
   { id: "world", label: "World Building", icon: Globe, description: "Characters, places & items" },
   { id: "ai-features", label: "AI Features", icon: Sparkles, description: "What the AI can do" },
@@ -47,7 +48,7 @@ export default function Documents() {
   const queryClient = useQueryClient();
   const { isPro } = usePro();
   const { theme, toggleTheme } = useTheme();
-  const [activeView, setActiveView] = useState<View>("documents");
+  const [activeView, setActiveView] = useState<View>("home");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const clerkEnabled = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
@@ -170,6 +171,185 @@ export default function Documents() {
 
       {/* Main Content */}
       <main className="flex-1 min-w-0 overflow-y-auto">
+        {/* Home View */}
+        {activeView === "home" && (
+          <div className="p-6 md:p-8 space-y-8">
+            {/* Hero */}
+            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-700 p-8 md:p-10 text-white">
+              <div className="relative z-10">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center font-serif font-bold text-3xl shadow-lg">W</div>
+                  <div>
+                    <h1 className="text-3xl font-serif font-bold">Welcome to Whimsical Writer</h1>
+                    <p className="text-indigo-200 text-sm mt-1">Your AI-powered creative writing companion</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-3 mt-6">
+                  <Button onClick={handleCreateDocument} disabled={createDoc.isPending} className="bg-white text-indigo-700 hover:bg-indigo-50 gap-2 shadow-lg" size="sm">
+                    {createDoc.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                    New Document
+                  </Button>
+                  <Button variant="secondary" className="bg-white/15 text-white hover:bg-white/25 border-0 gap-2 shadow-lg" size="sm"
+                    onClick={() => setActiveView("ai-features")}>
+                    <Sparkles className="w-4 h-4" /> Explore AI Tools
+                  </Button>
+                </div>
+              </div>
+              {/* Decorative stars */}
+              <div className="absolute top-4 right-8 text-2xl opacity-30 select-none pointer-events-none">✦ ✧ ✦</div>
+              <div className="absolute bottom-4 right-12 text-lg opacity-20 select-none pointer-events-none">✧ ✦ ✧</div>
+            </div>
+
+            {/* Stats Overview */}
+            {!isLoadingStats && stats && (stats.totalDocuments ?? 0) > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Card className="shadow-sm border-indigo-500/10">
+                  <CardHeader className="pb-2 px-4 pt-4">
+                    <CardDescription className="text-xs uppercase tracking-wide flex items-center gap-1">
+                      <FileText className="w-3 h-3" /> Documents
+                    </CardDescription>
+                    <CardTitle className="text-3xl font-serif mt-1">{stats.totalDocuments}</CardTitle>
+                  </CardHeader>
+                </Card>
+                <Card className="shadow-sm border-indigo-500/10">
+                  <CardHeader className="pb-2 px-4 pt-4">
+                    <CardDescription className="text-xs uppercase tracking-wide flex items-center gap-1">
+                      <FileText className="w-3 h-3" /> Words Written
+                    </CardDescription>
+                    <CardTitle className="text-3xl font-serif mt-1">{(stats.totalWords ?? 0).toLocaleString()}</CardTitle>
+                  </CardHeader>
+                </Card>
+                <Card className="shadow-sm border-indigo-500/10">
+                  <CardHeader className="pb-2 px-4 pt-4">
+                    <CardDescription className="text-xs uppercase tracking-wide flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" /> AI Requests
+                    </CardDescription>
+                    <CardTitle className="text-3xl font-serif mt-1">Unlimited</CardTitle>
+                  </CardHeader>
+                </Card>
+              </div>
+            )}
+
+            {/* Quick Access */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card className="shadow-sm cursor-pointer group hover:border-primary/50 transition-colors"
+                onClick={() => setActiveView("world")}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-emerald-500/10 group-hover:bg-emerald-500/20 transition-colors">
+                      <Globe className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-base">World Building</CardTitle>
+                      <CardDescription className="text-xs mt-0.5">Characters, places & items</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <p className="text-xs text-muted-foreground">Build rich fictional worlds with structured profiles for every character, location, and item in your story.</p>
+                </CardContent>
+                <CardFooter className="pt-0 pb-4">
+                  <span className="text-xs font-medium text-primary flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                    Explore <ChevronRight className="w-3 h-3" />
+                  </span>
+                </CardFooter>
+              </Card>
+
+              <Card className="shadow-sm cursor-pointer group hover:border-primary/50 transition-colors"
+                onClick={() => setActiveView("ai-features")}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-purple-500/10 group-hover:bg-purple-500/20 transition-colors">
+                      <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-base">AI Tools</CardTitle>
+                      <CardDescription className="text-xs mt-0.5">Grammar, rewrite, summarize & more</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <p className="text-xs text-muted-foreground">Grammar checking, rewriting, summarization, prologue generation, image creation, and persistent AI chat — all in the editor.</p>
+                </CardContent>
+                <CardFooter className="pt-0 pb-4">
+                  <span className="text-xs font-medium text-primary flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                    Explore <ChevronRight className="w-3 h-3" />
+                  </span>
+                </CardFooter>
+              </Card>
+
+              <Card className="shadow-sm cursor-pointer group hover:border-primary/50 transition-colors"
+                onClick={() => setActiveView("stats")}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-amber-500/10 group-hover:bg-amber-500/20 transition-colors">
+                      <Target className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-base">Writing Stats</CardTitle>
+                      <CardDescription className="text-xs mt-0.5">Track your progress</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <p className="text-xs text-muted-foreground">Monitor your word counts, writing goals, and see how your manuscript is growing over time.</p>
+                </CardContent>
+                <CardFooter className="pt-0 pb-4">
+                  <span className="text-xs font-medium text-primary flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                    View Stats <ChevronRight className="w-3 h-3" />
+                  </span>
+                </CardFooter>
+              </Card>
+            </div>
+
+            {/* Recent Documents */}
+            {!isLoadingDocs && docs.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-serif font-semibold">Recent Documents</h2>
+                  <Button variant="ghost" size="sm" className="text-xs gap-1" onClick={() => setActiveView("documents")}>
+                    View all <ChevronRight className="w-3 h-3" />
+                  </Button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {docs.slice(0, 6).map((doc) => (
+                    <Link key={doc.id} href={`/editor/${doc.id}`}>
+                      <Card className="h-full cursor-pointer group hover:border-primary/50 transition-colors shadow-sm">
+                        <CardHeader className="pb-3">
+                          <CardTitle className="font-serif text-base line-clamp-1 group-hover:text-primary transition-colors">
+                            {doc.title || "Untitled Document"}
+                          </CardTitle>
+                          <CardDescription className="text-xs mt-1 flex items-center gap-2">
+                            <span>{doc.wordCount.toLocaleString()} words</span>
+                            <span>·</span>
+                            <span>{format(new Date(doc.updatedAt), "MMM d")}</span>
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="pt-0 flex-1">
+                          <p className="text-xs text-muted-foreground line-clamp-2">{doc.content || "Empty document..."}</p>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {!isLoadingDocs && docs.length === 0 && (
+              <div className="text-center py-16 px-6 border-2 border-dashed rounded-xl bg-card/50">
+                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <FileText className="w-8 h-8 text-primary" />
+                </div>
+                <h3 className="text-lg font-medium mb-2">Start your first story</h3>
+                <p className="text-muted-foreground mb-6 text-sm max-w-sm mx-auto">Create a document and begin writing with the power of AI at your side.</p>
+                <Button onClick={handleCreateDocument} disabled={createDoc.isPending} className="gap-2">
+                  <Plus className="w-4 h-4" /> Create First Document
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Documents View */}
         {activeView === "documents" && (
           <div className="p-6 md:p-8 space-y-8">
