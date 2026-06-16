@@ -66,5 +66,4 @@ coverage/
 
 # Build artifacts
 .vercel
-api/
 dist-vercel/
