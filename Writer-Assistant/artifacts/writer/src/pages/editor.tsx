@@ -22,7 +22,7 @@ import { exportToPDF, exportToDOCX } from "@/lib/export";
 import {
   ArrowLeft, Sparkles, Image as ImageIcon, CheckCircle, Save, Loader2, Wand2,
   Globe, History, FileDown, Sun, Moon, BookOpen, Target, Clock, RotateCcw, MessageCircle,
-  Plus, Trash2, Undo2, Redo2,
+  Plus, Trash2, Undo2, Redo2, ChevronRight, ChevronLeft,
 } from "lucide-react";
 import { UserButton } from "@clerk/react";
 import { UpgradeModal } from "@/components/upgrade-modal";
@@ -69,6 +69,9 @@ export default function Editor({ params }: { params: { id: string } }) {
   const isUndoRedoingRef = useRef(false);
   const contentSnapshotRef = useRef(content);
   contentSnapshotRef.current = content;
+
+  // Sidebar collapse
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Sidebar tabs
   const [activeTab, setActiveTab] = useState<"grammar" | "suggest" | "ai-tools" | "image" | "history" | "chat">("grammar");
@@ -675,7 +678,18 @@ export default function Editor({ params }: { params: { id: string } }) {
         </div>
 
         {/* AI Sidebar */}
-        <div id="tour-editor-sidebar" className="w-80 border-l bg-card flex flex-col shrink-0">
+        <div className="flex shrink-0">
+          {/* Collapse toggle */}
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="border-l bg-card hover:bg-muted transition-colors flex items-center justify-center w-5"
+            title={sidebarOpen ? "Close sidebar" : "Open sidebar"}
+          >
+            {sidebarOpen ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
+          </button>
+
+          {sidebarOpen && (
+          <div id="tour-editor-sidebar" className="w-80 border-l bg-card flex flex-col">
           <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="flex flex-col h-full">
             <div className="px-3 py-2.5 border-b shrink-0">
               <TabsList className="grid w-full grid-cols-6 h-8">
@@ -1010,6 +1024,8 @@ export default function Editor({ params }: { params: { id: string } }) {
             </div>
           </Tabs>
         </div>
+          )}
+      </div>
       </div>
 
       {/* Goal Dialog */}
