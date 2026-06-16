@@ -97,6 +97,11 @@ Both servers must run in the background (use `nohup ... &`, `run_in_background: 
 - **No Clerk loading spinner on pages.** The 8-second Clerk loading timeout was removed from `documents.tsx`, `editor.tsx`, and `world.tsx`. Pages render immediately without waiting for Clerk to initialize. Clerk UI features (UserButton) are shown/hidden via `clerkEnabled` flag when they become available.
 - **Production URL:** https://whimsicalwriter.vercel.app
 
+## Debugging Vercel deployment issues
+
+- **`api/index.js` vs `api/index.mjs` conflict causes 404s on all API routes.** If both files exist, Vercel drops both serverless functions — all `/api/*` requests fall through to the SPA catch-all (returning HTML). Delete one of them to resolve.
+- **Check Vercel deploy logs** for build errors: `vercel logs --environment production --limit 20`.
+
 ## Debugging save failures
 
 - **`guest-id.ts` monkey-patches `window.fetch`.** It always constructs a `Request` object and appends `x-guest-id` via `req.headers.append()` — do NOT manually build a `headers` plain object, as that can suppress auto-set `Content-Type` (both `application/json` and `multipart/form-data`). Without the correct Content-Type, Express won't parse the body and returns 400.
