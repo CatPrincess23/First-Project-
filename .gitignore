@@ -67,3 +67,5 @@ coverage/
 # Build artifacts
 .vercel
 dist-vercel/
+PLAN-*.md
+tasks/

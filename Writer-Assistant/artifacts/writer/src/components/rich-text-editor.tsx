@@ -15,6 +15,18 @@ import {
   Undo2, Redo2, Minus, Code, FileCode,
 } from "lucide-react";
 
+const SAFE_LINK_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
+
+// Require an absolute URL with an allowed scheme; rejects javascript:, data:,
+// relative/scheme-less input, and anything else that could be an XSS vector.
+function isSafeUrl(url: string): boolean {
+  try {
+    return SAFE_LINK_PROTOCOLS.has(new URL(url).protocol);
+  } catch {
+    return false;
+  }
+}
+
 const fonts = [
   "Serif", "Sans-Serif", "Monospace", "Georgia", "Times New Roman",
   "Arial", "Helvetica", "Courier New", "Verdana", "Trebuchet MS",
@@ -70,7 +82,7 @@ export default function RichTextEditor({ content, onChange, onBlur, placeholder 
       FontFamily.configure({ types: ["textStyle"] }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
       Highlight.configure({ multicolor: true }),
-      Link.configure({ openOnClick: false }),
+      Link.configure({ openOnClick: false, protocols: ["http", "https", "mailto"] }),
     ],
     content: content || "",
     onUpdate: ({ editor: ed }) => {
@@ -90,7 +102,13 @@ export default function RichTextEditor({ content, onChange, onBlur, placeholder 
   const setLink = useCallback(() => {
     if (!editor) return;
     const url = prompt("Enter URL:");
-    if (url) editor.chain().focus().setLink({ href: url }).run();
+    if (!url) return;
+    // Allowlist safe schemes only; reject javascript:, data:, etc. (XSS).
+    if (!isSafeUrl(url)) {
+      alert("Only http, https, and mailto links are allowed.");
+      return;
+    }
+    editor.chain().focus().setLink({ href: url }).run();
   }, [editor]);
 
   const addImage = useCallback(() => {

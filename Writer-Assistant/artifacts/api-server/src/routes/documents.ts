@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db, documentsTable, documentVersionsTable, conversations } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
+import { getUserId } from "../middlewares/identity";
 import {
   CreateDocumentBody,
   UpdateDocumentBody,
@@ -18,16 +19,33 @@ function countWords(text: string): number {
   return text.trim() ? text.trim().split(/\s+/).length : 0;
 }
 
-function getUserId(req: any): string {
-  const clerkUserId = req.auth?.userId;
-  return clerkUserId || req.headers["x-guest-id"] || "guest";
+function toIso(value: any) {
+  return value instanceof Date ? value.toISOString() : value;
 }
 
+// Explicitly project document rows so the internal userId column never leaks to clients.
 function serializeDoc(d: any) {
   return {
-    ...d,
-    createdAt: d.createdAt instanceof Date ? d.createdAt.toISOString() : d.createdAt,
-    updatedAt: d.updatedAt instanceof Date ? d.updatedAt.toISOString() : d.updatedAt,
+    id: d.id,
+    title: d.title,
+    content: d.content,
+    wordCount: d.wordCount,
+    goalWordCount: d.goalWordCount,
+    createdAt: toIso(d.createdAt),
+    updatedAt: toIso(d.updatedAt),
+  };
+}
+
+// Explicitly project version rows so the internal userId column never leaks to clients.
+function serializeVersion(v: any) {
+  return {
+    id: v.id,
+    documentId: v.documentId,
+    title: v.title,
+    content: v.content,
+    wordCount: v.wordCount,
+    label: v.label,
+    createdAt: toIso(v.createdAt),
   };
 }
 
@@ -69,7 +87,7 @@ router.get("/:id/versions", async (req, res) => {
   const versions = await db.select().from(documentVersionsTable)
     .where(and(eq(documentVersionsTable.documentId, parse.data.id), eq(documentVersionsTable.userId, userId)))
     .orderBy(desc(documentVersionsTable.createdAt));
-  res.json(versions.map(v => ({ ...v, createdAt: v.createdAt.toISOString() })));
+  res.json(versions.map(serializeVersion));
 });
 
 // POST /api/documents/:id/versions
@@ -79,11 +97,15 @@ router.post("/:id/versions", async (req, res) => {
   const bodyParse = CreateDocumentVersionBody.safeParse(req.body);
   if (!bodyParse.success) return res.status(400).json({ error: "Invalid input" });
   const userId = getUserId(req);
+  // Only the owner of the parent document may add versions to it.
+  const [parent] = await db.select().from(documentsTable)
+    .where(and(eq(documentsTable.id, paramParse.data.id), eq(documentsTable.userId, userId)));
+  if (!parent) return res.status(404).json({ error: "Not found" });
   const { title, content, wordCount, label } = bodyParse.data;
   const [version] = await db.insert(documentVersionsTable)
     .values({ documentId: paramParse.data.id, userId, title, content, wordCount: wordCount ?? 0, label: label ?? null })
     .returning();
-  res.status(201).json({ ...version, createdAt: version.createdAt.toISOString() });
+  res.status(201).json(serializeVersion(version));
 });
 
 // GET /api/documents/:id
@@ -118,8 +140,14 @@ router.delete("/:id", async (req, res) => {
   const parse = DeleteDocumentParams.safeParse({ id: Number(req.params.id) });
   if (!parse.success) return res.status(400).json({ error: "Invalid ID" });
   const userId = getUserId(req);
-  // conversations.documentId has no FK cascade, so delete them first (messages cascade via FK)
-  await db.delete(conversations).where(eq(conversations.documentId, parse.data.id));
+  // Confirm ownership before destroying anything so a caller can't wipe another
+  // user's conversations by guessing a document id they don't own.
+  const [doc] = await db.select().from(documentsTable)
+    .where(and(eq(documentsTable.id, parse.data.id), eq(documentsTable.userId, userId)));
+  if (!doc) return res.status(404).json({ error: "Not found" });
+  // conversations.documentId has no FK cascade, so delete them first (messages cascade via FK),
+  // scoped by both documentId and userId. (messages cascade via FK on conversationId)
+  await db.delete(conversations).where(and(eq(conversations.documentId, parse.data.id), eq(conversations.userId, userId)));
   await db.delete(documentsTable).where(and(eq(documentsTable.id, parse.data.id), eq(documentsTable.userId, userId)));
   res.status(204).send();
 });

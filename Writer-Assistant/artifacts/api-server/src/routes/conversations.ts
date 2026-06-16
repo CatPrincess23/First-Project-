@@ -1,23 +1,25 @@
 import { Router } from "express";
-import { db, conversations, messages, insertMessageSchema } from "@workspace/db";
+import { db, conversations, messages, documentsTable, insertMessageSchema } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
+import { getUserId } from "../middlewares/identity";
 
 const router = Router();
 
-function getUserId(req: any): string {
-  return req.auth?.userId || req.headers["x-guest-id"] || "guest";
-}
-
 function serializeConversation(c: any) {
   return {
-    ...c,
+    id: c.id,
+    documentId: c.documentId,
+    title: c.title,
     createdAt: c.createdAt instanceof Date ? c.createdAt.toISOString() : c.createdAt,
   };
 }
 
 function serializeMessage(m: any) {
   return {
-    ...m,
+    id: m.id,
+    conversationId: m.conversationId,
+    role: m.role,
+    content: m.content,
     createdAt: m.createdAt instanceof Date ? m.createdAt.toISOString() : m.createdAt,
   };
 }
@@ -39,13 +41,18 @@ router.post("/", async (req, res) => {
   const userId = getUserId(req);
   const { documentId, title } = req.body;
   if (!documentId || isNaN(Number(documentId))) return res.status(400).json({ error: "documentId is required" });
+  const docId = Number(documentId);
+  // Verify the document belongs to the caller before creating a conversation
+  // for it, otherwise any client could attach conversations to other users' docs.
+  const [doc] = await db.select().from(documentsTable).where(and(eq(documentsTable.id, docId), eq(documentsTable.userId, userId)));
+  if (!doc) return res.status(404).json({ error: "Document not found" });
   const convTitle = title || "New Chat";
   const [conv] = await db.insert(conversations).values({
-    documentId: Number(documentId),
+    documentId: docId,
     userId,
     title: convTitle,
   }).returning();
-  res.status(201).json(serializeConversation(conv));
+  return res.status(201).json(serializeConversation(conv));
 });
 
 // GET /api/conversations/:id

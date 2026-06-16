@@ -1,5 +1,7 @@
 import express, { type Express } from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
+import helmet from "helmet";
 import path from "path";
 import pinoHttp from "pino-http";
 import multer from "multer";
@@ -11,9 +13,15 @@ import {
   getClerkProxyHost,
 } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
+import { resolveIdentity } from "./middlewares/identity";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
+
+// Behind Vercel's single proxy hop. Required so req.ip reflects the real client
+// (X-Forwarded-For) for the rate limiters; "1" (not true) avoids the permissive-
+// trust-proxy validation error in express-rate-limit.
+app.set("trust proxy", 1);
 
 app.use(
   pinoHttp({
@@ -36,6 +44,37 @@ app.use(
 );
 
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
+
+// Security headers. CSP is tuned so the Vite-built SPA, Clerk, and the AI
+// origins keep working; tighten further only if those integrations change.
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        imgSrc: ["'self'", "data:", "blob:"],
+        connectSrc: [
+          "'self'",
+          "https://*.clerk.accounts.dev",
+          "https://*.clerk.com",
+          "https://openrouter.ai",
+          "https://generativelanguage.googleapis.com",
+        ],
+        scriptSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          "https://*.clerk.accounts.dev",
+          "https://*.clerk.com",
+        ],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        fontSrc: ["'self'", "data:"],
+        workerSrc: ["'self'", "blob:"],
+      },
+    },
+    // Leave COEP off so data:/blob: images and Clerk's cross-origin assets load.
+    crossOriginEmbedderPolicy: false,
+  }),
+);
 
 // Explicitly allowed cross-origin callers (comma-separated env var).
 const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "")
@@ -77,6 +116,7 @@ app.use(
 );
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 try {
   app.use("/uploads", express.static(path.join(import.meta.dirname, "..", "uploads")));
@@ -100,11 +140,18 @@ if (!skipAuth) {
 }
 
 app.use((req, _res, next) => {
-  if (skipAuth && !(req as any).auth) {
+  // Only inject the dev user in actual development. Any other environment
+  // without Clerk fails closed: no auto user → resolveIdentity yields
+  // guest-or-none → requireIdentity returns 401 instead of silently granting.
+  if (skipAuth && process.env.NODE_ENV === "development" && !(req as any).auth) {
     (req as any).auth = { userId: "dev-user" };
   }
   next();
 });
+
+// Resolve identity (Clerk user or signed guest cookie) before the API router so
+// requireIdentity and the AI rate-limiter can key off req.identity.
+app.use(resolveIdentity);
 
 app.use("/api", router);
 
