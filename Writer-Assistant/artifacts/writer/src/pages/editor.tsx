@@ -19,11 +19,11 @@ import { usePro } from "@/lib/pro-context";
 import { useTheme } from "@/lib/theme";
 import { useToast } from "@/hooks/use-toast";
 import { exportToPDF, exportToDOCX } from "@/lib/export";
+import RichTextEditor from "@/components/rich-text-editor";
 import {
   ArrowLeft, Sparkles, Image as ImageIcon, CheckCircle, Save, Loader2, Wand2,
   Globe, History, FileDown, Sun, Moon, BookOpen, Target, Clock, RotateCcw, MessageCircle,
   Plus, Trash2, Undo2, Redo2, ChevronRight, ChevronLeft,
-  Bold, Italic, Heading, List, ListOrdered, Strikethrough, Quote, Minus,
 } from "lucide-react";
 import { UserButton } from "@clerk/react";
 import { UpgradeModal } from "@/components/upgrade-modal";
@@ -77,38 +77,7 @@ export default function Editor({ params }: { params: { id: string } }) {
   // Sidebar tabs
   const [activeTab, setActiveTab] = useState<"grammar" | "suggest" | "ai-tools" | "image" | "history" | "chat">("grammar");
 
-  const formatText = useCallback((before: string, after: string) => {
-    const ta = contentRef.current;
-    if (!ta) return;
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
-    const selected = content.slice(start, end);
-    const replacement = before + selected + after;
-    const newContent = content.slice(0, start) + replacement + content.slice(end);
-    setContent(newContent);
-    requestAnimationFrame(() => {
-      ta.focus();
-      ta.setSelectionRange(start + before.length, start + before.length + selected.length);
-    });
-  }, [content]);
-
-  const formatLine = useCallback((prefix: string) => {
-    const ta = contentRef.current;
-    if (!ta) return;
-    const start = ta.selectionStart;
-    const lineStart = content.lastIndexOf("\n", start - 1) + 1;
-    const lineEnd = content.indexOf("\n", start);
-    const line = content.slice(lineStart, lineEnd === -1 ? content.length : lineEnd);
-    const beforeLine = content.slice(0, lineStart);
-    const afterLine = content.slice(lineEnd === -1 ? content.length : lineEnd);
-    if (line.startsWith(prefix.trim())) {
-      const stripped = line.replace(new RegExp(`^\\s*${prefix.trim()}\\s*`), "");
-      setContent(beforeLine + stripped + afterLine);
-    } else {
-      setContent(beforeLine + prefix + line + afterLine);
-    }
-    requestAnimationFrame(() => ta.focus());
-  }, [content]);
+  const stripHtml = useCallback((html: string) => html.replace(/<[^>]+>/g, ""), []);
 
   // Grammar
   const [grammarErrors, setGrammarErrors] = useState<any[]>([]);
@@ -344,9 +313,9 @@ export default function Editor({ params }: { params: { id: string } }) {
   }, []);
 
   const handleGrammarCheck = () => {
-    if (!content.trim() || !useRequest()) return;
+    if (!stripHtml(content).trim() || !useRequest()) return;
     setIsCheckingGrammar(true);
-    aiGrammar.mutate({ data: { text: content } }, {
+    aiGrammar.mutate({ data: { text: stripHtml(content) } }, {
       onSuccess: (result) => { setGrammarErrors(result.errors); setCorrectedText(result.correctedText); setIsCheckingGrammar(false); },
       onError: () => { setIsCheckingGrammar(false); toast({ title: "Grammar check unavailable right now" }); }
     });
@@ -396,9 +365,9 @@ export default function Editor({ params }: { params: { id: string } }) {
   }, []);
 
   const handleSuggest = (type: AiSuggestInputType) => {
-    if (!content.trim() || !useRequest()) return;
+    if (!stripHtml(content).trim() || !useRequest()) return;
     setIsSuggesting(true); setSuggestType(type);
-    aiSuggest.mutate({ data: { text: content, type } }, {
+    aiSuggest.mutate({ data: { text: stripHtml(content), type } }, {
       onSuccess: (result) => { setSuggestion(result.suggestion); setIsSuggesting(false); },
       onError: () => { setIsSuggesting(false); toast({ title: "AI suggestions unavailable right now" }); }
     });
@@ -411,18 +380,18 @@ export default function Editor({ params }: { params: { id: string } }) {
   };
 
   const handleSummarize = () => {
-    if (!content.trim() || !useRequest()) return;
+    if (!stripHtml(content).trim() || !useRequest()) return;
     setIsRunningAiTool(true); setAiToolType("summary");
-    aiSummarize.mutate({ data: { text: content, title } }, {
+    aiSummarize.mutate({ data: { text: stripHtml(content), title } }, {
       onSuccess: (result) => { setAiToolResult(result.summary); setIsRunningAiTool(false); },
       onError: () => { setIsRunningAiTool(false); toast({ title: "Summarize unavailable right now" }); }
     });
   };
 
   const handlePrologue = () => {
-    if (!content.trim() || !useRequest()) return;
+    if (!stripHtml(content).trim() || !useRequest()) return;
     setIsRunningAiTool(true); setAiToolType("prologue");
-    aiPrologue.mutate({ data: { text: content, title } }, {
+    aiPrologue.mutate({ data: { text: stripHtml(content), title } }, {
       onSuccess: (result) => { setAiToolResult(result.prologue); setIsRunningAiTool(false); },
       onError: () => { setIsRunningAiTool(false); toast({ title: "Prologue generation unavailable right now" }); }
     });
@@ -437,12 +406,12 @@ export default function Editor({ params }: { params: { id: string } }) {
   };
 
   const handleScanEntities = async () => {
-    if (!entityType || !content.trim() || !useRequest()) return;
+    if (!entityType || !stripHtml(content).trim() || !useRequest()) return;
     setIsScanningEntities(true);
     setScannedEntities([]);
     setSelectedEntity(null);
     try {
-      const body: Record<string, unknown> = { type: entityType, documentContent: content };
+      const body: Record<string, unknown> = { type: entityType, documentContent: stripHtml(content) };
       if (entityNameInput.trim()) {
         body.entityName = entityNameInput.trim();
       }
@@ -479,7 +448,7 @@ export default function Editor({ params }: { params: { id: string } }) {
     if (selectedEntity) {
       body.entityType = entityType;
       body.entityName = selectedEntity.name;
-      body.documentContent = content;
+      body.documentContent = stripHtml(content);
     }
     aiImage.mutate({ data: body }, {
       onSuccess: (result) => {
@@ -492,7 +461,7 @@ export default function Editor({ params }: { params: { id: string } }) {
   };
 
   const handleScanForImage = () => {
-    const excerpt = content.trim().slice(0, 300);
+    const excerpt = stripHtml(content).trim().slice(0, 300);
     if (excerpt) setImagePrompt(excerpt + ". Fantasy illustration style.");
     setSelectedEntity(null);
   };
@@ -516,7 +485,7 @@ export default function Editor({ params }: { params: { id: string } }) {
     setChatInput("");
     setIsChatLoading(true);
 
-    const docContext = content.trim();
+    const docContext = stripHtml(content).trim();
     if (docContext) chatDocContent.current = docContext;
     const wordCount = chatDocContent.current ? chatDocContent.current.trim().split(/\s+/).length : 0;
     const contextMsg = chatDocContent.current
@@ -541,7 +510,7 @@ export default function Editor({ params }: { params: { id: string } }) {
   };
 
   const handleSaveVersion = () => {
-    const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
+    const wordCount = stripHtml(content).trim() ? stripHtml(content).trim().split(/\s+/).length : 0;
     createVersion.mutate(
       { id: documentId, data: { title, content, wordCount, label: versionLabel || null } },
       {
@@ -576,8 +545,9 @@ export default function Editor({ params }: { params: { id: string } }) {
   const handleExport = async (format: "pdf" | "docx") => {
     setIsExporting(true);
     try {
-      if (format === "pdf") await exportToPDF(title, content);
-      else await exportToDOCX(title, content);
+      const plain = stripHtml(content);
+      if (format === "pdf") await exportToPDF(title, plain);
+      else await exportToDOCX(title, plain);
     } catch (e) {
       toast({ title: "Export failed", variant: "destructive" });
     } finally {
@@ -589,7 +559,7 @@ export default function Editor({ params }: { params: { id: string } }) {
     return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-muted-foreground" /></div>;
   }
 
-  const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
+  const wordCount = stripHtml(content).trim() ? stripHtml(content).trim().split(/\s+/).length : 0;
   const goalProgress = goalWordCount ? Math.min(100, Math.round((wordCount / goalWordCount) * 100)) : null;
 
   const EDITOR_TOUR_STEPS = [
@@ -680,49 +650,13 @@ export default function Editor({ params }: { params: { id: string } }) {
       {/* Main Workspace */}
       <div className="flex flex-1 overflow-hidden">
         {/* Editor Area */}
-        <div className="flex-1 overflow-y-auto p-8 md:p-12 lg:p-24 flex justify-center">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 flex justify-center">
           <div id="tour-editor-textarea" className="w-full max-w-3xl">
-            {/* Formatting toolbar */}
-            <div className="flex items-center gap-0.5 mb-3 pb-2 border-b flex-wrap">
-              <button onClick={() => formatText("**", "**")} className="p-1.5 rounded hover:bg-muted transition-colors" title="Bold"><Bold className="w-4 h-4" /></button>
-              <button onClick={() => formatText("*", "*")} className="p-1.5 rounded hover:bg-muted transition-colors" title="Italic"><Italic className="w-4 h-4" /></button>
-              <button onClick={() => formatText("~~", "~~")} className="p-1.5 rounded hover:bg-muted transition-colors" title="Strikethrough"><Strikethrough className="w-4 h-4" /></button>
-              <span className="w-px h-5 bg-border mx-1" />
-              <button onClick={() => formatLine("# ")} className="p-1.5 rounded hover:bg-muted transition-colors" title="Heading"><Heading className="w-4 h-4" /></button>
-              <button onClick={() => formatLine("> ")} className="p-1.5 rounded hover:bg-muted transition-colors" title="Blockquote"><Quote className="w-4 h-4" /></button>
-              <span className="w-px h-5 bg-border mx-1" />
-              <button onClick={() => formatLine("- ")} className="p-1.5 rounded hover:bg-muted transition-colors" title="Bullet List"><List className="w-4 h-4" /></button>
-              <button onClick={() => formatLine("1. ")} className="p-1.5 rounded hover:bg-muted transition-colors" title="Numbered List"><ListOrdered className="w-4 h-4" /></button>
-              <span className="w-px h-5 bg-border mx-1" />
-              <button onClick={() => formatText("==", "==")} className="p-1.5 rounded hover:bg-muted transition-colors" title="Highlight">≡</button>
-              <button onClick={() => formatText("", "\n\n---\n\n")} className="p-1.5 rounded hover:bg-muted transition-colors" title="Horizontal Rule"><Minus className="w-4 h-4" /></button>
-            </div>
-            <div className="relative">
-              {grammarErrors.length > 0 && (
-                <div
-                  ref={highlightRef}
-                  aria-hidden="true"
-                  className="absolute inset-0 pointer-events-none overflow-hidden whitespace-pre-wrap break-words font-serif text-lg leading-relaxed text-transparent py-[2px] px-[1px]"
-                >
-                  {buildHighlightSegments(content, grammarErrors).map((seg, i) =>
-                    seg.error ? (
-                      <span key={i} className={errorHighlightClass(seg.error.type)} title={seg.error.message}>{seg.text}</span>
-                    ) : (
-                      <span key={i}>{seg.text}</span>
-                    )
-                  )}
-                </div>
-              )}
-              <textarea
-                ref={contentRef}
-                value={content}
-                onChange={handleInput}
-                onBlur={handleBlur}
-                onScroll={syncHighlightScroll}
-                placeholder="Start writing..."
-                className="w-full min-h-[60vh] resize-none outline-none font-serif text-lg leading-relaxed text-foreground bg-transparent border-0 focus-visible:ring-0 relative"
-              />
-            </div>
+            <RichTextEditor content={content} onChange={(html) => {
+              setContent(html);
+              isTypingRef.current = true;
+              if (grammarErrors.length > 0) { setGrammarErrors([]); setCorrectedText(""); }
+            }} placeholder="Start writing..." />
           </div>
         </div>
 
