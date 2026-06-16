@@ -9,7 +9,7 @@ export function UpgradeModal() {
     <Dialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="font-serif text-2xl">Upgrade to WriteAI Pro</DialogTitle>
+          <DialogTitle className="font-serif text-2xl">Upgrade to Whimsical Writer Pro</DialogTitle>
           <DialogDescription className="text-base pt-2">
             You've reached your free AI request limit for this session. Upgrade to unlock unlimited AI grammar checking, writing suggestions, and image generation.
           </DialogDescription>

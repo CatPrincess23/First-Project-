@@ -98,7 +98,7 @@ export default function Documents() {
           <div className="w-8 h-8 rounded bg-primary text-primary-foreground flex items-center justify-center font-serif font-bold text-lg shrink-0">W</div>
           {!sidebarCollapsed && (
             <div className="min-w-0">
-              <div className="font-serif font-semibold text-base leading-tight tracking-tight">WriteAI</div>
+              <div className="font-serif font-semibold text-base leading-tight tracking-tight">Whimsical Writer</div>
               {isPro && <div className="text-[10px] text-primary font-bold uppercase tracking-wider">Pro</div>}
             </div>
           )}

@@ -64,7 +64,7 @@ export async function exportToDOCX(title: string, content: string): Promise<void
 
   const doc = new Document({
     sections: [{ properties: {}, children: docParagraphs }],
-    creator: "WriteAI",
+      creator: "Whimsical Writer",
     title: title,
   });
 
