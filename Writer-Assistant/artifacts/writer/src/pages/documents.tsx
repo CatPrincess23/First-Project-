@@ -9,7 +9,6 @@ import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "@/lib/theme";
 import { usePro } from "@/lib/pro-context";
@@ -561,7 +560,7 @@ export default function Documents() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {AI_FEATURES.map(({ icon: Icon, title, desc, tier }) => (
+              {AI_FEATURES.map(({ icon: Icon, title, desc }) => (
                 <Card key={title} className="shadow-sm border-border/60">
                   <CardHeader className="pb-3">
                     <div className="flex items-start gap-4">
@@ -571,9 +570,6 @@ export default function Documents() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <CardTitle className="text-base">{title}</CardTitle>
-                          <Badge variant={tier === "pro" ? "default" : "secondary"} className={`text-[10px] py-0 px-1.5 h-4 ${tier === "pro" ? "bg-amber-500 text-white hover:bg-amber-500" : ""}`}>
-                            {tier === "pro" ? "PRO" : "FREE"}
-                          </Badge>
                         </div>
                         <CardDescription className="text-sm mt-1 leading-relaxed">{desc}</CardDescription>
                       </div>

@@ -1,5 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
+import { PDFParse } from "pdf-parse";
+import * as mammoth from "mammoth";
 
 const router = Router();
 
@@ -34,11 +36,10 @@ router.post("/", upload.single("file"), async (req, res) => {
     if (ext === "txt") {
       text = req.file.buffer.toString("utf-8");
     } else if (ext === "pdf") {
-      const pdfParse = (await import("pdf-parse")).default;
-      const data = await pdfParse(req.file.buffer);
-      text = data.text;
+      const parser = new PDFParse(req.file.buffer);
+      await parser.load({ password: undefined });
+      text = await parser.getText();
     } else if (ext === "docx") {
-      const mammoth = await import("mammoth");
       const result = await mammoth.extractRawText({ buffer: req.file.buffer });
       text = result.value;
     }
