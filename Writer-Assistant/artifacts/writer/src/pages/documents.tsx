@@ -83,11 +83,11 @@ export default function Documents() {
   };
 
   const DOCS_TOUR_STEPS = [
-    { target: "#tour-docs-header", title: "Your Writing Hub", description: "All your manuscripts, chapters, and notes live right here. Click any document to open it in the editor.", placement: "bottom" as const },
+    { target: "#tour-home-hero", title: "Welcome to Whimsical Writer", description: "Your AI-powered creative writing companion. Create documents, build worlds, and track your progress — all in one place.", placement: "bottom" as const },
     { target: "#tour-docs-new", title: "Create a New Document", description: "Start a fresh manuscript with one click. Each document gets its own AI chat, versions, and world-building space.", placement: "right" as const },
-    { target: "#tour-docs-ai-features", title: "AI-Powered Tools", description: "Grammar checks, rewrites, summarization, prologue generation, and image creation — all built into the editor sidebar.", placement: "right" as const },
-    { target: "#tour-docs-stats", title: "Track Your Progress", description: "See your word count trends, daily writing streaks, and goal completion at a glance.", placement: "right" as const },
-    { target: "#tour-docs-world", title: "Build Your World", description: "Create character profiles, map out locations, and define key items for your fictional universe.", placement: "right" as const },
+    { target: "#tour-home-world", title: "Build Your World", description: "Create character profiles, map out locations, and define key items for your fictional universe.", placement: "bottom" as const },
+    { target: "#tour-home-ai", title: "AI-Powered Tools", description: "Grammar checks, rewrites, summarization, prologue generation, and image creation — all built into the editor sidebar.", placement: "bottom" as const },
+    { target: "#tour-home-stats", title: "Track Your Progress", description: "See your word count, writing streaks, and goal completion at a glance.", placement: "bottom" as const },
   ];
 
   const [tourVersion, setTourVersion] = useState(0);
@@ -167,7 +167,7 @@ export default function Documents() {
             <Button variant="ghost" size="icon" onClick={toggleTheme} className="text-muted-foreground h-8 w-8">
               {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </Button>
-            <Button variant="ghost" size="icon" onClick={restartTour} className="text-muted-foreground h-8 w-8" title="Show tour">
+            <Button variant="ghost" size="icon" onClick={restartTour} className="h-8 w-8 text-primary" title="Show tour">
               <HelpCircle className="w-4 h-4" />
             </Button>
             </div>
@@ -186,7 +186,7 @@ export default function Documents() {
         {activeView === "home" && (
           <div className="p-6 md:p-8 space-y-8">
             {/* Hero */}
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-700 p-8 md:p-10 text-white">
+            <div id="tour-home-hero" className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-700 p-8 md:p-10 text-white">
               <div className="relative z-10">
                 <div className="flex items-center gap-4 mb-4">
                   <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur p-0.5 shadow-lg">
@@ -215,7 +215,7 @@ export default function Documents() {
 
             {/* Stats Overview */}
             {!isLoadingStats && stats && (stats.totalDocuments ?? 0) > 0 && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div id="tour-home-stats" className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <Card className="shadow-sm border-indigo-500/10">
                   <CardHeader className="pb-2 px-4 pt-4">
                     <CardDescription className="text-xs uppercase tracking-wide flex items-center gap-1">
@@ -245,7 +245,7 @@ export default function Documents() {
 
             {/* Quick Access */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card className="shadow-sm cursor-pointer group hover:border-primary/50 transition-colors"
+              <Card id="tour-home-world" className="shadow-sm cursor-pointer group hover:border-primary/50 transition-colors"
                 onClick={() => setActiveView("world")}>
                 <CardHeader className="pb-3">
                   <div className="flex items-center gap-3">
@@ -268,7 +268,7 @@ export default function Documents() {
                 </CardFooter>
               </Card>
 
-              <Card className="shadow-sm cursor-pointer group hover:border-primary/50 transition-colors"
+              <Card id="tour-home-ai" className="shadow-sm cursor-pointer group hover:border-primary/50 transition-colors"
                 onClick={() => setActiveView("ai-features")}>
                 <CardHeader className="pb-3">
                   <div className="flex items-center gap-3">
@@ -291,7 +291,7 @@ export default function Documents() {
                 </CardFooter>
               </Card>
 
-              <Card className="shadow-sm cursor-pointer group hover:border-primary/50 transition-colors"
+              <Card id="tour-home-stats" className="shadow-sm cursor-pointer group hover:border-primary/50 transition-colors"
                 onClick={() => setActiveView("stats")}>
                 <CardHeader className="pb-3">
                   <div className="flex items-center gap-3">
