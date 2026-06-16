@@ -1,28 +1,16 @@
 <svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
   <rect width="180" height="180" rx="40" fill="#1e1e2e"/>
-  <!-- Quill feather -->
   <g transform="translate(90,95) rotate(-30)">
-    <!-- Quill shaft -->
     <path d="M-8 20 Q-4 -20 6 -55 Q8 -60 10 -55 Q12 -50 8 -40 Q4 -30 2 -15 Q0 0 -2 15 Q-4 22 -6 22 Q-8 22 -8 20Z" fill="#c8a8e8"/>
-    <!-- Feather barbs left -->
     <path d="M-6 -30 Q-16 -25 -24 -18 Q-18 -22 -8 -24 Q-12 -28 -6 -30Z" fill="#b894d8"/>
     <path d="M-4 -18 Q-14 -12 -20 -5 Q-14 -10 -6 -14 Q-8 -16 -4 -18Z" fill="#c8a8e8"/>
     <path d="M-2 -5 Q-10 2 -14 8 Q-8 4 -3 1Z" fill="#d8b8f0"/>
-    <!-- Feather barbs right -->
     <path d="M6 -30 Q16 -25 24 -18 Q18 -22 8 -24 Q12 -28 6 -30Z" fill="#d8b8f0"/>
     <path d="M4 -18 Q14 -12 20 -5 Q14 -10 6 -14 Q8 -16 4 -18Z" fill="#c8a8e8"/>
     <path d="M2 -5 Q10 2 14 8 Q8 4 3 1Z" fill="#b894d8"/>
-    <!-- Ink tip -->
     <path d="M-6 22 Q-4 28 0 32 Q4 28 6 22 Q2 24 0 25 Q-2 24 -6 22Z" fill="#7c5c9c"/>
   </g>
-  <!-- Star sparkle -->
-  <circle cx="62" cy="52" r="3" fill="#f0d060">
-    <animate attributeName="opacity" values="1;0.3;1" dur="2s" repeatCount="indefinite"/>
-  </circle>
-  <circle cx="120" cy="65" r="2" fill="#f0d060">
-    <animate attributeName="opacity" values="0.3;1;0.3" dur="2.5s" repeatCount="indefinite"/>
-  </circle>
-  <circle cx="55" cy="125" r="2" fill="#f0d060">
-    <animate attributeName="opacity" values="0.5;1;0.5" dur="3s" repeatCount="indefinite"/>
-  </circle>
+  <circle cx="62" cy="52" r="3" fill="#f0d060"/>
+  <circle cx="120" cy="65" r="2" fill="#f0d060"/>
+  <circle cx="55" cy="125" r="2" fill="#f0d060"/>
 </svg>

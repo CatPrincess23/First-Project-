@@ -589,7 +589,7 @@ export default function Editor({ params }: { params: { id: string } }) {
 
         <div className="flex items-center gap-2 shrink-0">
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground mr-2">
-            {isSaving ? <><Loader2 className="w-3 h-3 animate-spin" /><span>Saving...</span></> : <><Save className="w-3 h-3" /><span>Saved</span></>}
+            {isSaving ? <><Loader2 className="w-3 h-3 animate-spin" /><span>Saving...</span></> : <><Save className="w-3 h-3 text-green-500" /><span>Saved</span></>}
             <span className="mx-1">·</span>
             <span>{wordCount.toLocaleString()} words</span>
             {goalProgress !== null && (
@@ -598,6 +598,10 @@ export default function Editor({ params }: { params: { id: string } }) {
               </span>
             )}
           </div>
+
+          <Button variant="outline" size="sm" onClick={() => doSave()} className="h-7 text-xs gap-1" disabled={isSaving}>
+            <Save className="w-3 h-3" /> Save
+          </Button>
 
           <div id="tour-editor-undo" className="flex items-center gap-0.5">
             <Button variant="ghost" size="icon" onClick={() => undoRedoAction("undo")} className="text-muted-foreground h-8 w-8" title="Undo (Ctrl+Z)" disabled={undoStackRef.current.length === 0}>
@@ -652,7 +656,7 @@ export default function Editor({ params }: { params: { id: string } }) {
         {/* Editor Area */}
         <div className="flex-1 overflow-y-auto flex justify-center">
           <div id="tour-editor-textarea" className="w-full max-w-3xl px-4 md:px-8 py-6">
-            <RichTextEditor content={content} onChange={(html) => {
+            <RichTextEditor content={content} onBlur={() => doSave()} onChange={(html) => {
               setContent(html);
               isTypingRef.current = true;
               if (grammarErrors.length > 0) { setGrammarErrors([]); setCorrectedText(""); }

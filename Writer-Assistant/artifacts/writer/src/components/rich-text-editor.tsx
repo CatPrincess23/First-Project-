@@ -53,10 +53,11 @@ function ToolbarSelect({ value, onChange, options }: {
 interface RichTextEditorProps {
   content: string;
   onChange: (html: string) => void;
+  onBlur?: () => void;
   placeholder?: string;
 }
 
-export default function RichTextEditor({ content, onChange, placeholder }: RichTextEditorProps) {
+export default function RichTextEditor({ content, onChange, onBlur, placeholder }: RichTextEditorProps) {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -79,6 +80,9 @@ export default function RichTextEditor({ content, onChange, placeholder }: RichT
       attributes: {
         class: "focus:outline-none min-h-[60vh] font-serif text-lg leading-relaxed",
         "data-placeholder": placeholder || "Start writing...",
+      },
+      handleDOMEvents: {
+        blur: () => { onBlur?.(); return false; },
       },
     },
   });
