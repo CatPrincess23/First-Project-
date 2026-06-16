@@ -16,7 +16,7 @@ await esbuild({
   outdir: path.resolve(artifactDir, "dist-vercel"),
   outExtension: { ".js": ".mjs" },
   external: [
-      "*.node", "sharp", "better-sqlite3", "sqlite3", "canvas", "@napi-rs/canvas", "bcrypt", "argon2",
+      "*.node", "sharp", "better-sqlite3", "sqlite3", "canvas", "@napi-rs/canvas", "pdf-parse", "bcrypt", "argon2",
     "fsevents", "re2", "farmhash", "xxhash-addon", "bufferutil", "utf-8-validate",
     "ssh2", "cpu-features", "dtrace-provider", "isolated-vm", "lightningcss",
     "pg-native", "oracledb", "mongodb-client-encryption", "nodemailer", "handlebars",
