@@ -2,11 +2,6 @@
   "installCommand": "cd Writer-Assistant && npx --yes pnpm@11 install --no-frozen-lockfile",
   "buildCommand": "cd Writer-Assistant && pnpm run build:vercel",
   "outputDirectory": "Writer-Assistant/artifacts/writer/dist/public",
-  "functions": {
-    "api/index.mjs": {
-      "runtime": "nodejs@24.x"
-    }
-  },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index" },
     { "source": "/(.*)", "destination": "/index.html" }
