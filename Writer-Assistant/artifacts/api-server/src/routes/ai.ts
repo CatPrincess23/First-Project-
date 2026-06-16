@@ -35,6 +35,213 @@ const IMAGE_MODELS = [
   "black-forest-labs/flux-schnell",
 ];
 
+function hashStr(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+function lerp(a: number, b: number, t: number) { return a + (b - a) * t; }
+
+function hsl(h: number, s: number, l: number) { return `hsl(${h},${s}%,${l}%)`; }
+
+function generateProceduralSvg(prompt: string): string {
+  const seed = hashStr(prompt);
+  let rngState = seed;
+  const rng = (max: number) => { rngState = (rngState * 9301 + 49297) % 233280; return (rngState / 233280) * max; };
+  const rngInt = (min: number, max: number) => Math.floor(rng(max - min + 1)) + min;
+
+  const kw = prompt.toLowerCase();
+  const isNight = /night|dark|moon|star|midnight|dusk|evening/.test(kw);
+  const isOcean = /ocean|sea|water|wave|beach|coast|underwater|lake|river/.test(kw);
+  const isForest = /forest|tree|wood|nature|garden|jungle|wild/.test(kw);
+  const isDesert = /desert|sand|sun|hot|dune|arid/.test(kw);
+  const isSpace = /space|cosmos|galaxy|nebula|planet|universe/.test(kw);
+  const isMountain = /mountain|peak|hill|cliff|valley/.test(kw);
+  const isCity = /city|castle|town|village|building|tower|kingdom/.test(kw);
+
+  const skyH = isNight ? rngInt(220, 270) : isOcean ? rngInt(190, 220) : isDesert ? rngInt(20, 40) : rngInt(200, 260);
+  const skyS = rngInt(40, 70);
+  const skyLBase = isNight ? 10 : isDesert ? 55 : 30;
+  const skyL = rngInt(skyLBase - 5, skyLBase + 15);
+
+  const groundH = isOcean ? skyH + 10 : isDesert ? 30 : isForest ? 100 : isMountain ? 210 : rngInt(30, 50);
+  const groundS = rngInt(30, 60);
+  const groundL = isNight ? 8 : rngInt(15, 30);
+  const groundTL = isNight ? 20 : rngInt(30, 50);
+
+  const accentH = isNight ? rngInt(40, 60) : isOcean ? 180 : isDesert ? 15 : isForest ? 120 : rngInt(280, 330);
+  const accentS = rngInt(70, 100);
+  const accentL = rngInt(55, 75);
+
+  const sceneName = isSpace ? "space" : isOcean ? "ocean" : isForest ? "forest" : isDesert ? "desert" : isMountain ? "mountain" : isCity ? "city" : isNight ? "night" : "fantasy";
+
+  const parts: string[] = [];
+
+  // sky background gradient
+  const skyGrad = `<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="0%" stop-color="${hsl(skyH, skyS, skyL)}"/>
+  <stop offset="50%" stop-color="${hsl(skyH, skyS, skyL + 15)}"/>
+  <stop offset="100%" stop-color="${hsl(skyH, skyS, skyL + 30)}"/></linearGradient>`;
+
+  parts.push(`<defs>${skyGrad}</defs>`);
+  parts.push(`<rect width="800" height="600" fill="url(#sky)"/>`);
+
+  // stars (night / space scenes)
+  if (isNight || isSpace) {
+    const starCount = isSpace ? 80 : 30;
+    const starOps = [""];
+    for (let i = 0; i < starCount; i++) {
+      const sx = rngInt(0, 800);
+      const sy = rngInt(0, 350);
+      const sr = isSpace ? rng(2) + 0.5 : rng(1.5) + 0.3;
+      const so = rng(0.4) + 0.6;
+      const glow = isSpace && sr > 1.5 ? ` filter="url(#glow)"` : "";
+      starOps.push(`<circle cx="${sx}" cy="${sy}" r="${sr}" fill="rgba(255,255,255,${so})"${glow}/>`);
+    }
+    parts.push(starOps.join("\n  "));
+  }
+
+  // moon / sun
+  const moonX = rngInt(550, 750);
+  const moonY = rngInt(80, 200);
+  const moonR = rngInt(30, 60);
+  if (isNight || isSpace) {
+    parts.push(`<circle cx="${moonX}" cy="${moonY}" r="${moonR}" fill="${hsl(45, 80, 85)}" opacity="0.9"/>`);
+    parts.push(`<circle cx="${moonX - moonR * 0.2}" cy="${moonY - moonR * 0.15}" r="${moonR * 0.85}" fill="${hsl(skyH, skyS, skyL)}" opacity="0.7"/>`);
+    parts.push(`<circle cx="${moonX}" cy="${moonY}" r="${moonR + 15}" fill="rgba(255,255,200,0.05)"/>`);
+  } else {
+    const sunX = moonX;
+    const sunY = moonY + 50;
+    parts.push(`<circle cx="${sunX}" cy="${sunY}" r="${moonR + 10}" fill="${hsl(45, 90, 70)}" opacity="0.8"/>`);
+    parts.push(`<circle cx="${sunX}" cy="${sunY}" r="${moonR + 30}" fill="rgba(255,200,100,0.08)"/>`);
+  }
+
+  // mountains / hills (background)
+  if (sceneName !== "ocean" && sceneName !== "space") {
+    const mtCount = rngInt(3, 6);
+    const mtH = isMountain ? rngInt(250, 400) : rngInt(150, 280);
+    for (let i = 0; i < mtCount; i++) {
+      const mx = i * 160 + rngInt(-30, 30);
+      const mw = rngInt(180, 300);
+      const mh = mtH - rngInt(0, 60);
+      const mtColor = hsl(skyH + 10, skyS - 10, skyL + (isNight ? 15 : 20));
+      const peakX = mx + mw / 2 + rngInt(-40, 40);
+      parts.push(`<polygon points="${mx},450 ${peakX},${450 - mh} ${mx + mw},450" fill="${mtColor}" opacity="0.6"/>`);
+    }
+  }
+
+  // waves (ocean)
+  if (isOcean) {
+    for (let i = 0; i < 5; i++) {
+      const wy = 380 + i * 45;
+      const wa = wy > 500 ? 0.8 : 1 - i * 0.15;
+      parts.push(`<path d="M0,${wy} Q${100},${wy - 20 + rngInt(0, 15)} ${200},${wy} T${400},${wy} T${600},${wy} T${800},${wy} L800,600 L0,600 Z" fill="${hsl(skyH, skyS + 10, skyL + 25)}" opacity="${wa}"/>`);
+    }
+  }
+
+  // ground
+  if (sceneName !== "ocean" && sceneName !== "space") {
+    const gh = isForest ? rngInt(380, 420) : isDesert ? 430 : rngInt(400, 460);
+    parts.push(`<rect x="0" y="${gh}" width="800" height="${600 - gh}" fill="${hsl(groundH, groundS, groundL)}"/>`);
+    if (!isDesert) {
+      const gh2 = gh + rngInt(10, 30);
+      parts.push(`<rect x="0" y="${gh2}" width="800" height="${600 - gh2}" fill="${hsl(groundH, groundS, groundL - 5)}"/>`);
+    }
+  }
+
+  // trees (forest)
+  if (isForest) {
+    const treeCount = rngInt(5, 10);
+    for (let i = 0; i < treeCount; i++) {
+      const tx = rngInt(20, 780);
+      const ty = rngInt(360, 440);
+      const th = rngInt(60, 130);
+      const tw = rngInt(25, 45);
+      const trunkH = th * 0.35;
+      const trunkColor = hsl(groundH + 20, groundS + 10, groundL + 10);
+      const leafColor = hsl(accentH, accentS, accentL);
+      const leafColor2 = hsl(accentH, accentS, accentL - 10);
+      parts.push(`<rect x="${tx - 4}" y="${ty - trunkH + th * 0.35}" width="8" height="${trunkH}" fill="${trunkColor}" rx="2"/>`);
+      const leafY = ty - th + trunkH * 0.2;
+      parts.push(`<polygon points="${tx},${leafY - th * 0.5} ${tx - tw / 2},${leafY + th * 0.15} ${tx + tw / 2},${leafY + th * 0.15}" fill="${leafColor}" opacity="0.8"/>`);
+      parts.push(`<polygon points="${tx},${leafY - th * 0.4} ${tx - tw / 3},${leafY + th * 0.05} ${tx + tw / 3},${leafY + th * 0.05}" fill="${leafColor2}" opacity="0.7"/>`);
+    }
+  }
+
+  // dunes (desert)
+  if (isDesert) {
+    for (let i = 0; i < 4; i++) {
+      const dx = i * 250 - rngInt(0, 60);
+      const dy = 430 + rngInt(0, 20);
+      const dw = rngInt(200, 350);
+      const dh = rngInt(30, 70);
+      parts.push(`<path d="M${dx},${dy + 80} Q${dx + dw / 2},${dy - dh} ${dx + dw},${dy + 80} L${dx + dw},600 L${dx},600 Z" fill="${hsl(groundH, groundS, rngInt(35, 55))}" opacity="0.7"/>`);
+    }
+  }
+
+  // mountains (foreground accent for mountain scenes)
+  if (isMountain) {
+    for (let i = 0; i < 2; i++) {
+      const mx = 200 + i * 350 + rngInt(-50, 50);
+      const mw = rngInt(200, 300);
+      const mh = rngInt(200, 300);
+      const p1x = mx; const p1y = 460;
+      const p2x = mx + mw / 2 + rngInt(-20, 20); const p2y = 460 - mh;
+      const p3x = mx + mw; const p3y = 460;
+      const snowLine = 460 - mh * 0.75;
+      parts.push(`<polygon points="${p1x},${p1y} ${p2x},${p2y} ${p3x},${p3y}" fill="${hsl(210, 30, 35)}" opacity="0.8"/>`);
+      parts.push(`<polygon points="${p2x - 15},${snowLine} ${p2x},${p2y + 5} ${p2x + 15},${snowLine}" fill="rgba(255,255,255,0.5)"/>`);
+    }
+  }
+
+  // buildings / castle (city)
+  if (isCity) {
+    const buildCount = rngInt(4, 8);
+    for (let i = 0; i < buildCount; i++) {
+      const bx = 50 + i * 100 + rngInt(-15, 15);
+      const bw = rngInt(40, 70);
+      const bh = rngInt(80, 200);
+      const by = 450 - bh;
+      parts.push(`<rect x="${bx}" y="${by}" width="${bw}" height="${bh + 10}" fill="${hsl(groundH + 10, groundS - 20, groundL + (isNight ? 15 : 30))}" rx="2"/>`);
+      if (isNight) {
+        const winCount = rngInt(2, 4);
+        for (let w = 0; w < winCount; w++) {
+          parts.push(`<rect x="${bx + 8 + w * 15}" y="${by + 15}" width="8" height="10" fill="${hsl(45, 90, 70)}" opacity="${rng(0.6) + 0.4}" rx="1"/>`);
+        }
+      }
+    }
+  }
+
+  // fireflies / magic particles (fantasy)
+  if (sceneName === "fantasy" || sceneName === "night") {
+    const pCount = rngInt(8, 20);
+    for (let i = 0; i < pCount; i++) {
+      const px = rngInt(50, 750);
+      const py = rngInt(200, 500);
+      const pr = rng(3) + 1;
+      const po = rng(0.5) + 0.2;
+      parts.push(`<circle cx="${px}" cy="${py}" r="${pr}" fill="${hsl(accentH, accentS, accentL)}" opacity="${po}"/>`);
+    }
+  }
+
+  // nebula (space)
+  if (isSpace) {
+    for (let i = 0; i < 5; i++) {
+      const nx = rngInt(0, 800);
+      const ny = rngInt(0, 400);
+      const nr = rngInt(100, 250);
+      const nH = rngInt(240, 330);
+      parts.push(`<ellipse cx="${nx}" cy="${ny}" rx="${nr}" ry="${nr * rng(0.5)}" fill="${hsl(nH, 80, 20)}" opacity="${rng(0.15)}" transform="rotate(${rngInt(-30, 30)} ${nx} ${ny})"/>`);
+    }
+  }
+
+  const elements = parts.join("\n  ");
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  ${elements}
+</svg>`;
+}
+
 function checkKey(res: any): boolean {
   if (!OPENROUTER_KEY) {
     res.status(503).json({ error: "AI features unavailable: no OPENROUTER_API_KEY configured" });
@@ -460,25 +667,7 @@ Example structure:
     }
 
     if (!svg) {
-      const fbEsc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-      svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
-  <defs>
-    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#1a1a2e"/>
-      <stop offset="50%" stop-color="#16213e"/>
-      <stop offset="100%" stop-color="#0f3460"/>
-    </linearGradient>
-    <linearGradient id="glow" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="rgba(255,255,255,0.1)"/>
-      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
-    </linearGradient>
-  </defs>
-  <rect width="800" height="600" fill="url(#sky)"/>
-  <rect width="800" height="600" fill="url(#glow)"/>
-  <circle cx="400" cy="200" r="150" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
-  <circle cx="400" cy="200" r="100" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.04)" stroke-width="0.5"/>
-  <text x="400" y="290" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-family="Georgia, serif" font-size="22" font-style="italic">${fbEsc(finalPrompt.slice(0, 80))}</text>
-</svg>`;
+      svg = generateProceduralSvg(finalPrompt);
     }
 
     const b64_json = Buffer.from(svg, "utf-8").toString("base64");

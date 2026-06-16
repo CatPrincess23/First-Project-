@@ -95338,7 +95338,11 @@ function hsl(h, s2, l) {
 }
 function generateProceduralSvg(prompt) {
   const seed = hashStr(prompt);
-  const rng = (max) => (seed * 9301 + 49297) % 233280 / 233280 * max;
+  let rngState = seed;
+  const rng = (max) => {
+    rngState = (rngState * 9301 + 49297) % 233280;
+    return rngState / 233280 * max;
+  };
   const rngInt = (min, max) => Math.floor(rng(max - min + 1)) + min;
   const kw = prompt.toLowerCase();
   const isNight = /night|dark|moon|star|midnight|dusk|evening/.test(kw);
