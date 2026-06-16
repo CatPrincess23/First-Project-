@@ -123,12 +123,14 @@ export default function RichTextEditor({ content, onChange, onBlur, placeholder 
     <div>
       {/* Toolbar */}
       <div className="flex items-center gap-0.5 py-2 mb-2 flex-wrap">
+        <div id="tour-editor-undo" className="flex items-center gap-0.5">
         <ToolbarButton onClick={() => editor.chain().focus().undo().run()} title="Undo">
           <Undo2 className="w-3.5 h-3.5" />
         </ToolbarButton>
         <ToolbarButton onClick={() => editor.chain().focus().redo().run()} title="Redo">
           <Redo2 className="w-3.5 h-3.5" />
         </ToolbarButton>
+        </div>
         <span className="w-px h-5 bg-border mx-1" />
 
         <ToolbarSelect

@@ -7,6 +7,7 @@ import aiRouter from "./ai";
 import worldRouter from "./world";
 import uploadRouter from "./upload";
 import conversationsRouter from "./conversations";
+import importDocumentRouter from "./import-document";
 import { requireIdentity } from "../middlewares/identity";
 
 const router: IRouter = Router();
@@ -29,5 +30,6 @@ router.use("/ai", aiLimiter, requireIdentity, aiRouter);
 router.use("/world/:documentId/entities", requireIdentity, worldRouter);
 router.use("/upload", requireIdentity, uploadRouter);
 router.use("/conversations", requireIdentity, conversationsRouter);
+router.use("/import-document", requireIdentity, importDocumentRouter);
 
 export default router;

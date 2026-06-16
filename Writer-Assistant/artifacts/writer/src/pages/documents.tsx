@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useLocation, Link } from "wouter";
 import {
   useListDocuments, useCreateDocument, useGetDocumentStats, useDeleteDocument,
@@ -16,7 +16,7 @@ import { usePro } from "@/lib/pro-context";
 import {
   Plus, FileText, Trash2, Loader2, ArrowRight, Sun, Moon, Globe, Target,
   LayoutDashboard, Sparkles, BookOpen, Image as ImageIcon, History,
-  CheckCircle, Wand2, Crown, User, ChevronRight,
+  CheckCircle, Wand2, Crown, User, ChevronRight, HelpCircle, Upload,
 } from "lucide-react";
 import { UserButton } from "@clerk/react";
 import OnboardingTour from "@/components/onboarding-tour";
@@ -82,13 +82,49 @@ export default function Documents() {
     });
   };
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isImporting, setIsImporting] = useState(false);
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsImporting(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/import-document", { method: "POST", body: formData });
+      if (!res.ok) throw new Error("Import failed");
+      const data = await res.json();
+      createDoc.mutate({ data: { title: data.title, content: data.text } }, {
+        onSuccess: (newDoc) => {
+          queryClient.invalidateQueries({ queryKey: getListDocumentsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetDocumentStatsQueryKey() });
+          setLocation(`/editor/${newDoc.id}`);
+          toast({ title: `Imported "${data.title}"` });
+        },
+        onError: () => toast({ title: "Failed to create document", variant: "destructive" })
+      });
+    } catch {
+      toast({ title: "Failed to import file. Try .txt, .pdf, or .docx", variant: "destructive" });
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   const DOCS_TOUR_STEPS = [
-    { target: "#tour-docs-header", title: "Your Writing Hub", description: "All your manuscripts, chapters, and notes live right here. Click any document to open it in the editor.", placement: "bottom" as const },
+    { target: "#tour-home-hero", title: "Welcome to Whimsical Writer", description: "Your AI-powered creative writing companion. Create documents, build worlds, and track your progress — all in one place.", placement: "bottom" as const },
     { target: "#tour-docs-new", title: "Create a New Document", description: "Start a fresh manuscript with one click. Each document gets its own AI chat, versions, and world-building space.", placement: "right" as const },
-    { target: "#tour-docs-ai-features", title: "AI-Powered Tools", description: "Grammar checks, rewrites, summarization, prologue generation, and image creation — all built into the editor sidebar.", placement: "right" as const },
-    { target: "#tour-docs-stats", title: "Track Your Progress", description: "See your word count trends, daily writing streaks, and goal completion at a glance.", placement: "right" as const },
-    { target: "#tour-docs-world", title: "Build Your World", description: "Create character profiles, map out locations, and define key items for your fictional universe.", placement: "right" as const },
+    { target: "#tour-home-world", title: "Build Your World", description: "Create character profiles, map out locations, and define key items for your fictional universe.", placement: "bottom" as const },
+    { target: "#tour-home-ai", title: "AI-Powered Tools", description: "Grammar checks, rewrites, summarization, prologue generation, and image creation — all built into the editor sidebar.", placement: "bottom" as const },
+    { target: "#tour-home-stats", title: "Track Your Progress", description: "See your word count, writing streaks, and goal completion at a glance.", placement: "bottom" as const },
   ];
+
+  const [tourVersion, setTourVersion] = useState(0);
+  const restartTour = () => {
+    localStorage.removeItem("wa-tour-seen-documents");
+    setTourVersion(v => v + 1);
+  };
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -106,7 +142,7 @@ export default function Documents() {
         </div>
 
         {/* New Document Button */}
-        <div id="tour-docs-new" className="p-3 border-b shrink-0">
+        <div id="tour-docs-new" className="p-3 border-b shrink-0 space-y-2">
           <Button
             onClick={handleCreateDocument}
             disabled={createDoc.isPending}
@@ -115,6 +151,17 @@ export default function Documents() {
           >
             {createDoc.isPending ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Plus className="w-4 h-4 shrink-0" />}
             {!sidebarCollapsed && "New Document"}
+          </Button>
+          <input type="file" ref={fileInputRef} onChange={handleImportFile} accept=".txt,.pdf,.docx" className="hidden" />
+          <Button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isImporting}
+            variant="outline"
+            className={`w-full gap-2 ${sidebarCollapsed ? "px-0 justify-center" : ""}`}
+            size="sm"
+          >
+            {isImporting ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Upload className="w-4 h-4 shrink-0" />}
+            {!sidebarCollapsed && (isImporting ? "Importing..." : "Import File")}
           </Button>
         </div>
 
@@ -157,9 +204,14 @@ export default function Documents() {
             </div>
           )}
           <div className={`flex items-center ${sidebarCollapsed ? "flex-col gap-2" : "justify-between"}`}>
+            <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" onClick={toggleTheme} className="text-muted-foreground h-8 w-8">
               {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </Button>
+            <Button variant="ghost" size="icon" onClick={restartTour} className="h-8 w-8 text-primary" title="Show tour">
+              <HelpCircle className="w-4 h-4" />
+            </Button>
+            </div>
             <Button variant="ghost" size="icon" onClick={() => setSidebarCollapsed(c => !c)} className="text-muted-foreground h-8 w-8">
               <ChevronRight className={`w-4 h-4 transition-transform ${sidebarCollapsed ? "" : "rotate-180"}`} />
             </Button>
@@ -175,7 +227,7 @@ export default function Documents() {
         {activeView === "home" && (
           <div className="p-6 md:p-8 space-y-8">
             {/* Hero */}
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-700 p-8 md:p-10 text-white">
+            <div id="tour-home-hero" className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-700 p-8 md:p-10 text-white">
               <div className="relative z-10">
                 <div className="flex items-center gap-4 mb-4">
                   <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur p-0.5 shadow-lg">
@@ -204,7 +256,7 @@ export default function Documents() {
 
             {/* Stats Overview */}
             {!isLoadingStats && stats && (stats.totalDocuments ?? 0) > 0 && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div id="tour-home-stats" className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <Card className="shadow-sm border-indigo-500/10">
                   <CardHeader className="pb-2 px-4 pt-4">
                     <CardDescription className="text-xs uppercase tracking-wide flex items-center gap-1">
@@ -234,7 +286,7 @@ export default function Documents() {
 
             {/* Quick Access */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card className="shadow-sm cursor-pointer group hover:border-primary/50 transition-colors"
+              <Card id="tour-home-world" className="shadow-sm cursor-pointer group hover:border-primary/50 transition-colors"
                 onClick={() => setActiveView("world")}>
                 <CardHeader className="pb-3">
                   <div className="flex items-center gap-3">
@@ -257,7 +309,7 @@ export default function Documents() {
                 </CardFooter>
               </Card>
 
-              <Card className="shadow-sm cursor-pointer group hover:border-primary/50 transition-colors"
+              <Card id="tour-home-ai" className="shadow-sm cursor-pointer group hover:border-primary/50 transition-colors"
                 onClick={() => setActiveView("ai-features")}>
                 <CardHeader className="pb-3">
                   <div className="flex items-center gap-3">
@@ -280,7 +332,7 @@ export default function Documents() {
                 </CardFooter>
               </Card>
 
-              <Card className="shadow-sm cursor-pointer group hover:border-primary/50 transition-colors"
+              <Card id="tour-home-stats" className="shadow-sm cursor-pointer group hover:border-primary/50 transition-colors"
                 onClick={() => setActiveView("stats")}>
                 <CardHeader className="pb-3">
                   <div className="flex items-center gap-3">
@@ -535,7 +587,7 @@ export default function Documents() {
               <Card className="border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 shadow-sm">
                 <CardHeader>
                   <div className="flex items-center gap-3">
-                    <Crown className="w-5 h-5 text-amber-500" />
+                    <Crown className="w-5 h-5 text-amber-500 dark:text-amber-400" />
                     <div>
                       <CardTitle className="text-base">Unlock Pro features</CardTitle>
                       <CardDescription className="text-sm mt-0.5">Get unlimited AI requests, version history, book summarizer, prologue generator, and more.</CardDescription>
@@ -629,7 +681,7 @@ export default function Documents() {
           </div>
         )}
       </main>
-      <OnboardingTour steps={DOCS_TOUR_STEPS} tourKey="documents" />
+      <OnboardingTour key={tourVersion} steps={DOCS_TOUR_STEPS} tourKey="documents" />
     </div>
   );
 }
