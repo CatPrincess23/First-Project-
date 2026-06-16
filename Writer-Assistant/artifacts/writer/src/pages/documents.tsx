@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useLocation, Link } from "wouter";
 import {
   useListDocuments, useCreateDocument, useGetDocumentStats, useDeleteDocument,
@@ -15,7 +15,7 @@ import { usePro } from "@/lib/pro-context";
 import {
   Plus, FileText, Trash2, Loader2, ArrowRight, Sun, Moon, Globe, Target,
   LayoutDashboard, Sparkles, BookOpen, Image as ImageIcon, History,
-  CheckCircle, Wand2, Crown, User, ChevronRight, HelpCircle, Upload,
+  CheckCircle, Wand2, Crown, User, ChevronRight, HelpCircle,
 } from "lucide-react";
 import { UserButton } from "@clerk/react";
 import OnboardingTour from "@/components/onboarding-tour";
@@ -81,36 +81,6 @@ export default function Documents() {
     });
   };
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isImporting, setIsImporting] = useState(false);
-
-  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setIsImporting(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/import-document", { method: "POST", body: formData });
-      if (!res.ok) throw new Error("Import failed");
-      const data = await res.json();
-      createDoc.mutate({ data: { title: data.title, content: data.text } }, {
-        onSuccess: (newDoc) => {
-          queryClient.invalidateQueries({ queryKey: getListDocumentsQueryKey() });
-          queryClient.invalidateQueries({ queryKey: getGetDocumentStatsQueryKey() });
-          setLocation(`/editor/${newDoc.id}`);
-          toast({ title: `Imported "${data.title}"` });
-        },
-        onError: () => toast({ title: "Failed to create document", variant: "destructive" })
-      });
-    } catch {
-      toast({ title: "Failed to import file. Try .txt, .pdf, or .docx", variant: "destructive" });
-    } finally {
-      setIsImporting(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
-
   const DOCS_TOUR_STEPS = [
     { target: "#tour-home-hero", title: "Welcome to Whimsical Writer", description: "Your AI-powered creative writing companion. Create documents, build worlds, and track your progress — all in one place.", placement: "bottom" as const },
     { target: "#tour-docs-new", title: "Create a New Document", description: "Start a fresh manuscript with one click. Each document gets its own AI chat, versions, and world-building space.", placement: "right" as const },
@@ -151,17 +121,7 @@ export default function Documents() {
             {createDoc.isPending ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Plus className="w-4 h-4 shrink-0" />}
             {!sidebarCollapsed && "New Document"}
           </Button>
-          <input type="file" ref={fileInputRef} onChange={handleImportFile} accept=".txt,.pdf,.docx" className="hidden" />
-          <Button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isImporting}
-            variant="outline"
-            className={`w-full gap-2 ${sidebarCollapsed ? "px-0 justify-center" : ""}`}
-            size="sm"
-          >
-            {isImporting ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Upload className="w-4 h-4 shrink-0" />}
-            {!sidebarCollapsed && (isImporting ? "Importing..." : "Import File")}
-          </Button>
+
         </div>
 
         {/* Navigation */}
