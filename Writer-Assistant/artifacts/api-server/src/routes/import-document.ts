@@ -1,7 +1,6 @@
 import { Router } from "express";
 import multer from "multer";
 import * as mammoth from "mammoth";
-import "dommatrix";
 
 const router = Router();
 
@@ -11,14 +10,13 @@ const upload = multer({
   fileFilter: (_req, file, cb) => {
     const allowed = [
       "text/plain",
-      "application/pdf",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ];
     const ext = file.originalname.split(".").pop()?.toLowerCase();
-    if (allowed.includes(file.mimetype) || ext === "txt" || ext === "pdf" || ext === "docx") {
+    if (allowed.includes(file.mimetype) || ext === "txt" || ext === "docx") {
       cb(null, true);
     } else {
-      cb(new Error("Only .txt, .pdf, and .docx files are allowed"));
+      cb(new Error("Only .txt and .docx files are allowed"));
     }
   },
 });
@@ -35,11 +33,6 @@ router.post("/", upload.single("file"), async (req, res) => {
   try {
     if (ext === "txt") {
       text = req.file.buffer.toString("utf-8");
-    } else if (ext === "pdf") {
-      const { PDFParse } = await import("pdf-parse");
-      const parser = new PDFParse(req.file.buffer);
-      await parser.load({ password: undefined });
-      text = await parser.getText();
     } else if (ext === "docx") {
       const result = await mammoth.extractRawText({ buffer: req.file.buffer });
       text = result.value;
