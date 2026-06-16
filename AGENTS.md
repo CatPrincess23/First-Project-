@@ -77,7 +77,8 @@ Both servers must run in the background (use `nohup ... &`, `run_in_background: 
 
 ## Conventions when editing
 
-- **No Clerk auth in local dev.** Auth is skipped when `CLERK_SECRET_KEY` is unset (`app.ts` sets `req.auth = { userId: "dev-user" }`). Production deploys need `CLERK_SECRET_KEY` and `CLERK_PUBLISHABLE_KEY` set.
+- **App is guest-only (no sign-in UI).** The landing page at `/sign-in` only shows "Continue as Guest" — Clerk `SignIn`/`SignUp` components have been removed. All users are identified by a random UUID stored in `localStorage` and sent as the `x-guest-id` header.
+- **No Clerk auth in local dev.** Auth is skipped when `CLERK_SECRET_KEY` is unset (`app.ts` sets `req.auth = { userId: "dev-user" }`). Production deploys still have `CLERK_SECRET_KEY` and `CLERK_PUBLISHABLE_KEY` set for Clerk middleware, but the app works fine without it (guest flow uses `x-guest-id`).
 - **AI uses OpenRouter.** The `OPENROUTER_API_KEY` env var is read at startup. Model is `deepseek/deepseek-v4-flash` (free tier). The OpenAI SDK is configured with `baseURL: "https://openrouter.ai/api/v1"`.
 - **AI chat sends full document context.** On every chat message, the frontend (`editor.tsx`) embeds the full editor content in a system message. The backend (`ai.ts`) merges that system message with the base system prompt into a **single unified system message** before calling the AI, so the model sees the document as part of its instructions. `max_tokens` is 4000 for the chat endpoint (vs 1500 for other AI endpoints) to allow thorough analysis.
 - **Grammar check uses AI correction + local LCS diff.** The `POST /api/ai/grammar` endpoint asks the model to return ONLY the corrected text (no JSON, no offset data — the model is unreliable at computing character positions). The system prompt is detailed (6 error categories: spelling, grammar, punctuation, capitalization, word choice, sentence structure) and temperature is 0.1 to avoid overly conservative output. The backend then runs a local `wordDiff()` function that tokenizes both texts into words, computes a **Longest Common Subsequence (LCS)** table to find edit operations, and maps each diff block to an `errors[]` entry with `message`, `suggestion`, `offset`, `length`, and `type` fields. Error type is determined by `classifyError()` using Levenshtein distance (dist ≤ 2 = spelling, multi-word = style, else grammar). This avoids fragile JSON parsing and accurately handles insertions, deletions, and substitutions.
@@ -92,6 +93,9 @@ Both servers must run in the background (use `nohup ... &`, `run_in_background: 
 - **Don't commit `.env` files or secrets.** The `.gitignore` covers standard patterns. Double-check before staging. The `Writer-Assistant/.env` file holds `DATABASE_URL` with the Neon connection string.
 - **The app does not auto-load `.env`.** No dotenv dependency. Pass `DATABASE_URL` inline or export it before running commands.
 - **Don't commit `node_modules`, `dist`, or `*.tsbuildinfo`.** Already covered by `.gitignore`.
+- **Vercel deployment doesn't use Clerk proxy.** The `proxyUrl="/api/__clerk"` was removed from `ClerkProvider` in `main.tsx` because `http-proxy-middleware` doesn't work inside Vercel serverless functions. Clerk connects directly from the browser instead.
+- **No Clerk loading spinner on pages.** The 8-second Clerk loading timeout was removed from `documents.tsx`, `editor.tsx`, and `world.tsx`. Pages render immediately without waiting for Clerk to initialize. Clerk UI features (UserButton) are shown/hidden via `clerkEnabled` flag when they become available.
+- **Production URL:** https://whimsicalwriter.vercel.app
 
 ## Debugging save failures
 
@@ -125,6 +129,8 @@ Both servers must run in the background (use `nohup ... &`, `run_in_background: 
 | AI chat (frontend) | `Writer-Assistant/artifacts/writer/src/pages/editor.tsx` (handles conversation CRUD, document context injection, chat UI) |
 | AI image generation (editor sidebar) | `Writer-Assistant/artifacts/writer/src/pages/editor.tsx` (entity scanner + SVG generation UI) |
 | Image upload route | `Writer-Assistant/artifacts/api-server/src/routes/upload.ts` |
+| Guest ID setup (fetch monkey-patch) | `Writer-Assistant/artifacts/writer/src/lib/guest-id.ts` |
+| Clerk provider / proxy config | `Writer-Assistant/artifacts/writer/src/main.tsx` |
 | Auth setup | `Writer-Assistant/artifacts/api-server/src/app.ts` |
 | Vite config (proxy) | `Writer-Assistant/artifacts/writer/vite.config.ts` |
 | Error handling (multer) | `Writer-Assistant/artifacts/api-server/src/app.ts` (bottom of file) |
