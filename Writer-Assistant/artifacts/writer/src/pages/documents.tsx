@@ -16,7 +16,7 @@ import { usePro } from "@/lib/pro-context";
 import {
   Plus, FileText, Trash2, Loader2, ArrowRight, Sun, Moon, Globe, Target,
   LayoutDashboard, Sparkles, BookOpen, Image as ImageIcon, History,
-  CheckCircle, Wand2, Crown, User, ChevronRight,
+  CheckCircle, Wand2, Crown, User, ChevronRight, HelpCircle,
 } from "lucide-react";
 import { UserButton } from "@clerk/react";
 import OnboardingTour from "@/components/onboarding-tour";
@@ -90,6 +90,12 @@ export default function Documents() {
     { target: "#tour-docs-world", title: "Build Your World", description: "Create character profiles, map out locations, and define key items for your fictional universe.", placement: "right" as const },
   ];
 
+  const [tourVersion, setTourVersion] = useState(0);
+  const restartTour = () => {
+    localStorage.removeItem("wa-tour-seen-documents");
+    setTourVersion(v => v + 1);
+  };
+
   return (
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
@@ -157,9 +163,14 @@ export default function Documents() {
             </div>
           )}
           <div className={`flex items-center ${sidebarCollapsed ? "flex-col gap-2" : "justify-between"}`}>
+            <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" onClick={toggleTheme} className="text-muted-foreground h-8 w-8">
               {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </Button>
+            <Button variant="ghost" size="icon" onClick={restartTour} className="text-muted-foreground h-8 w-8" title="Show tour">
+              <HelpCircle className="w-4 h-4" />
+            </Button>
+            </div>
             <Button variant="ghost" size="icon" onClick={() => setSidebarCollapsed(c => !c)} className="text-muted-foreground h-8 w-8">
               <ChevronRight className={`w-4 h-4 transition-transform ${sidebarCollapsed ? "" : "rotate-180"}`} />
             </Button>
@@ -535,7 +546,7 @@ export default function Documents() {
               <Card className="border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 shadow-sm">
                 <CardHeader>
                   <div className="flex items-center gap-3">
-                    <Crown className="w-5 h-5 text-amber-500" />
+                    <Crown className="w-5 h-5 text-amber-500 dark:text-amber-400" />
                     <div>
                       <CardTitle className="text-base">Unlock Pro features</CardTitle>
                       <CardDescription className="text-sm mt-0.5">Get unlimited AI requests, version history, book summarizer, prologue generator, and more.</CardDescription>
@@ -629,7 +640,7 @@ export default function Documents() {
           </div>
         )}
       </main>
-      <OnboardingTour steps={DOCS_TOUR_STEPS} tourKey="documents" />
+      <OnboardingTour key={tourVersion} steps={DOCS_TOUR_STEPS} tourKey="documents" />
     </div>
   );
 }

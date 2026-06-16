@@ -23,7 +23,7 @@ import RichTextEditor from "@/components/rich-text-editor";
 import {
   ArrowLeft, Sparkles, Image as ImageIcon, CheckCircle, Save, Loader2, Wand2,
   Globe, History, FileDown, Sun, Moon, BookOpen, Target, Clock, RotateCcw, MessageCircle,
-  Plus, Trash2, Undo2, Redo2, ChevronRight, ChevronLeft,
+  Plus, Trash2, ChevronRight, ChevronLeft,
 } from "lucide-react";
 import { UserButton } from "@clerk/react";
 import { UpgradeModal } from "@/components/upgrade-modal";
@@ -594,11 +594,11 @@ export default function Editor({ params }: { params: { id: string } }) {
 
         <div className="flex items-center gap-2 shrink-0">
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground mr-2">
-            {isSaving ? <><Loader2 className="w-3 h-3 animate-spin" /><span>Saving...</span></> : <><Save className="w-3 h-3 text-green-500" /><span>Saved</span></>}
+            {isSaving ? <><Loader2 className="w-3 h-3 animate-spin" /><span>Saving...</span></> : <><Save className="w-3 h-3 text-green-500 dark:text-green-400" /><span>Saved</span></>}
             <span className="mx-1">·</span>
             <span>{wordCount.toLocaleString()} words</span>
             {goalProgress !== null && (
-              <span className={`ml-1 font-medium ${goalProgress >= 100 ? "text-green-500" : ""}`}>
+              <span className={`ml-1 font-medium ${goalProgress >= 100 ? "text-green-500 dark:text-green-400" : ""}`}>
                 / {goalWordCount?.toLocaleString()} ({goalProgress}%)
               </span>
             )}
@@ -607,15 +607,6 @@ export default function Editor({ params }: { params: { id: string } }) {
           <Button variant="outline" size="sm" onClick={() => saveContent(title, content)} className="h-7 text-xs gap-1" disabled={isSaving}>
             <Save className="w-3 h-3" /> Save
           </Button>
-
-          <div id="tour-editor-undo" className="flex items-center gap-0.5">
-            <Button variant="ghost" size="icon" onClick={() => undoRedoAction("undo")} className="text-muted-foreground h-8 w-8" title="Undo (Ctrl+Z)" disabled={undoStackRef.current.length === 0}>
-              <Undo2 className="w-4 h-4" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={() => undoRedoAction("redo")} className="text-muted-foreground h-8 w-8" title="Redo (Ctrl+Shift+Z)" disabled={redoStackRef.current.length === 0}>
-              <Redo2 className="w-4 h-4" />
-            </Button>
-          </div>
 
           <Button variant="ghost" size="icon" onClick={toggleTheme} className="text-muted-foreground h-8 w-8">
             {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -720,10 +711,10 @@ export default function Editor({ params }: { params: { id: string } }) {
                         <div className="flex items-start justify-between gap-2">
                           <Badge variant="outline" className={`
                             capitalize text-[10px] py-0 shrink-0
-                            ${err.type === "spelling" ? "border-red-500 text-red-600 bg-red-50 dark:bg-red-950/30" : ""}
-                            ${err.type === "grammar" ? "border-amber-500 text-amber-600 bg-amber-50 dark:bg-amber-950/30" : ""}
-                            ${err.type === "punctuation" ? "border-purple-500 text-purple-600 bg-purple-50 dark:bg-purple-950/30" : ""}
-                            ${err.type === "style" ? "border-blue-500 text-blue-600 bg-blue-50 dark:bg-blue-950/30" : ""}
+                            ${err.type === "spelling" ? "border-red-500 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30" : ""}
+                            ${err.type === "grammar" ? "border-amber-500 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30" : ""}
+                            ${err.type === "punctuation" ? "border-purple-500 text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30" : ""}
+                            ${err.type === "style" ? "border-blue-500 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30" : ""}
                           `}>{err.type}</Badge>
                         </div>
                         <div className="space-y-1">
