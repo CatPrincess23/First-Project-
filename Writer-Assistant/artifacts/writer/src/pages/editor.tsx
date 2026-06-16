@@ -578,7 +578,11 @@ export default function Editor({ params }: { params: { id: string } }) {
           <Input
             id="tour-editor-title"
             value={title}
-            onChange={(e) => { isTypingRef.current = true; setTitle(e.target.value); }}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+              autoSaveTimer.current = setTimeout(() => saveContent(e.target.value, content), 500);
+            }}
             className="border-0 shadow-none font-serif text-lg bg-transparent px-0 focus-visible:ring-0 min-w-0"
             placeholder="Untitled Document"
           />
