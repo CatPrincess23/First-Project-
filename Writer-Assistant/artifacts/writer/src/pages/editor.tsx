@@ -74,6 +74,13 @@ export default function Editor({ params }: { params: { id: string } }) {
   // Sidebar collapse
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
+  // Editor readiness: only render TipTap after content is loaded
+  const [editorReady, setEditorReady] = useState(false);
+
+  useEffect(() => {
+    if (document) setEditorReady(true);
+  }, [document]);
+
   // Sidebar tabs
   const [activeTab, setActiveTab] = useState<"grammar" | "suggest" | "ai-tools" | "image" | "history" | "chat">("grammar");
 
@@ -649,12 +656,18 @@ export default function Editor({ params }: { params: { id: string } }) {
         {/* Editor Area */}
         <div className="flex-1 overflow-y-auto flex justify-center">
           <div id="tour-editor-textarea" className="w-full max-w-3xl px-4 md:px-8 py-6">
-            <RichTextEditor content={content} onBlur={() => saveContent(title, content)} onChange={(html) => {
+            {editorReady ? (
+            <RichTextEditor key={documentId} content={content} onBlur={() => saveContent(title, content)} onChange={(html) => {
               setContent(html);
               if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
               autoSaveTimer.current = setTimeout(() => saveContent(title, html), 500);
               if (grammarErrors.length > 0) { setGrammarErrors([]); setCorrectedText(""); }
             }} placeholder="Start writing..." />
+            ) : (
+              <div className="min-h-[60vh] flex items-center justify-center text-muted-foreground">
+                <Loader2 className="w-6 h-6 animate-spin" />
+              </div>
+            )}
           </div>
         </div>
 
