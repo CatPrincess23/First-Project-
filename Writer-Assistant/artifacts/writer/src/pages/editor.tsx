@@ -23,6 +23,7 @@ import {
   ArrowLeft, Sparkles, Image as ImageIcon, CheckCircle, Save, Loader2, Wand2,
   Globe, History, FileDown, Sun, Moon, BookOpen, Target, Clock, RotateCcw, MessageCircle,
   Plus, Trash2, Undo2, Redo2, ChevronRight, ChevronLeft,
+  Bold, Italic, Heading, List, ListOrdered, Strikethrough, Quote, Minus,
 } from "lucide-react";
 import { UserButton } from "@clerk/react";
 import { UpgradeModal } from "@/components/upgrade-modal";
@@ -75,6 +76,39 @@ export default function Editor({ params }: { params: { id: string } }) {
 
   // Sidebar tabs
   const [activeTab, setActiveTab] = useState<"grammar" | "suggest" | "ai-tools" | "image" | "history" | "chat">("grammar");
+
+  const formatText = useCallback((before: string, after: string) => {
+    const ta = contentRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const selected = content.slice(start, end);
+    const replacement = before + selected + after;
+    const newContent = content.slice(0, start) + replacement + content.slice(end);
+    setContent(newContent);
+    requestAnimationFrame(() => {
+      ta.focus();
+      ta.setSelectionRange(start + before.length, start + before.length + selected.length);
+    });
+  }, [content]);
+
+  const formatLine = useCallback((prefix: string) => {
+    const ta = contentRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const lineStart = content.lastIndexOf("\n", start - 1) + 1;
+    const lineEnd = content.indexOf("\n", start);
+    const line = content.slice(lineStart, lineEnd === -1 ? content.length : lineEnd);
+    const beforeLine = content.slice(0, lineStart);
+    const afterLine = content.slice(lineEnd === -1 ? content.length : lineEnd);
+    if (line.startsWith(prefix.trim())) {
+      const stripped = line.replace(new RegExp(`^\\s*${prefix.trim()}\\s*`), "");
+      setContent(beforeLine + stripped + afterLine);
+    } else {
+      setContent(beforeLine + prefix + line + afterLine);
+    }
+    requestAnimationFrame(() => ta.focus());
+  }, [content]);
 
   // Grammar
   const [grammarErrors, setGrammarErrors] = useState<any[]>([]);
@@ -648,6 +682,21 @@ export default function Editor({ params }: { params: { id: string } }) {
         {/* Editor Area */}
         <div className="flex-1 overflow-y-auto p-8 md:p-12 lg:p-24 flex justify-center">
           <div id="tour-editor-textarea" className="w-full max-w-3xl">
+            {/* Formatting toolbar */}
+            <div className="flex items-center gap-0.5 mb-3 pb-2 border-b flex-wrap">
+              <button onClick={() => formatText("**", "**")} className="p-1.5 rounded hover:bg-muted transition-colors" title="Bold"><Bold className="w-4 h-4" /></button>
+              <button onClick={() => formatText("*", "*")} className="p-1.5 rounded hover:bg-muted transition-colors" title="Italic"><Italic className="w-4 h-4" /></button>
+              <button onClick={() => formatText("~~", "~~")} className="p-1.5 rounded hover:bg-muted transition-colors" title="Strikethrough"><Strikethrough className="w-4 h-4" /></button>
+              <span className="w-px h-5 bg-border mx-1" />
+              <button onClick={() => formatLine("# ")} className="p-1.5 rounded hover:bg-muted transition-colors" title="Heading"><Heading className="w-4 h-4" /></button>
+              <button onClick={() => formatLine("> ")} className="p-1.5 rounded hover:bg-muted transition-colors" title="Blockquote"><Quote className="w-4 h-4" /></button>
+              <span className="w-px h-5 bg-border mx-1" />
+              <button onClick={() => formatLine("- ")} className="p-1.5 rounded hover:bg-muted transition-colors" title="Bullet List"><List className="w-4 h-4" /></button>
+              <button onClick={() => formatLine("1. ")} className="p-1.5 rounded hover:bg-muted transition-colors" title="Numbered List"><ListOrdered className="w-4 h-4" /></button>
+              <span className="w-px h-5 bg-border mx-1" />
+              <button onClick={() => formatText("==", "==")} className="p-1.5 rounded hover:bg-muted transition-colors" title="Highlight">≡</button>
+              <button onClick={() => formatText("", "\n\n---\n\n")} className="p-1.5 rounded hover:bg-muted transition-colors" title="Horizontal Rule"><Minus className="w-4 h-4" /></button>
+            </div>
             <div className="relative">
               {grammarErrors.length > 0 && (
                 <div
