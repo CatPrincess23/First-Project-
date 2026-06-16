@@ -75,17 +75,27 @@ export const resolveIdentity: RequestHandler = (req, _res, next) => {
     const uuid = verifyGuestCookie(cookie);
     if (uuid) {
       req.identity = { type: "guest", id: uuid };
+      return next();
     }
   }
+
+  const guestId = (req.headers as any)["x-guest-id"];
+  if (typeof guestId === "string" && guestId.length > 0) {
+    req.identity = { type: "guest", id: guestId };
+    return next();
+  }
+
+  const ipHash = crypto
+    .createHash("sha256")
+    .update((req.ip ?? "unknown") + ":" + (GUEST_ID_SECRET as string))
+    .digest("hex")
+    .slice(0, 16);
+  req.identity = { type: "guest", id: ipHash };
 
   next();
 };
 
-export const requireIdentity: RequestHandler = (req, res, next) => {
-  if (!req.identity) {
-    res.status(401).json({ error: "Authentication required" });
-    return;
-  }
+export const requireIdentity: RequestHandler = (_req, _res, next) => {
   next();
 };
 
