@@ -311,7 +311,7 @@ export default function Editor({ params }: { params: { id: string } }) {
     setIsCheckingGrammar(true);
     aiGrammar.mutate({ data: { text: content } }, {
       onSuccess: (result) => { setGrammarErrors(result.errors); setCorrectedText(result.correctedText); setIsCheckingGrammar(false); },
-      onError: () => { setIsCheckingGrammar(false); toast({ title: "Grammar check failed", variant: "destructive" }); }
+      onError: () => { setIsCheckingGrammar(false); toast({ title: "Grammar check unavailable right now" }); }
     });
   };
 
@@ -363,7 +363,7 @@ export default function Editor({ params }: { params: { id: string } }) {
     setIsSuggesting(true); setSuggestType(type);
     aiSuggest.mutate({ data: { text: content, type } }, {
       onSuccess: (result) => { setSuggestion(result.suggestion); setIsSuggesting(false); },
-      onError: () => { setIsSuggesting(false); toast({ title: "AI suggestion failed", variant: "destructive" }); }
+      onError: () => { setIsSuggesting(false); toast({ title: "AI suggestions unavailable right now" }); }
     });
   };
 
@@ -378,7 +378,7 @@ export default function Editor({ params }: { params: { id: string } }) {
     setIsRunningAiTool(true); setAiToolType("summary");
     aiSummarize.mutate({ data: { text: content, title } }, {
       onSuccess: (result) => { setAiToolResult(result.summary); setIsRunningAiTool(false); },
-      onError: () => { setIsRunningAiTool(false); toast({ title: "Summarize failed", variant: "destructive" }); }
+      onError: () => { setIsRunningAiTool(false); toast({ title: "Summarize unavailable right now" }); }
     });
   };
 
@@ -387,7 +387,7 @@ export default function Editor({ params }: { params: { id: string } }) {
     setIsRunningAiTool(true); setAiToolType("prologue");
     aiPrologue.mutate({ data: { text: content, title } }, {
       onSuccess: (result) => { setAiToolResult(result.prologue); setIsRunningAiTool(false); },
-      onError: () => { setIsRunningAiTool(false); toast({ title: "Prologue generation failed", variant: "destructive" }); }
+      onError: () => { setIsRunningAiTool(false); toast({ title: "Prologue generation unavailable right now" }); }
     });
   };
 
@@ -424,7 +424,7 @@ export default function Editor({ params }: { params: { id: string } }) {
         setImagePrompt(data.entities[0].description + ". Fantasy illustration, detailed, artistic.");
       }
     } catch {
-      toast({ title: "Entity scan failed", variant: "destructive" });
+      toast({ title: "Entity scan unavailable right now" });
     } finally {
       setIsScanningEntities(false);
     }
@@ -450,7 +450,7 @@ export default function Editor({ params }: { params: { id: string } }) {
         setGeneratedImage(`data:${mime};base64,${result.b64_json}`);
         setIsGeneratingImage(false);
       },
-      onError: () => { setIsGeneratingImage(false); toast({ title: "Image generation failed", variant: "destructive" }); }
+      onError: () => { setIsGeneratingImage(false); toast({ title: "Image generation unavailable right now" }); }
     });
   };
 
@@ -469,7 +469,7 @@ export default function Editor({ params }: { params: { id: string } }) {
         const conv = await createConversation();
         convId = conv.id;
       } catch (e) {
-        toast({ title: `Failed to start conversation: ${e instanceof Error ? e.message : "Unknown error"}`, variant: "destructive" });
+        toast({ title: "Chat unavailable right now" });
         return;
       }
     }
@@ -497,7 +497,7 @@ export default function Editor({ params }: { params: { id: string } }) {
         },
         onError: () => {
           setIsChatLoading(false);
-          toast({ title: "Chat failed", variant: "destructive" });
+          toast({ title: "Chat unavailable right now" });
         },
       }
     );

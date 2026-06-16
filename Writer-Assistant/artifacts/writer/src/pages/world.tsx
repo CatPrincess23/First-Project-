@@ -66,7 +66,7 @@ function EntityForm({ entity, onSave, onCancel, documentId, isLoading }: any) {
         setImageUrl(`data:image/png;base64,${result.b64_json}`);
         setIsGeneratingImage(false);
       },
-      onError: () => { setIsGeneratingImage(false); toast({ title: "Image generation failed", variant: "destructive" }); }
+      onError: () => { setIsGeneratingImage(false); toast({ title: "Image generation unavailable right now" }); }
     });
   };
 
