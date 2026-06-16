@@ -226,9 +226,10 @@ export default function Editor({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     if (initRef.current !== documentId) return;
-    const interval = setInterval(() => saveContent(title, content), 60000);
+    // Use refs so the interval is not re-created on every keystroke
+    const interval = setInterval(() => saveContent(titleRef.current, contentSnapshotRef.current), 60000);
     return () => clearInterval(interval);
-  }, [documentId, saveContent, title, content]);
+  }, [documentId, saveContent]);
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     if (!isTypingRef.current && !isUndoRedoingRef.current) {
@@ -337,7 +338,8 @@ export default function Editor({ params }: { params: { id: string } }) {
     const newErrors = grammarErrors
       .filter((_, i) => i !== index)
       .map(e => {
-        if (e.offset > err.offset) return { ...e, offset: e.offset + delta };
+        // Only shift errors that start after the end of the fixed span
+        if (e.offset >= err.offset + err.length) return { ...e, offset: e.offset + delta };
         return e;
       });
 
@@ -464,7 +466,9 @@ export default function Editor({ params }: { params: { id: string } }) {
   };
 
   const handleSendChat = async () => {
-    if (!chatInput.trim() || !useRequest()) return;
+    if (!chatInput.trim() || !useRequest() || isChatLoading) return;
+
+    setIsChatLoading(true);
 
     let convId = activeConversationId;
     if (!convId) {
@@ -472,6 +476,7 @@ export default function Editor({ params }: { params: { id: string } }) {
         const conv = await createConversation();
         convId = conv.id;
       } catch (e) {
+        setIsChatLoading(false);
         toast({ title: "Chat unavailable right now" });
         return;
       }
@@ -480,7 +485,6 @@ export default function Editor({ params }: { params: { id: string } }) {
     const userMsg = { role: "user" as const, content: chatInput };
     setChatMessages(prev => [...prev, userMsg]);
     setChatInput("");
-    setIsChatLoading(true);
 
     const docContext = stripHtml(content).trim();
     if (docContext) chatDocContent.current = docContext;
@@ -581,7 +585,7 @@ export default function Editor({ params }: { params: { id: string } }) {
             onChange={(e) => {
               setTitle(e.target.value);
               if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-              autoSaveTimer.current = setTimeout(() => saveContent(e.target.value, content), 500);
+              autoSaveTimer.current = setTimeout(() => saveContent(e.target.value, contentSnapshotRef.current), 500);
             }}
             className="border-0 shadow-none font-serif text-lg bg-transparent px-0 focus-visible:ring-0 min-w-0"
             placeholder="Untitled Document"

@@ -245,8 +245,8 @@ function generateProceduralSvg(prompt: string): string {
 }
 
 function checkKey(res: any): boolean {
-  if (!OPENROUTER_KEY) {
-    res.status(503).json({ error: "AI features unavailable: no OPENROUTER_API_KEY configured" });
+  if (!OPENROUTER_KEY && !GEMINI_KEY) {
+    res.status(503).json({ error: "AI features unavailable: no AI API key configured" });
     return false;
   }
   return true;
@@ -266,12 +266,16 @@ router.post("/suggest", async (req, res) => {
     continue: `Continue writing naturally from the following text. Return only the continuation (not the original):\n\n${text}`,
   };
   const systemMsg = context ? `You are a skilled writing assistant. Context: ${context.slice(0, 500)}` : "You are a skilled writing assistant.";
-  const completion = await getClient().chat.completions.create({
-    model: MODEL,
-    messages: [{ role: "system", content: systemMsg }, { role: "user", content: prompts[type] || prompts.improve }],
-    max_tokens: 1000,
-  });
-  res.json({ suggestion: completion.choices[0]?.message?.content?.trim() || "" });
+  try {
+    const completion = await getClient().chat.completions.create({
+      model: MODEL,
+      messages: [{ role: "system", content: systemMsg }, { role: "user", content: prompts[type] || prompts.improve }],
+      max_tokens: 1000,
+    });
+    res.json({ suggestion: completion.choices[0]?.message?.content?.trim() || "" });
+  } catch (err: any) {
+    res.status(502).json({ error: "AI service temporarily unavailable" });
+  }
 });
 
 function classifyError(orig: string, corr: string): "spelling" | "grammar" | "style" | "punctuation" {
@@ -280,9 +284,9 @@ function classifyError(orig: string, corr: string): "spelling" | "grammar" | "st
   if (o === c) return "grammar";
   const stripNonAlpha = (s: string) => s.replace(/[a-zA-Z0-9\s]/g, "");
   const alphaOnly = (s: string) => s.replace(/[^a-zA-Z0-9\s]/g, "");
-  if (stripNonAlpha(o) !== stripNonAlpha(c) && alphaOnly(o) === alphaOnly(c)) return "punctuation";
   if (o.toLowerCase() === c.toLowerCase() && o !== c) return "spelling";
   if (o.replace(/['']/g, "") === c.replace(/['']/g, "")) return "spelling";
+  if (stripNonAlpha(o) !== stripNonAlpha(c) && alphaOnly(o) === alphaOnly(c)) return "punctuation";
   if (!o.includes(" ") && !c.includes(" ")) {
     const dist = levenshtein(o, c);
     if (dist <= 2) return "spelling";
@@ -398,6 +402,7 @@ router.post("/grammar", async (req, res) => {
   if (!parse.success) return res.status(400).json({ error: "Invalid input" });
   const { text } = parse.data;
 
+  try {
   // Quick pre-scan: check if the text has any errors before doing a full correction
   const scanCompletion = await getClient().chat.completions.create({
     model: MODEL,
@@ -445,6 +450,9 @@ Return ONLY the corrected text with all errors fixed. Do NOT add any explanation
 
   const errors = wordDiff(text, corrected);
   res.json({ errors, correctedText: corrected });
+  } catch (err: any) {
+    res.status(502).json({ error: "AI service temporarily unavailable" });
+  }
 });
 
 // POST /api/ai/scan-entities

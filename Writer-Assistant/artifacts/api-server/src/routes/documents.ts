@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, documentsTable, documentVersionsTable } from "@workspace/db";
+import { db, documentsTable, documentVersionsTable, conversations } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import {
   CreateDocumentBody,
@@ -118,6 +118,8 @@ router.delete("/:id", async (req, res) => {
   const parse = DeleteDocumentParams.safeParse({ id: Number(req.params.id) });
   if (!parse.success) return res.status(400).json({ error: "Invalid ID" });
   const userId = getUserId(req);
+  // conversations.documentId has no FK cascade, so delete them first (messages cascade via FK)
+  await db.delete(conversations).where(eq(conversations.documentId, parse.data.id));
   await db.delete(documentsTable).where(and(eq(documentsTable.id, parse.data.id), eq(documentsTable.userId, userId)));
   res.status(204).send();
 });
