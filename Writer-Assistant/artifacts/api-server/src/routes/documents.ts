@@ -15,7 +15,7 @@ import {
 const router = Router();
 
 function countWords(text: string): number {
-  const stripped = text.replace(/<[^>]+>/g, "").trim();
+  const stripped = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
   return stripped ? stripped.split(/\s+/).length : 0;
 }
 

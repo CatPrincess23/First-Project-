@@ -80,7 +80,7 @@ export default function Editor({ params }: { params: { id: string } }) {
   // Sidebar tabs
   const [activeTab, setActiveTab] = useState<"grammar" | "suggest" | "ai-tools" | "image" | "history" | "chat">("grammar");
 
-  const stripHtml = useCallback((html: string) => html.replace(/<[^>]+>/g, ""), []);
+  const stripHtml = useCallback((html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(), []);
 
   // Grammar
   const [grammarErrors, setGrammarErrors] = useState<any[]>([]);
@@ -799,97 +799,10 @@ export default function Editor({ params }: { params: { id: string } }) {
 
               {/* Image Panel */}
               <TabsContent value="image" className="p-4 m-0 space-y-4 h-full overflow-y-auto">
-                <div>
-                  <h3 className="font-medium text-sm mb-1">Generate Image</h3>
-                  <p className="text-xs text-muted-foreground mb-3">Create illustrations for your story.</p>
-
-                  {/* Entity scanner */}
-                  <div className="space-y-3 pb-3 border-b mb-3">
-                    <p className="text-xs font-medium">Scan document for</p>
-                    <div className="flex gap-1.5 flex-wrap">
-                      {(["person", "animal", "place", "thing"] as const).map((t) => (
-                        <Button key={t} variant={entityType === t ? "default" : "outline"} size="sm"
-                          onClick={() => { setEntityType(t); setEntityNameInput(""); setScannedEntities([]); setSelectedEntity(null); }}
-                          className="capitalize text-xs h-7"
-                        >
-                          {t}s
-                        </Button>
-                      ))}
-                    </div>
-                    <input
-                      type="text"
-                      value={entityNameInput}
-                      onChange={(e) => setEntityNameInput(e.target.value)}
-                      placeholder={`Search for a specific ${entityType || "entity"} by name... (optional)`}
-                      className="w-full text-xs bg-background border rounded-md px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/60"
-                    />
-                    <Button onClick={handleScanEntities} disabled={!entityType || isScanningEntities || !content.trim()}
-                      className="w-full gap-2" size="sm" variant="secondary"
-                    >
-                      {isScanningEntities ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
-                      {isScanningEntities ? "Scanning..." : `Find ${entityType || "..."}s in document`}
-                    </Button>
-
-                    {/* Scanned entities list */}
-                    {scannedEntities.length > 0 && (
-                      <div className="space-y-1.5">
-                        <p className="text-xs font-medium text-muted-foreground">Found {scannedEntities.length} {entityType}{scannedEntities.length !== 1 ? "s" : ""}</p>
-                        <div className="space-y-1 max-h-32 overflow-y-auto">
-                          {scannedEntities.map((e, i) => (
-                            <button key={i}
-                              onClick={() => handleSelectEntity(e)}
-                              className={`w-full text-left p-2 rounded-md text-xs border transition-colors ${
-                                selectedEntity?.name === e.name
-                                  ? "border-primary bg-primary/10"
-                                  : "border-border hover:bg-secondary/50"
-                              }`}
-                            >
-                              <span className="font-medium">{e.name}</span>
-                              <span className="text-muted-foreground block truncate">{e.details?.slice(0, 80)}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Prompt */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-medium">Prompt</label>
-                      <Button variant="ghost" size="sm" className="h-6 text-xs gap-1 px-2" onClick={handleScanForImage}>
-                        <Wand2 className="w-3 h-3" /> First 300 chars
-                      </Button>
-                    </div>
-                    <textarea
-                      value={imagePrompt}
-                      onChange={(e) => setImagePrompt(e.target.value)}
-                      placeholder="A mysterious forest at dusk..."
-                      className="w-full text-sm bg-background border rounded-lg px-3 py-2 resize-none outline-none focus:ring-1 focus:ring-primary min-h-[60px]"
-                      rows={3}
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium">Size</label>
-                    <Select value={imageSize} onValueChange={(v: any) => setImageSize(v)}>
-                      <SelectTrigger className="text-xs h-8"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {Object.values(AiImageInputSize).map(size => <SelectItem key={size} value={size} className="text-xs">{size}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button onClick={handleGenerateImage} disabled={isGeneratingImage || !imagePrompt.trim()} className="w-full gap-2" size="sm">
-                    {isGeneratingImage ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
-                    {isGeneratingImage ? "Generating..." : "Generate"}
-                  </Button>
+                <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                  <p className="text-xs text-amber-700 dark:text-amber-300 font-medium">Image generation is unavailable right now</p>
+                  <p className="text-xs text-amber-600/70 dark:text-amber-400/70 mt-1">No image API key is configured. This feature will work once a valid API key is set up.</p>
                 </div>
-                {generatedImage && (
-                  <div className="space-y-2 pt-3 border-t">
-                    <div className="rounded-lg overflow-hidden border"><img src={generatedImage} alt="Generated" className="w-full h-auto" /></div>
-                    <p className="text-[10px] text-muted-foreground text-center">Right-click to save image</p>
-                  </div>
-                )}
               </TabsContent>
 
               {/* Chat Panel */}
