@@ -24,7 +24,7 @@ import {
   Globe, History, FileDown, Sun, Moon, BookOpen, Target, Clock, RotateCcw, MessageCircle,
   Plus, Trash2, Undo2, Redo2,
 } from "lucide-react";
-import { useAuth, RedirectToSignIn, UserButton } from "@clerk/react";
+import { UserButton } from "@clerk/react";
 import { UpgradeModal } from "@/components/upgrade-modal";
 import OnboardingTour from "@/components/onboarding-tour";
 import { format } from "date-fns";
@@ -37,11 +37,7 @@ export default function Editor({ params }: { params: { id: string } }) {
   const { useRequest } = usePro();
   const { theme, toggleTheme } = useTheme();
 
-  const { isSignedIn, isLoaded } = useAuth();
-  const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-  const clerkEnabled = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY && isLocalhost;
-  if (clerkEnabled && !isLoaded) return <div className="min-h-screen flex items-center justify-center bg-background"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
-  if (clerkEnabled && !isSignedIn) return <RedirectToSignIn />;
+  const clerkEnabled = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
   const { data: document, isLoading: isDocumentLoading } = useGetDocument(documentId, {
     query: { enabled: !!documentId && !isNaN(documentId), queryKey: getGetDocumentQueryKey(documentId) }

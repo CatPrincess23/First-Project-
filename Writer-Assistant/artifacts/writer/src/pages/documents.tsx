@@ -18,7 +18,7 @@ import {
   LayoutDashboard, Sparkles, BookOpen, Image as ImageIcon, History,
   CheckCircle, Wand2, Crown, User, ChevronRight,
 } from "lucide-react";
-import { useAuth, RedirectToSignIn, UserButton } from "@clerk/react";
+import { UserButton } from "@clerk/react";
 import OnboardingTour from "@/components/onboarding-tour";
 
 type View = "documents" | "world" | "ai-features" | "stats";
@@ -49,12 +49,7 @@ export default function Documents() {
   const { theme, toggleTheme } = useTheme();
   const [activeView, setActiveView] = useState<View>("documents");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
-  const { isSignedIn, isLoaded } = useAuth();
-  const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-  const clerkEnabled = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY && isLocalhost;
-  if (clerkEnabled && !isLoaded) return <div className="min-h-screen flex items-center justify-center bg-background"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
-  if (clerkEnabled && !isSignedIn) return <RedirectToSignIn />;
+  const clerkEnabled = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
   const { data: documents, isLoading: isLoadingDocs, isError: isDocsError } = useListDocuments({ query: { queryKey: getListDocumentsQueryKey() } });
   const { data: stats, isLoading: isLoadingStats } = useGetDocumentStats({ query: { queryKey: getGetDocumentStatsQueryKey() } });

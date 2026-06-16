@@ -161,5 +161,7 @@ overrides:
   esbuild: "0.27.3"
 
 allowBuilds:
+  bufferutil: false
   core-js: true
   esbuild: true
+  utf-8-validate: false

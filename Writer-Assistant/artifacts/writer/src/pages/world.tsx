@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import { useListWorldEntities, useCreateWorldEntity, useUpdateWorldEntity, useDeleteWorldEntity, getListWorldEntitiesQueryKey } from "@workspace/api-client-react";
 import { useAiGenerateImage } from "@workspace/api-client-react";
@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Plus, Pencil, Trash2, Loader2, User, MapPin, Package, Wand2, Sparkles, Upload, X } from "lucide-react";
-import { useAuth, RedirectToSignIn, UserButton } from "@clerk/react";
+import { UserButton } from "@clerk/react";
 import { usePro } from "@/lib/pro-context";
 import { UpgradeModal } from "@/components/upgrade-modal";
 
@@ -158,11 +158,7 @@ export default function WorldBuilding({ params }: { params: { id: string } }) {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingEntity, setEditingEntity] = useState<any>(null);
 
-  const { isSignedIn, isLoaded } = useAuth();
-  const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-  const clerkEnabled = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY && isLocalhost;
-  if (clerkEnabled && !isLoaded) return <div className="min-h-screen flex items-center justify-center bg-background"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
-  if (clerkEnabled && !isSignedIn) return <RedirectToSignIn />;
+  const clerkEnabled = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
   const { data: entities = [], isLoading } = useListWorldEntities(documentId, {}, { query: { queryKey: getListWorldEntitiesQueryKey(documentId, {}), enabled: !isNaN(documentId) } });
   const createEntity = useCreateWorldEntity();

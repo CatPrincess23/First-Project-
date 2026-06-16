@@ -11,7 +11,7 @@ import Documents from "@/pages/documents";
 import Editor from "@/pages/editor";
 import WorldBuilding from "@/pages/world";
 import { useCreateDocument, getListDocumentsQueryKey } from "@workspace/api-client-react";
-import { SignIn, SignUp } from "@clerk/react";
+
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Sparkles } from "lucide-react";
 
@@ -20,8 +20,6 @@ setupGuestId();
 const queryClient = new QueryClient();
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
-const isLocalhost = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
-const clerkEnabled = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY && isLocalhost;
 
 function HomeRedirect() {
   const [, setLocation] = useLocation();
@@ -54,21 +52,6 @@ function SignInPage() {
           <h1 className="text-3xl font-serif font-bold tracking-tight">WriteAI</h1>
           <p className="text-muted-foreground text-sm">Your AI-powered writing companion</p>
         </div>
-        {clerkEnabled && (
-          <div className="rounded-xl border bg-card p-4">
-            <SignIn routing="path" path="/sign-in" signUpUrl="/sign-up" />
-          </div>
-        )}
-        {clerkEnabled && (
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">or</span>
-            </div>
-          </div>
-        )}
         <div className="rounded-xl border bg-card p-6 text-center space-y-3 shadow-sm">
           <Sparkles className="w-8 h-8 text-primary mx-auto" />
           <p className="text-sm text-muted-foreground">Continue without signing in.</p>
@@ -86,15 +69,6 @@ function Router() {
     <Switch>
       <Route path="/sign-in/*?">
         <SignInPage />
-      </Route>
-      <Route path="/sign-up/*?">
-        {clerkEnabled ? (
-          <div className="min-h-screen flex items-center justify-center bg-background">
-            <SignUp routing="path" path="/sign-up" signInUrl="/sign-in" />
-          </div>
-        ) : (
-          <NotFound />
-        )}
       </Route>
       <Route path="/" component={HomeRedirect} />
       <Route path="/documents" component={Documents} />

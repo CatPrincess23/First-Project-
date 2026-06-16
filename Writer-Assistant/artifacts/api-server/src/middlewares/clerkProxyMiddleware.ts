@@ -23,7 +23,21 @@ import { createProxyMiddleware } from "http-proxy-middleware";
 import type { RequestHandler } from "express";
 import type { IncomingHttpHeaders } from "http";
 
-const CLERK_FAPI = "https://frontend-api.clerk.dev";
+function decodePublishableKey(key: string): string {
+  // pk_<env>_<base64-of domain$>
+  const parts = key.split("_");
+  if (parts.length !== 3) return "frontend-api.clerk.dev";
+  try {
+    const decoded = atob(parts[2]!).replace(/\$$/, "");
+    return decoded;
+  } catch {
+    return "frontend-api.clerk.dev";
+  }
+}
+
+const publishableKey = process.env.CLERK_PUBLISHABLE_KEY || "";
+const fapiHost = decodePublishableKey(publishableKey);
+const CLERK_FAPI = `https://${fapiHost}`;
 export const CLERK_PROXY_PATH = "/api/__clerk";
 
 /**

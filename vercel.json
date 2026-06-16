@@ -1,5 +1,5 @@
 {
-  "installCommand": "cd Writer-Assistant && node --version && npx --yes pnpm@9 install",
+  "installCommand": "cd Writer-Assistant && npx --yes pnpm@11 install --no-frozen-lockfile",
   "buildCommand": "cd Writer-Assistant && pnpm run build:vercel",
   "outputDirectory": "Writer-Assistant/artifacts/writer/dist/public",
   "rewrites": [
