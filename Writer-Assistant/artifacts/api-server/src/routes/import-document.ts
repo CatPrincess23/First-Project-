@@ -1,6 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import * as mammoth from "mammoth";
+import "dommatrix";
 
 const router = Router();
 
