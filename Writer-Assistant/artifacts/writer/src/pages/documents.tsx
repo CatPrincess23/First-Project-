@@ -96,10 +96,10 @@ export default function Documents() {
       <aside className={`${sidebarCollapsed ? "w-16" : "w-60"} flex-none border-r bg-card flex flex-col transition-all duration-200 sticky top-0 h-screen overflow-hidden`}>
         {/* Logo */}
         <div className="h-16 flex items-center gap-3 px-4 border-b shrink-0">
-          <div className="w-8 h-8 rounded bg-primary text-primary-foreground flex items-center justify-center font-serif font-bold text-lg shrink-0">W</div>
+          <img src="/favicon.svg" alt="Whimsical Writer" className="w-8 h-8 shrink-0" />
           {!sidebarCollapsed && (
             <div className="min-w-0">
-              <div className="font-serif font-semibold text-base leading-tight tracking-tight">Whimsical Writer</div>
+              <div className="font-serif font-semibold text-base leading-tight tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">Whimsical Writer</div>
               {isPro && <div className="text-[10px] text-primary font-bold uppercase tracking-wider">Pro</div>}
             </div>
           )}
@@ -178,7 +178,9 @@ export default function Documents() {
             <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-700 p-8 md:p-10 text-white">
               <div className="relative z-10">
                 <div className="flex items-center gap-4 mb-4">
-                  <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center font-serif font-bold text-3xl shadow-lg">W</div>
+                  <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur p-0.5 shadow-lg">
+                    <img src="/favicon.svg" alt="Whimsical Writer" className="w-full h-full rounded-[10px]" />
+                  </div>
                   <div>
                     <h1 className="text-3xl font-serif font-bold">Welcome to Whimsical Writer</h1>
                     <p className="text-indigo-200 text-sm mt-1">Your AI-powered creative writing companion</p>
