@@ -41,7 +41,7 @@ router.get("/stats", async (req, res) => {
     .where(eq(documentsTable.userId, userId))
     .orderBy(desc(documentsTable.updatedAt));
 
-  const totalWords = allDocs.reduce((acc, d) => acc + d.wordCount, 0);
+  const totalWords = allDocs.reduce((acc, d) => acc + countWords(d.content), 0);
   res.json({ totalDocuments: allDocs.length, totalWords, recentDocuments: allDocs.slice(0, 5).map(serializeDoc) });
 });
 
@@ -49,7 +49,7 @@ router.get("/stats", async (req, res) => {
 router.get("/", async (req, res) => {
   const userId = getUserId(req);
   const docs = await db.select().from(documentsTable).where(eq(documentsTable.userId, userId)).orderBy(desc(documentsTable.updatedAt));
-  res.json(docs.map(serializeDoc));
+  res.json(docs.map(d => ({ ...serializeDoc(d), wordCount: countWords(d.content) })));
 });
 
 // POST /api/documents
@@ -94,7 +94,7 @@ router.get("/:id", async (req, res) => {
   const userId = getUserId(req);
   const [doc] = await db.select().from(documentsTable).where(and(eq(documentsTable.id, parse.data.id), eq(documentsTable.userId, userId)));
   if (!doc) return res.status(404).json({ error: "Not found" });
-  res.json(serializeDoc(doc));
+  res.json({ ...serializeDoc(doc), wordCount: countWords(doc.content) });
 });
 
 // PATCH /api/documents/:id
