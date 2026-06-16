@@ -9,20 +9,16 @@ const GUEST_COOKIE = "wa_guest";
 const GUEST_COOKIE_MAX_AGE = 365 * 24 * 60 * 60 * 1000; // ~1 year
 
 const GUEST_ID_SECRET =
-  process.env.GUEST_ID_SECRET ?? (isProd ? undefined : "dev-guest-secret");
+  process.env.GUEST_ID_SECRET ?? (() => {
+    const generated = crypto.randomBytes(32).toString("hex");
+    console.warn(
+      "[identity] GUEST_ID_SECRET not set — generated a random one. " +
+      "Guest cookies will be invalidated on server restart. Set GUEST_ID_SECRET for persistence."
+    );
+    return generated;
+  })();
 
-// Fail closed WITHOUT taking the whole API down. Without a secret we cannot
-// safely sign/verify guest cookies, so guest sign-in is disabled (the /guest
-// route returns 503 and no guest identity is ever resolved) — but Clerk-
-// authenticated users keep working. Set GUEST_ID_SECRET in production to
-// enable anonymous access.
-export const guestSigningEnabled = !!GUEST_ID_SECRET;
-if (!guestSigningEnabled) {
-  // eslint-disable-next-line no-console
-  console.error(
-    "[identity] GUEST_ID_SECRET is not set — guest sign-in is DISABLED until it is configured.",
-  );
-}
+export const guestSigningEnabled = true;
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
