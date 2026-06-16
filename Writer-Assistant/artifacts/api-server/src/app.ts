@@ -37,7 +37,22 @@ app.use(
 
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
-app.use(cors({ credentials: true, origin: true }));
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
+  : ["http://localhost:3000", "http://localhost:5173", "http://localhost:8080"];
+
+app.use(
+  cors({
+    credentials: true,
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, origin ?? false);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+  }),
+);
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -46,6 +61,10 @@ try {
 } catch { /* uploads dir not available */ }
 
 const skipAuth = !process.env.CLERK_SECRET_KEY;
+
+if (skipAuth && process.env.NODE_ENV === "production") {
+  throw new Error("CLERK_SECRET_KEY must be set in production");
+}
 
 if (!skipAuth) {
   app.use(
