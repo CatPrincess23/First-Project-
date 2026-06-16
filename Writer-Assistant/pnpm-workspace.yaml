@@ -33,6 +33,12 @@ minimumReleaseAgeExclude:
   # this setting guards against does not apply to our own packages.
   - '@replit/*'
   - stripe-replit-sync
+  # prosemirror-model 1.25.9 (a transitive TipTap/ProseMirror dep already pinned
+  # in the lockfile) was published <24h before this change. Adding the security
+  # deps (helmet, express-rate-limit, file-type) forces the Vercel install to
+  # rewrite the lockfile, which re-runs the age check and otherwise blocks on
+  # this trusted, mainstream package. Safe to remove once it ages past 1 day.
+  - prosemirror-model
 
 packages:
   - artifacts/*

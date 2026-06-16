@@ -40,6 +40,18 @@ const fapiHost = decodePublishableKey(publishableKey);
 const CLERK_FAPI = `https://${fapiHost}`;
 export const CLERK_PROXY_PATH = "/api/__clerk";
 
+// Hostnames a forwarded host is allowed to claim, parsed once at module load.
+// Compared case-insensitively and ignoring any :port suffix.
+const ALLOWED_HOSTS = (process.env.ALLOWED_HOSTS ?? "")
+  .split(",")
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean);
+
+function hostname(value: string): string {
+  // Strip an optional :port suffix; IPv6 literals aren't expected in Host here.
+  return value.toLowerCase().split(":")[0]!;
+}
+
 /**
  * Returns the first effective public hostname for the given request,
  * preferring x-forwarded-host over the Host header so callers behind a
@@ -56,6 +68,11 @@ export const CLERK_PROXY_PATH = "/api/__clerk";
  * (clerkMiddleware callback) and this proxy middleware agree on which
  * hostname is canonical — otherwise multi-domain/custom-domain flows
  * break.
+ *
+ * x-forwarded-host is attacker-controllable (host-header injection), so the
+ * extracted candidate is only honored when its hostname is in the
+ * ALLOWED_HOSTS allowlist. Otherwise — including when ALLOWED_HOSTS is unset
+ * or empty — we fall back to the direct Host header, which the proxy sets.
  */
 export function getClerkProxyHost(req: {
   headers: IncomingHttpHeaders;
@@ -63,7 +80,10 @@ export function getClerkProxyHost(req: {
   const forwarded = req.headers["x-forwarded-host"];
   const raw = Array.isArray(forwarded) ? forwarded[0] : forwarded;
   const firstHop = raw?.split(",")[0]?.trim();
-  return firstHop || req.headers.host?.trim() || undefined;
+  if (firstHop && ALLOWED_HOSTS.includes(hostname(firstHop))) {
+    return firstHop;
+  }
+  return req.headers.host?.trim() || undefined;
 }
 
 export function clerkProxyMiddleware(): RequestHandler {

@@ -1,16 +1,18 @@
 import { Router } from "express";
 import { db, worldEntitiesTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
+import { getUserId } from "../middlewares/identity";
 
 const router = Router({ mergeParams: true });
 
-function getUserId(req: any): string {
-  return req.auth?.userId || req.headers["x-guest-id"] || "guest";
-}
-
 function serializeEntity(e: any) {
   return {
-    ...e,
+    id: e.id,
+    documentId: e.documentId,
+    type: e.type,
+    name: e.name,
+    fields: e.fields,
+    imageUrl: e.imageUrl,
     createdAt: e.createdAt instanceof Date ? e.createdAt.toISOString() : e.createdAt,
     updatedAt: e.updatedAt instanceof Date ? e.updatedAt.toISOString() : e.updatedAt,
   };
