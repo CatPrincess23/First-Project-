@@ -11,25 +11,27 @@ function getUserId(req: any): string {
 }
 
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
+const GEMINI_KEY = process.env.GEMINI_API_KEY;
 
 let _client: OpenAI | null = null;
 function getClient(): OpenAI {
   if (!_client) {
+    const useGemini = !!GEMINI_KEY;
     _client = new OpenAI({
-      baseURL: "https://openrouter.ai/api/v1",
-      apiKey: OPENROUTER_KEY || "sk-placeholder",
-      defaultHeaders: {
+      baseURL: useGemini ? "https://generativelanguage.googleapis.com/v1beta/openai/" : "https://openrouter.ai/api/v1",
+      apiKey: useGemini ? GEMINI_KEY : (OPENROUTER_KEY || "sk-placeholder"),
+      defaultHeaders: useGemini ? {} : {
         "HTTP-Referer": process.env.APP_URL || "http://localhost:8080",
-        "X-Title": "WriteAI",
+        "X-Title": "Whimsical Writer",
       },
     });
   }
   return _client;
 }
 
-const MODEL = "deepseek/deepseek-v4-flash";
+const MODEL = GEMINI_KEY ? "gemini-2.0-flash" : "deepseek/deepseek-v4-flash";
 
-const IMAGE_MODELS = [
+const IMAGE_MODELS = GEMINI_KEY ? [] : [
   "openai/gpt-5.4-image-2",
   "openai/gpt-5-image",
   "black-forest-labs/flux-schnell",
