@@ -77,10 +77,6 @@ export default function Editor({ params }: { params: { id: string } }) {
   // Editor readiness: only render TipTap after content is loaded
   const [editorReady, setEditorReady] = useState(false);
 
-  useEffect(() => {
-    if (document) setEditorReady(true);
-  }, [document]);
-
   // Sidebar tabs
   const [activeTab, setActiveTab] = useState<"grammar" | "suggest" | "ai-tools" | "image" | "history" | "chat">("grammar");
 
@@ -198,6 +194,7 @@ export default function Editor({ params }: { params: { id: string } }) {
       setContent(document.content);
       setGoalWordCount(document.goalWordCount ?? null);
       lastSavedRef.current = { title: document.title, content: document.content };
+      setEditorReady(true);
     }
   }, [document, documentId]);
 
