@@ -37,20 +37,42 @@ app.use(
 
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
-  : ["http://localhost:3000", "http://localhost:5173", "http://localhost:8080"];
+// Explicitly allowed cross-origin callers (comma-separated env var).
+const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+const isProd = process.env.NODE_ENV === "production";
+
+function isOriginAllowed(origin: string, host: string | undefined): boolean {
+  if (allowedOrigins.includes(origin)) return true;
+  let url: URL;
+  try {
+    url = new URL(origin);
+  } catch {
+    return false;
+  }
+  // Same-origin: the SPA and the API share a host (Vercel rewrites), so the
+  // request Origin's host matches the request Host. This covers the production
+  // domain and every preview deployment URL without per-URL configuration.
+  if (host && url.host === host) return true;
+  // Localhost dev origins are allowed outside production.
+  if (!isProd && url.hostname === "localhost") return true;
+  return false;
+}
 
 app.use(
-  cors({
-    credentials: true,
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, origin ?? false);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
+  cors((req, callback) => {
+    const origin = req.headers.origin;
+    // No Origin header (same-origin simple GET, server-to-server) → allow.
+    if (!origin) {
+      callback(null, { origin: true, credentials: true });
+      return;
+    }
+    // Reflect the Origin when allowed; otherwise omit the CORS headers so the
+    // browser blocks the response — without erroring the request (no 500).
+    const allowed = isOriginAllowed(origin, req.headers.host);
+    callback(null, { origin: allowed ? origin : false, credentials: true });
   }),
 );
 app.use(express.json({ limit: "10mb" }));
