@@ -650,8 +650,8 @@ export default function Editor({ params }: { params: { id: string } }) {
       {/* Main Workspace */}
       <div className="flex flex-1 overflow-hidden">
         {/* Editor Area */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 flex justify-center">
-          <div id="tour-editor-textarea" className="w-full max-w-3xl">
+        <div className="flex-1 overflow-y-auto flex justify-center">
+          <div id="tour-editor-textarea" className="w-full max-w-3xl px-4 md:px-8 py-6">
             <RichTextEditor content={content} onChange={(html) => {
               setContent(html);
               isTypingRef.current = true;

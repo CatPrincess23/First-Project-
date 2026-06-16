@@ -77,7 +77,7 @@ export default function RichTextEditor({ content, onChange, placeholder }: RichT
     },
     editorProps: {
       attributes: {
-        class: "prose prose-lg max-w-none focus:outline-none min-h-[60vh] font-serif px-[1px]",
+        class: "prose prose-lg max-w-none focus:outline-none min-h-[60vh] font-serif",
         placeholder: placeholder || "Start writing...",
       },
     },
@@ -98,9 +98,9 @@ export default function RichTextEditor({ content, onChange, placeholder }: RichT
   if (!editor) return null;
 
   return (
-    <div className="border rounded-lg">
+    <div>
       {/* Toolbar */}
-      <div className="flex items-center gap-0.5 p-2 border-b flex-wrap bg-card sticky top-0 z-10">
+      <div className="flex items-center gap-0.5 p-1.5 mb-4 border-b flex-wrap bg-background/95 backdrop-blur sticky top-0 z-10">
         <ToolbarButton onClick={() => editor.chain().focus().undo().run()} title="Undo">
           <Undo2 className="w-3.5 h-3.5" />
         </ToolbarButton>
@@ -198,7 +198,7 @@ export default function RichTextEditor({ content, onChange, placeholder }: RichT
       </div>
 
       {/* Editor */}
-      <div className="p-4 md:p-6">
+      <div>
         <EditorContent editor={editor} />
       </div>
     </div>
