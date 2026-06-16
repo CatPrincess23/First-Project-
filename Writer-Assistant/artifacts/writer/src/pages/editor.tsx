@@ -215,23 +215,16 @@ export default function Editor({ params }: { params: { id: string } }) {
     );
   }, [documentId, queryClient, toast]);
 
-  const doSave = useCallback(() => {
-    isTypingRef.current = false;
-    saveContent(title, content);
-  }, [title, content, saveContent]);
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  const titleRef = useRef(title);
+  titleRef.current = title;
 
   useEffect(() => {
     if (initRef.current !== documentId) return;
-    if (!isTypingRef.current) return;
-    const timer = setTimeout(() => doSave(), 800);
-    return () => clearTimeout(timer);
-  }, [title, content, documentId, doSave]);
-
-  useEffect(() => {
-    if (initRef.current !== documentId) return;
-    const interval = setInterval(() => doSave(), 60000);
+    const interval = setInterval(() => saveContent(title, content), 60000);
     return () => clearInterval(interval);
-  }, [documentId, doSave]);
+  }, [documentId, saveContent, title, content]);
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     if (!isTypingRef.current && !isUndoRedoingRef.current) {
@@ -245,8 +238,8 @@ export default function Editor({ params }: { params: { id: string } }) {
   };
 
   const handleBlur = useCallback(() => {
-    doSave();
-  }, [doSave]);
+    saveContent(title, content);
+  }, [saveContent, title, content]);
 
   function undoRedoAction(action: "undo" | "redo") {
     const stack = action === "undo" ? undoStackRef : redoStackRef;
@@ -269,7 +262,7 @@ export default function Editor({ params }: { params: { id: string } }) {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "s") {
         e.preventDefault();
-        doSave();
+        saveContent(title, content);
       }
       if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
         e.preventDefault();
@@ -282,7 +275,7 @@ export default function Editor({ params }: { params: { id: string } }) {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [doSave]);
+  }, [saveContent, title, content]);
 
   const buildHighlightSegments = useCallback((text: string, errors: any[]) => {
     if (!errors.length) return [{ text }];
@@ -599,7 +592,7 @@ export default function Editor({ params }: { params: { id: string } }) {
             )}
           </div>
 
-          <Button variant="outline" size="sm" onClick={() => doSave()} className="h-7 text-xs gap-1" disabled={isSaving}>
+          <Button variant="outline" size="sm" onClick={() => saveContent(title, content)} className="h-7 text-xs gap-1" disabled={isSaving}>
             <Save className="w-3 h-3" /> Save
           </Button>
 
@@ -656,9 +649,10 @@ export default function Editor({ params }: { params: { id: string } }) {
         {/* Editor Area */}
         <div className="flex-1 overflow-y-auto flex justify-center">
           <div id="tour-editor-textarea" className="w-full max-w-3xl px-4 md:px-8 py-6">
-            <RichTextEditor content={content} onBlur={() => doSave()} onChange={(html) => {
+            <RichTextEditor content={content} onBlur={() => saveContent(title, content)} onChange={(html) => {
               setContent(html);
-              isTypingRef.current = true;
+              if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+              autoSaveTimer.current = setTimeout(() => saveContent(title, html), 500);
               if (grammarErrors.length > 0) { setGrammarErrors([]); setCorrectedText(""); }
             }} placeholder="Start writing..." />
           </div>
