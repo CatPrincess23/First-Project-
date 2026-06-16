@@ -46,10 +46,8 @@ function SignInPage() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center space-y-3">
-          <div className="w-14 h-14 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center font-serif font-bold text-3xl mx-auto shadow-lg shadow-primary/20">
-            W
-          </div>
-          <h1 className="text-3xl font-serif font-bold tracking-tight">Whimsical Writer</h1>
+          <img src="/favicon.svg" alt="Whimsical Writer" className="w-14 h-14 mx-auto" />
+          <h1 className="text-3xl font-serif font-bold tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">Whimsical Writer</h1>
           <p className="text-muted-foreground text-sm">Your AI-powered writing companion</p>
         </div>
         <div className="rounded-xl border bg-card p-6 text-center space-y-3 shadow-sm">
