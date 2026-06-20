@@ -63,7 +63,7 @@ export function issueGuestCookie(res: Response, uuid: string): void {
   });
 }
 
-export const resolveIdentity: RequestHandler = (req, _res, next) => {
+export const resolveIdentity: RequestHandler = (req, res, next) => {
   const userId = (req as any).auth?.userId;
   if (userId) {
     req.identity = { type: "user", id: userId };
@@ -82,6 +82,7 @@ export const resolveIdentity: RequestHandler = (req, _res, next) => {
   const guestId = (req.headers as any)["x-guest-id"];
   if (typeof guestId === "string" && guestId.length > 0) {
     req.identity = { type: "guest", id: guestId };
+    issueGuestCookie(res, guestId);
     return next();
   }
 
