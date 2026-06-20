@@ -9,9 +9,16 @@ function getOrCreateGuestId(): string {
   return id;
 }
 
+let _guestId: string | null = null;
+
+function getGuestId(): string {
+  if (_guestId) return _guestId;
+  _guestId = getOrCreateGuestId();
+  return _guestId;
+}
+
 export function setupGuestId() {
   const originalFetch = window.fetch;
-  const guestId = getOrCreateGuestId();
 
   window.fetch = async (...args) => {
     const url = args[0] instanceof Request ? args[0].url : String(args[0]);
@@ -26,7 +33,7 @@ export function setupGuestId() {
         ? new Request(args[0], { credentials: "same-origin" })
         : new Request(args[0], { ...args[1], credentials: "same-origin" });
 
-    req.headers.set("x-guest-id", guestId);
+    req.headers.set("x-guest-id", getGuestId());
 
     try {
       const clerk = (window as any).Clerk;
@@ -38,6 +45,16 @@ export function setupGuestId() {
       // Clerk not available
     }
 
-    return originalFetch(req);
+    const response = await originalFetch(req);
+
+    // If the server says our localStorage guest ID is stale, fix it so future
+    // requests (including on next page load) use the correct identity.
+    const correction = response.headers.get("X-Guest-Identity-Correction");
+    if (correction) {
+      localStorage.setItem(GUEST_ID_KEY, correction);
+      _guestId = correction;
+    }
+
+    return response;
   };
 }

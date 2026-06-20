@@ -70,23 +70,33 @@ export const resolveIdentity: RequestHandler = (req, res, next) => {
     return next();
   }
 
-  // x-guest-id header (from localStorage on the frontend) is the primary source.
-  // It's the most stable identifier — survives cookies being cleared.
+  // Read both sources before deciding so we can detect conflicts.
   const guestId = (req.headers as any)["x-guest-id"];
-  if (typeof guestId === "string" && guestId.length > 0) {
-    req.identity = { type: "guest", id: guestId };
-    issueGuestCookie(res, guestId);
-    return next();
-  }
-
-  // Cookie is the fallback for when JS crashes and the fetch patch doesn't run.
   const cookie = (req as any).cookies?.[GUEST_COOKIE];
+
+  // Cookie is preferred because it is server-signed (HMAC verified) and more
+  // trustworthy than a raw header. This prevents identity loss when localStorage
+  // is cleared (e.g. browser data reset) but the cookie survives.
   if (typeof cookie === "string" && cookie.length > 0) {
     const uuid = verifyGuestCookie(cookie);
     if (uuid) {
       req.identity = { type: "guest", id: uuid };
+      issueGuestCookie(res, uuid);
+      // If the header has a different (stale) value, tell the client to fix
+      // localStorage so they stay in sync.
+      if (typeof guestId === "string" && guestId.length > 0 && guestId !== uuid) {
+        res.setHeader("X-Guest-Identity-Correction", uuid);
+      }
       return next();
     }
+  }
+
+  // x-guest-id header (from localStorage on the frontend) is the fallback source.
+  // It survives cookie-only clears (which some browsers do aggressively).
+  if (typeof guestId === "string" && guestId.length > 0) {
+    req.identity = { type: "guest", id: guestId };
+    issueGuestCookie(res, guestId);
+    return next();
   }
 
   // Last resort: generate a fresh server-side UUID and issue a cookie.

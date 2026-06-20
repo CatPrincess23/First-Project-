@@ -139,18 +139,8 @@ if (!skipAuth) {
   );
 }
 
-app.use((req, _res, next) => {
-  // Only inject the dev user in actual development. Any other environment
-  // without Clerk fails closed: no auto user → resolveIdentity yields
-  // guest-or-none → requireIdentity returns 401 instead of silently granting.
-  if (skipAuth && process.env.NODE_ENV === "development" && !(req as any).auth) {
-    (req as any).auth = { userId: "dev-user" };
-  }
-  next();
-});
-
-// Resolve identity (Clerk user or signed guest cookie) before the API router so
-// requireIdentity and the AI rate-limiter can key off req.identity.
+// Resolve identity (Clerk user, signed guest cookie, or x-guest-id header) before
+// the API router so requireIdentity and the AI rate-limiter can key off req.identity.
 app.use(resolveIdentity);
 
 app.use("/api", router);
