@@ -7,7 +7,7 @@ import { FontFamily } from "@tiptap/extension-font-family";
 import { TextAlign } from "@tiptap/extension-text-align";
 import { Highlight } from "@tiptap/extension-highlight";
 import { Link } from "@tiptap/extension-link";
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   Heading1, Heading2, Heading3, List, ListOrdered, Quote,
@@ -67,9 +67,10 @@ interface RichTextEditorProps {
   onChange: (html: string) => void;
   onBlur?: () => void;
   placeholder?: string;
+  onSelectionChange?: (selectedText: string) => void;
 }
 
-export default function RichTextEditor({ content, onChange, onBlur, placeholder }: RichTextEditorProps) {
+export default function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionChange }: RichTextEditorProps) {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -98,6 +99,25 @@ export default function RichTextEditor({ content, onChange, onBlur, placeholder 
       },
     },
   });
+
+  const onSelectionChangeRef = useRef(onSelectionChange);
+  onSelectionChangeRef.current = onSelectionChange;
+
+  useEffect(() => {
+    if (!editor) return;
+    const dom = editor.view.dom;
+    const handler = () => {
+      const cb = onSelectionChangeRef.current;
+      if (!cb) return;
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !dom.contains(sel.anchorNode)) { cb(""); return; }
+      cb(sel.toString());
+    };
+    document.addEventListener("selectionchange", handler);
+    return () => {
+      document.removeEventListener("selectionchange", handler);
+    };
+  }, [editor]);
 
   const setLink = useCallback(() => {
     if (!editor) return;

@@ -150,6 +150,15 @@ export const CreateDocumentVersionBody = zod.object({
 
 
 /**
+ * @summary Delete a version snapshot
+ */
+export const DeleteDocumentVersionParams = zod.object({
+  "id": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+
+/**
  * @summary List world-building entities for a document
  */
 export const ListWorldEntitiesParams = zod.object({

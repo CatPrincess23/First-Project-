@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import {
   useGetDocument, useUpdateDocument, useAiSuggest, useAiGrammarCheck, useAiGenerateImage,
   useAiSummarize, useAiGeneratePrologue, useAiChat, useListDocumentVersions, useCreateDocumentVersion,
-  getGetDocumentQueryKey, getListDocumentVersionsQueryKey,
+  useDeleteDocumentVersion, getGetDocumentQueryKey, getListDocumentVersionsQueryKey,
 } from "@workspace/api-client-react";
 import { AiSuggestInputType, AiImageInputSize } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -52,6 +52,7 @@ export default function Editor({ params }: { params: { id: string } }) {
   const aiPrologue = useAiGeneratePrologue();
   const aiChat = useAiChat();
   const createVersion = useCreateDocumentVersion();
+  const deleteVersion = useDeleteDocumentVersion();
   const { data: versions = [] } = useListDocumentVersions(documentId, {
     query: { enabled: !isNaN(documentId), queryKey: getListDocumentVersionsQueryKey(documentId) }
   });
@@ -59,6 +60,7 @@ export default function Editor({ params }: { params: { id: string } }) {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedWordCount, setSelectedWordCount] = useState(0);
 
   const initRef = useRef<number | null>(null);
   const lastSavedRef = useRef({ title: "", content: "" });
@@ -80,7 +82,19 @@ export default function Editor({ params }: { params: { id: string } }) {
   // Sidebar tabs
   const [activeTab, setActiveTab] = useState<"grammar" | "suggest" | "ai-tools" | "image" | "history" | "chat">("grammar");
 
-  const stripHtml = useCallback((html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(), []);
+  const decodeEntities = useCallback((text: string) => text
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/g, "'")
+    .replace(/&#x2F;/g, "/")
+    .replace(/&#(\d+);/g, (_, c) => String.fromCharCode(parseInt(c, 10)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, c) => String.fromCharCode(parseInt(c, 16))), []);
+
+  const stripHtml = useCallback((html: string) => decodeEntities(html).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(), [decodeEntities]);
 
   // Grammar
   const [grammarErrors, setGrammarErrors] = useState<any[]>([]);
@@ -596,7 +610,11 @@ export default function Editor({ params }: { params: { id: string } }) {
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground mr-2">
             {isSaving ? <><Loader2 className="w-3 h-3 animate-spin" /><span>Saving...</span></> : <><Save className="w-3 h-3 text-green-500 dark:text-green-400" /><span>Saved</span></>}
             <span className="mx-1">·</span>
-            <span>{wordCount.toLocaleString()} words</span>
+            {selectedWordCount > 0 ? (
+              <span className="text-primary font-medium">{selectedWordCount.toLocaleString()} words</span>
+            ) : (
+              <span>{wordCount.toLocaleString()} words</span>
+            )}
             {goalProgress !== null && (
               <span className={`ml-1 font-medium ${goalProgress >= 100 ? "text-green-500 dark:text-green-400" : ""}`}>
                 / {goalWordCount?.toLocaleString()} ({goalProgress}%)
@@ -658,6 +676,8 @@ export default function Editor({ params }: { params: { id: string } }) {
               if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
               autoSaveTimer.current = setTimeout(() => saveContent(title, html), 500);
               if (grammarErrors.length > 0) { setGrammarErrors([]); setCorrectedText(""); }
+            }} onSelectionChange={(text) => {
+              setSelectedWordCount(text.trim() ? text.trim().split(/\s+/).length : 0);
             }} placeholder="Start writing..." />
             ) : (
               <div className="min-h-[60vh] flex items-center justify-center text-muted-foreground">
@@ -906,20 +926,38 @@ export default function Editor({ params }: { params: { id: string } }) {
                 ) : (
                   <div className="space-y-2">
                     {(versions as any[]).map((v: any) => (
-                      <div key={v.id} className="p-3 bg-secondary/40 rounded-lg text-xs space-y-1.5">
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <p className="font-medium">{v.label || "Checkpoint"}</p>
-                            <p className="text-muted-foreground flex items-center gap-1 mt-0.5">
-                              <Clock className="w-2.5 h-2.5" />{format(new Date(v.createdAt), "MMM d, h:mm a")}
-                            </p>
+                        <div key={v.id} className="p-3 bg-secondary/40 rounded-lg text-xs space-y-1.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <p className="font-medium">{v.label || "Checkpoint"}</p>
+                              <p className="text-muted-foreground flex items-center gap-1 mt-0.5">
+                                <Clock className="w-2.5 h-2.5" />{format(new Date(v.createdAt), "MMM d, h:mm a")}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Badge variant="outline" className="text-[10px] py-0">{v.wordCount}w</Badge>
+                              <button
+                                onClick={() => {
+                                  if (!confirm(`Delete version "${v.label || format(new Date(v.createdAt), "MMM d, h:mm a")}"?`)) return;
+                                  deleteVersion.mutate({ id: documentId, versionId: v.id }, {
+                                    onSuccess: () => {
+                                      queryClient.invalidateQueries({ queryKey: getListDocumentVersionsQueryKey(documentId) });
+                                      toast({ title: "Version deleted" });
+                                    },
+                                    onError: () => toast({ title: "Failed to delete version", variant: "destructive" }),
+                                  });
+                                }}
+                                className="text-muted-foreground hover:text-destructive transition-colors p-0.5"
+                                title="Delete version"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
                           </div>
-                          <Badge variant="outline" className="text-[10px] py-0">{v.wordCount}w</Badge>
+                          <Button variant="ghost" size="sm" className="w-full h-6 text-xs gap-1" onClick={() => handleRestoreVersion(v)}>
+                            <RotateCcw className="w-2.5 h-2.5" /> Restore
+                          </Button>
                         </div>
-                        <Button variant="ghost" size="sm" className="w-full h-6 text-xs gap-1" onClick={() => handleRestoreVersion(v)}>
-                          <RotateCcw className="w-2.5 h-2.5" /> Restore
-                        </Button>
-                      </div>
                     ))}
                   </div>
                 )}

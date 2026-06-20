@@ -11,12 +11,27 @@ import {
   ListDocumentVersionsParams,
   CreateDocumentVersionParams,
   CreateDocumentVersionBody,
+  DeleteDocumentVersionParams,
 } from "@workspace/api-zod";
 
 const router = Router();
 
+function decodeEntities(text: string): string {
+  return text
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/g, "'")
+    .replace(/&#x2F;/g, "/")
+    .replace(/&#(\d+);/g, (_, c) => String.fromCharCode(parseInt(c, 10)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, c) => String.fromCharCode(parseInt(c, 16)));
+}
+
 function countWords(text: string): number {
-  const stripped = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  const stripped = decodeEntities(text).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
   return stripped ? stripped.split(/\s+/).length : 0;
 }
 
@@ -134,6 +149,18 @@ router.patch("/:id", async (req, res) => {
   const [doc] = await db.update(documentsTable).set(updates).where(and(eq(documentsTable.id, paramParse.data.id), eq(documentsTable.userId, userId))).returning();
   if (!doc) return res.status(404).json({ error: "Not found" });
   res.json(serializeDoc(doc));
+});
+
+// DELETE /api/documents/:id/versions/:versionId
+router.delete("/:id/versions/:versionId", async (req, res) => {
+  const parse = DeleteDocumentVersionParams.safeParse({ id: Number(req.params.id), versionId: Number(req.params.versionId) });
+  if (!parse.success) return res.status(400).json({ error: "Invalid parameters" });
+  const userId = getUserId(req);
+  const [version] = await db.select().from(documentVersionsTable)
+    .where(and(eq(documentVersionsTable.id, parse.data.versionId), eq(documentVersionsTable.documentId, parse.data.id), eq(documentVersionsTable.userId, userId)));
+  if (!version) return res.status(404).json({ error: "Not found" });
+  await db.delete(documentVersionsTable).where(eq(documentVersionsTable.id, parse.data.versionId));
+  res.status(204).send();
 });
 
 // DELETE /api/documents/:id

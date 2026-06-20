@@ -687,6 +687,59 @@ export const createDocumentVersion = async (id: number,
 
 
 
+/**
+ * @summary Delete a version snapshot
+ */
+export const getDeleteDocumentVersionUrl = (id: number, versionId: number,) => {
+  return `/api/documents/${id}/versions/${versionId}`
+}
+
+export const deleteDocumentVersion = async (id: number, versionId: number, options?: RequestInit): Promise<void> => {
+  return customFetch<void>(getDeleteDocumentVersionUrl(id, versionId),
+  {
+    ...options,
+    method: 'DELETE'
+  }
+);}
+
+
+export const getDeleteDocumentVersionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteDocumentVersion>>, TError,{id: number; versionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteDocumentVersion>>, TError,{id: number; versionId: number}, TContext> => {
+
+const mutationKey = ['deleteDocumentVersion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteDocumentVersion>>, {id: number; versionId: number}> = (props) => {
+          const {id, versionId} = props ?? {};
+
+          return  deleteDocumentVersion(id, versionId, requestOptions)
+        }
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteDocumentVersionMutationResult = NonNullable<Awaited<ReturnType<typeof deleteDocumentVersion>>>
+
+    export type DeleteDocumentVersionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete a version snapshot
+ */
+export const useDeleteDocumentVersion = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteDocumentVersion>>, TError,{id: number; versionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteDocumentVersion>>,
+        TError,
+        {id: number; versionId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteDocumentVersionMutationOptions(options));
+    }
+
 export const getCreateDocumentVersionMutationOptions = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDocumentVersion>>, TError,{id: number;data: BodyType<DocumentVersionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof createDocumentVersion>>, TError,{id: number;data: BodyType<DocumentVersionInput>}, TContext> => {
