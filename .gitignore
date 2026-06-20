@@ -69,4 +69,3 @@ coverage/
 dist-vercel/
 PLAN-*.md
 tasks/
-api/index.mjs
