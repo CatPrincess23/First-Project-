@@ -107,11 +107,13 @@ export default function RichTextEditor({ content, onChange, onBlur, placeholder,
     if (!editor) return;
     const dom = editor.view.dom;
     const handler = () => {
-      const cb = onSelectionChangeRef.current;
-      if (!cb) return;
-      const sel = window.getSelection();
-      if (!sel || sel.isCollapsed || !dom.contains(sel.anchorNode)) { cb(""); return; }
-      cb(sel.toString());
+      try {
+        const cb = onSelectionChangeRef.current;
+        if (!cb) return;
+        const sel = window.getSelection();
+        if (!sel || sel.isCollapsed || !dom.contains(sel.anchorNode)) { cb(""); return; }
+        cb(sel.toString());
+      } catch { /* selection handler error */ }
     };
     document.addEventListener("selectionchange", handler);
     return () => {

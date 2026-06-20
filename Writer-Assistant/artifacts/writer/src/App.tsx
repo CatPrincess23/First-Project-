@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { Component, useEffect } from "react";
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -16,6 +16,34 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight, Sparkles } from "lucide-react";
 
 setupGuestId();
+
+// Catch render errors so the page never goes completely white.
+window.addEventListener("error", () => {});
+window.addEventListener("unhandledrejection", () => {});
+
+class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() { return { hasError: true }; }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background p-4">
+          <div className="text-center space-y-3 max-w-sm">
+            <h2 className="text-lg font-semibold">Something went wrong</h2>
+            <p className="text-sm text-muted-foreground">A temporary error occurred. Your work is safe.</p>
+            <Button onClick={() => { this.setState({ hasError: false }); window.location.reload(); }}>
+              Reload page
+            </Button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const queryClient = new QueryClient();
 
@@ -80,18 +108,20 @@ function Router() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <TooltipProvider>
-          <ProProvider>
-            <WouterRouter base={basePath}>
-              <Router />
-            </WouterRouter>
-            <Toaster />
-          </ProProvider>
-        </TooltipProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <TooltipProvider>
+            <ProProvider>
+              <WouterRouter base={basePath}>
+                <Router />
+              </WouterRouter>
+              <Toaster />
+            </ProProvider>
+          </TooltipProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 
