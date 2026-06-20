@@ -113,8 +113,11 @@ Both servers must run in the background (use `nohup ... &`, `run_in_background: 
 
 ## Debugging Vercel deployment issues
 
-- **`api/index.js` vs `api/index.mjs` conflict causes 404s on all API routes.** If both files exist, Vercel drops both serverless functions — all `/api/*` requests fall through to the SPA catch-all (returning HTML). Delete one of them to resolve.
-- **Check Vercel deploy logs** for build errors: `vercel logs --environment production --limit 20`.
+- **`api/index.mjs` must NOT be gitignored.** Vercel scans for serverless functions before the build step. If `api/index.mjs` is in `.gitignore`, Vercel can't detect it and all `/api/*` requests fall through to the SPA catch-all (returning HTML). The file at `api/` must be tracked by git — it's the esbuild-bundled Vercel entry point (`build-vercel.mjs` builds it from `src/vercel.ts`). Rebuild locally after API source changes: `cd Writer-Assistant && node artifacts/api-server/build-vercel.mjs && cp artifacts/api-server/dist-vercel/vercel.mjs ../api/index.mjs`, then commit the updated `api/index.mjs`.
+- **`api/index.js` vs `api/index.mjs` conflict causes 404s on all API routes.** If both files exist, Vercel drops both serverless functions. Delete one of them to resolve.
+- **Check Vercel deploy logs** for build errors: `vercel inspect <deployment-url> --logs`.
+- **Check Vercel runtime logs:** `vercel logs --environment production --limit 20 --expand`.
+- **List deployments:** `vercel list --environment production`.
 
 ## Debugging save failures
 
