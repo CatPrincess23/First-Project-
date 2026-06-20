@@ -70,6 +70,16 @@ export const resolveIdentity: RequestHandler = (req, res, next) => {
     return next();
   }
 
+  // x-guest-id header (from localStorage on the frontend) is the primary source.
+  // It's the most stable identifier — survives cookies being cleared.
+  const guestId = (req.headers as any)["x-guest-id"];
+  if (typeof guestId === "string" && guestId.length > 0) {
+    req.identity = { type: "guest", id: guestId };
+    issueGuestCookie(res, guestId);
+    return next();
+  }
+
+  // Cookie is the fallback for when JS crashes and the fetch patch doesn't run.
   const cookie = (req as any).cookies?.[GUEST_COOKIE];
   if (typeof cookie === "string" && cookie.length > 0) {
     const uuid = verifyGuestCookie(cookie);
@@ -79,20 +89,10 @@ export const resolveIdentity: RequestHandler = (req, res, next) => {
     }
   }
 
-  const guestId = (req.headers as any)["x-guest-id"];
-  if (typeof guestId === "string" && guestId.length > 0) {
-    req.identity = { type: "guest", id: guestId };
-    issueGuestCookie(res, guestId);
-    return next();
-  }
-
-  const ipHash = crypto
-    .createHash("sha256")
-    .update((req.ip ?? "unknown") + ":" + (GUEST_ID_SECRET as string))
-    .digest("hex")
-    .slice(0, 16);
-  req.identity = { type: "guest", id: ipHash };
-
+  // Last resort: generate a fresh server-side UUID and issue a cookie.
+  const uuid = crypto.randomUUID();
+  issueGuestCookie(res, uuid);
+  req.identity = { type: "guest", id: uuid };
   next();
 };
 
