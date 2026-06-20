@@ -559,6 +559,7 @@ export default function Editor({ params }: { params: { id: string } }) {
 
   const handleExport = async (format: "pdf" | "docx") => {
     setIsExporting(true);
+    await new Promise(r => setTimeout(r, 50));
     try {
       const plain = stripHtml(content);
       if (format === "pdf") await exportToPDF(title, plain);
