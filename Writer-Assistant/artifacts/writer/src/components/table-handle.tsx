@@ -1,28 +1,38 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
-  Rows3, Columns3, Trash2, Merge, Split, Maximize2, GripHorizontal,
+  Trash2, Rows3, Columns3, Merge, Split, Maximize2, MoreHorizontal,
 } from "lucide-react";
 
 interface TableHandleProps {
   editor: any;
 }
 
+function getActiveRowRect(editor: any): DOMRect | null {
+  const dom = editor.view.dom;
+  const sel = window.getSelection();
+  if (!sel || !sel.anchorNode) return null;
+  const el = sel.anchorNode instanceof Element ? sel.anchorNode : sel.anchorNode.parentElement;
+  if (!el) return null;
+  const cell = (el as Element).closest("td, th");
+  if (!cell) return null;
+  const row = cell.closest("tr");
+  if (!row) return null;
+  return row.getBoundingClientRect();
+}
+
 export default function TableHandle({ editor }: TableHandleProps) {
   const [open, setOpen] = useState(false);
-  const [tableRect, setTableRect] = useState<DOMRect | null>(null);
+  const [rowRect, setRowRect] = useState<DOMRect | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!editor) return;
     const update = () => {
       const inTable = editor.isActive("table");
-      if (!inTable) { setTableRect(null); setOpen(false); return; }
-      const tableEl = editor.view.dom.querySelector(".ProseMirror table") as HTMLElement | null;
-      if (tableEl) {
-        const rect = tableEl.getBoundingClientRect();
-        setTableRect(rect);
-      }
+      if (!inTable) { setRowRect(null); setOpen(false); return; }
+      const rect = getActiveRowRect(editor);
+      setRowRect(rect);
     };
     update();
     editor.on("selectionUpdate", update);
@@ -46,56 +56,55 @@ export default function TableHandle({ editor }: TableHandleProps) {
     editor.commands.focus();
   };
 
-  if (!tableRect) return null;
+  if (!rowRect) return null;
 
   return createPortal(
     <>
       <button
         onClick={() => setOpen(!open)}
-        className="fixed z-50 w-5 h-5 flex items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md hover:bg-primary/90 transition-colors cursor-pointer border border-background"
+        className="fixed z-50 w-5 h-8 flex items-center justify-center rounded-l-md bg-card border border-r-0 border-border shadow-sm hover:bg-muted transition-colors cursor-pointer opacity-80 hover:opacity-100"
         style={{
-          left: tableRect.left - 10,
-          top: tableRect.top - 10,
+          left: rowRect.left - 5,
+          top: rowRect.top + 2,
         }}
-        title="Table options"
+        title="Row options"
       >
-        <GripHorizontal className="w-3 h-3" />
+        <MoreHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
       </button>
 
       {open && (
         <div
           ref={menuRef}
-          className="fixed z-50 w-52 p-1 rounded-lg border bg-popover text-popover-foreground shadow-lg"
+          className="fixed z-50 w-44 p-1 rounded-lg border bg-popover text-popover-foreground shadow-lg"
           style={{
-            left: tableRect.left,
-            top: tableRect.top + 4,
+            left: rowRect.left - 5,
+            top: rowRect.top + 10,
           }}
         >
-          <div className="grid grid-cols-2 gap-0.5">
-            <button onClick={() => run(() => editor.chain().focus().addRowAfter().run())} className="flex items-center gap-2 px-3 py-1.5 text-xs rounded hover:bg-muted transition-colors text-left">
-              <Rows3 className="w-3.5 h-3.5" /> Add Row
-            </button>
-            <button onClick={() => run(() => editor.chain().focus().addColumnAfter().run())} className="flex items-center gap-2 px-3 py-1.5 text-xs rounded hover:bg-muted transition-colors text-left">
-              <Columns3 className="w-3.5 h-3.5" /> Add Col
-            </button>
-            <button onClick={() => run(() => editor.chain().focus().deleteRow().run())} className="flex items-center gap-2 px-3 py-1.5 text-xs rounded hover:bg-muted transition-colors text-left">
-              <Trash2 className="w-3.5 h-3.5" /> Del Row
-            </button>
-            <button onClick={() => run(() => editor.chain().focus().deleteColumn().run())} className="flex items-center gap-2 px-3 py-1.5 text-xs rounded hover:bg-muted transition-colors text-left">
-              <Trash2 className="w-3.5 h-3.5" /> Del Col
-            </button>
-            <button onClick={() => run(() => editor.chain().focus().mergeCells().run())} className="flex items-center gap-2 px-3 py-1.5 text-xs rounded hover:bg-muted transition-colors text-left">
-              <Merge className="w-3.5 h-3.5" /> Merge
-            </button>
-            <button onClick={() => run(() => editor.chain().focus().splitCell().run())} className="flex items-center gap-2 px-3 py-1.5 text-xs rounded hover:bg-muted transition-colors text-left">
-              <Split className="w-3.5 h-3.5" /> Split
-            </button>
-          </div>
+          <button onClick={() => run(() => editor.chain().focus().deleteRow().run())} className="flex items-center gap-2 px-3 py-1.5 text-xs rounded hover:bg-muted transition-colors text-left w-full text-destructive">
+            <Trash2 className="w-3.5 h-3.5" /> Delete Row
+          </button>
+          <button onClick={() => run(() => editor.chain().focus().deleteColumn().run())} className="flex items-center gap-2 px-3 py-1.5 text-xs rounded hover:bg-muted transition-colors text-left w-full text-destructive">
+            <Trash2 className="w-3.5 h-3.5" /> Delete Column
+          </button>
           <div className="border-t my-1" />
+          <button onClick={() => run(() => editor.chain().focus().addRowAfter().run())} className="flex items-center gap-2 px-3 py-1.5 text-xs rounded hover:bg-muted transition-colors text-left w-full">
+            <Rows3 className="w-3.5 h-3.5" /> Insert Row Below
+          </button>
+          <button onClick={() => run(() => editor.chain().focus().addColumnAfter().run())} className="flex items-center gap-2 px-3 py-1.5 text-xs rounded hover:bg-muted transition-colors text-left w-full">
+            <Columns3 className="w-3.5 h-3.5" /> Insert Column Right
+          </button>
+          <div className="border-t my-1" />
+          <button onClick={() => run(() => editor.chain().focus().mergeCells().run())} className="flex items-center gap-2 px-3 py-1.5 text-xs rounded hover:bg-muted transition-colors text-left w-full">
+            <Merge className="w-3.5 h-3.5" /> Merge Cells
+          </button>
+          <button onClick={() => run(() => editor.chain().focus().splitCell().run())} className="flex items-center gap-2 px-3 py-1.5 text-xs rounded hover:bg-muted transition-colors text-left w-full">
+            <Split className="w-3.5 h-3.5" /> Split Cell
+          </button>
           <button onClick={() => {
-            const cellAttrs = editor.getAttributes("tableCell") || editor.getAttributes("tableHeader");
-            if (cellAttrs?.colwidth) {
-              editor.chain().focus().setCellAttribute("colwidth", [(cellAttrs.colwidth[0] || 80) + 60]).run();
+            const attrs = editor.getAttributes("tableCell") || editor.getAttributes("tableHeader");
+            if (attrs?.colwidth) {
+              editor.chain().focus().setCellAttribute("colwidth", [(attrs.colwidth[0] || 80) + 60]).run();
             }
             setOpen(false);
             editor.commands.focus();
