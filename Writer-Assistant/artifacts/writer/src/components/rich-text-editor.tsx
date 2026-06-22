@@ -13,13 +13,12 @@ import {
   Heading1, Heading2, Heading3, List, ListOrdered, Quote,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
   Undo2, Redo2, Minus, Code, FileCode, BarChart3,
-  Table2, Rows3, Columns3, Trash2, Merge, Split,
-  Maximize2,
 } from "lucide-react";
 import { TableKit } from "@tiptap/extension-table";
 import { ChartExtension } from "@/extensions/chart";
 import ChartCreator from "@/components/chart-creator";
 import TableGridPopover from "@/components/table-grid-popover";
+import TableHandle from "@/components/table-handle";
 
 const SAFE_LINK_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
 
@@ -273,33 +272,6 @@ export default function RichTextEditor({ content, onChange, onBlur, placeholder,
           <span className="text-xs font-bold">🖼</span>
         </ToolbarButton>
         <TableGridPopover id="tour-editor-table" onInsert={insertTable} />
-        {editor.isActive("table") && (
-          <span className="flex items-center gap-0.5">
-            <span className="w-px h-5 bg-border mx-1" />
-            <ToolbarButton onClick={() => editor.chain().focus().addRowAfter().run()} title="Add Row">
-              <Rows3 className="w-3.5 h-3.5" />
-            </ToolbarButton>
-            <ToolbarButton onClick={() => editor.chain().focus().addColumnAfter().run()} title="Add Column">
-              <Columns3 className="w-3.5 h-3.5" />
-            </ToolbarButton>
-            <ToolbarButton onClick={() => editor.chain().focus().deleteRow().run()} title="Delete Row">
-              <Trash2 className="w-3.5 h-3.5" />
-            </ToolbarButton>
-            <ToolbarButton onClick={() => editor.chain().focus().deleteColumn().run()} title="Delete Column">
-              <Trash2 className="w-3.5 h-3.5" />
-            </ToolbarButton>
-            <ToolbarButton onClick={() => editor.chain().focus().mergeCells().run()} title="Merge Cells">
-              <Merge className="w-3.5 h-3.5" />
-            </ToolbarButton>
-            <ToolbarButton onClick={() => editor.chain().focus().splitCell().run()} title="Split Cell">
-              <Split className="w-3.5 h-3.5" />
-            </ToolbarButton>
-            <span className="w-px h-5 bg-border mx-1" />
-            <ToolbarButton onClick={expandColumn} title="Expand Column">
-              <Maximize2 className="w-3.5 h-3.5" />
-            </ToolbarButton>
-          </span>
-        )}
         <ToolbarButton onClick={() => setShowChartDialog(true)} title="Chart" id="tour-editor-chart">
           <BarChart3 className="w-3.5 h-3.5" />
         </ToolbarButton>
@@ -315,6 +287,8 @@ export default function RichTextEditor({ content, onChange, onBlur, placeholder,
         onOpenChange={setShowChartDialog}
         onInsert={insertChart}
       />
+
+      <TableHandle editor={editor} />
 
       <style>{`
         .ProseMirror table {
