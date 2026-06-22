@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
-  Trash2, Rows3, Columns3, Merge, Split, Maximize2, MoreHorizontal,
+  Trash2, Rows3, Columns3, Merge, Split, Maximize2, MoreHorizontal, Table2,
 } from "lucide-react";
 
 interface TableHandleProps {
@@ -81,6 +81,10 @@ export default function TableHandle({ editor }: TableHandleProps) {
             top: rowRect.top + 10,
           }}
         >
+          <button onClick={() => run(() => editor.chain().focus().deleteTable().run())} className="flex items-center gap-2 px-3 py-1.5 text-xs rounded hover:bg-muted transition-colors text-left w-full text-destructive">
+            <Table2 className="w-3.5 h-3.5" /> Delete Table
+          </button>
+          <div className="border-t my-1" />
           <button onClick={() => run(() => editor.chain().focus().deleteRow().run())} className="flex items-center gap-2 px-3 py-1.5 text-xs rounded hover:bg-muted transition-colors text-left w-full text-destructive">
             <Trash2 className="w-3.5 h-3.5" /> Delete Row
           </button>
