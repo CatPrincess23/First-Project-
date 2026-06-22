@@ -561,9 +561,8 @@ export default function Editor({ params }: { params: { id: string } }) {
     setIsExporting(true);
     await new Promise(r => setTimeout(r, 50));
     try {
-      const plain = stripHtml(content);
-      if (format === "pdf") await exportToPDF(title, plain);
-      else await exportToDOCX(title, plain);
+      if (format === "pdf") await exportToPDF(title, content);
+      else await exportToDOCX(title, content);
     } catch (e) {
       toast({ title: "Export failed", variant: "destructive" });
     } finally {
