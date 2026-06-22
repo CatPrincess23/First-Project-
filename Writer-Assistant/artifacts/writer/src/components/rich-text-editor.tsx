@@ -14,8 +14,10 @@ import {
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
   Undo2, Redo2, Minus, Code, FileCode, BarChart3,
 } from "lucide-react";
+import { TableKit } from "@tiptap/extension-table";
 import { ChartExtension } from "@/extensions/chart";
 import ChartCreator from "@/components/chart-creator";
+import TableGridPopover from "@/components/table-grid-popover";
 
 const SAFE_LINK_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
 
@@ -88,6 +90,9 @@ export default function RichTextEditor({ content, onChange, onBlur, placeholder,
       Highlight.configure({ multicolor: true }),
       Link.configure({ openOnClick: false, protocols: ["http", "https", "mailto"] }),
       ChartExtension,
+      TableKit.configure({
+        table: { resizable: true, allowTableNodeSelection: true },
+      }),
     ],
     content: content || "",
     onUpdate: ({ editor: ed }) => {
@@ -130,6 +135,11 @@ export default function RichTextEditor({ content, onChange, onBlur, placeholder,
   const insertChart = useCallback((configJson: string) => {
     if (!editor) return;
     editor.chain().focus().insertContent({ type: "chart", attrs: { config: configJson } }).run();
+  }, [editor]);
+
+  const insertTable = useCallback((rows: number, cols: number) => {
+    if (!editor) return;
+    editor.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).scrollIntoView().run();
   }, [editor]);
 
   const setLink = useCallback(() => {
@@ -252,6 +262,7 @@ export default function RichTextEditor({ content, onChange, onBlur, placeholder,
         <ToolbarButton onClick={addImage} title="Image">
           <span className="text-xs font-bold">🖼</span>
         </ToolbarButton>
+        <TableGridPopover id="tour-editor-table" onInsert={insertTable} />
         <ToolbarButton onClick={() => setShowChartDialog(true)} title="Chart" id="tour-editor-chart">
           <BarChart3 className="w-3.5 h-3.5" />
         </ToolbarButton>
@@ -267,6 +278,31 @@ export default function RichTextEditor({ content, onChange, onBlur, placeholder,
         onOpenChange={setShowChartDialog}
         onInsert={insertChart}
       />
+
+      <style>{`
+        .ProseMirror table {
+          border-collapse: collapse;
+          table-layout: fixed;
+          width: 100%;
+          margin: 1em 0;
+          overflow: hidden;
+        }
+        .ProseMirror td, .ProseMirror th {
+          border: 2px solid hsl(var(--border));
+          padding: 8px 12px;
+          vertical-align: top;
+          text-align: left;
+          position: relative;
+          min-width: 60px;
+        }
+        .ProseMirror th {
+          background: hsl(var(--muted));
+          font-weight: 600;
+        }
+        .ProseMirror .selectedCell {
+          background: hsl(var(--accent) / 0.15);
+        }
+      `}</style>
     </div>
   );
 }
