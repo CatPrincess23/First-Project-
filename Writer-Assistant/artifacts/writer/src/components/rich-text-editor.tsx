@@ -7,13 +7,15 @@ import { FontFamily } from "@tiptap/extension-font-family";
 import { TextAlign } from "@tiptap/extension-text-align";
 import { Highlight } from "@tiptap/extension-highlight";
 import { Link } from "@tiptap/extension-link";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   Heading1, Heading2, Heading3, List, ListOrdered, Quote,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
-  Undo2, Redo2, Minus, Code, FileCode,
+  Undo2, Redo2, Minus, Code, FileCode, BarChart3,
 } from "lucide-react";
+import { ChartExtension } from "@/extensions/chart";
+import ChartCreator from "@/components/chart-creator";
 
 const SAFE_LINK_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
 
@@ -34,11 +36,12 @@ const fonts = [
 
 const fontSizes = ["12px", "14px", "16px", "18px", "20px", "24px", "28px", "32px", "36px", "48px"];
 
-function ToolbarButton({ onClick, active, children, title }: {
-  onClick: () => void; active?: boolean; children: React.ReactNode; title?: string;
+function ToolbarButton({ onClick, active, children, title, id }: {
+  onClick: () => void; active?: boolean; children: React.ReactNode; title?: string; id?: string;
 }) {
   return (
     <button
+      id={id}
       onClick={onClick}
       title={title}
       className={`p-1.5 rounded hover:bg-muted transition-colors ${active ? "bg-muted text-primary" : "text-muted-foreground"}`}
@@ -75,7 +78,7 @@ export default function RichTextEditor({ content, onChange, onBlur, placeholder,
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
-        history: { depth: 100 },
+        undoRedo: { depth: 100 },
       }),
       Underline,
       TextStyle,
@@ -84,6 +87,7 @@ export default function RichTextEditor({ content, onChange, onBlur, placeholder,
       TextAlign.configure({ types: ["heading", "paragraph"] }),
       Highlight.configure({ multicolor: true }),
       Link.configure({ openOnClick: false, protocols: ["http", "https", "mailto"] }),
+      ChartExtension,
     ],
     content: content || "",
     onUpdate: ({ editor: ed }) => {
@@ -119,6 +123,13 @@ export default function RichTextEditor({ content, onChange, onBlur, placeholder,
     return () => {
       document.removeEventListener("selectionchange", handler);
     };
+  }, [editor]);
+
+  const [showChartDialog, setShowChartDialog] = useState(false);
+
+  const insertChart = useCallback((configJson: string) => {
+    if (!editor) return;
+    editor.chain().focus().insertContent({ type: "chart", attrs: { config: configJson } }).run();
   }, [editor]);
 
   const setLink = useCallback(() => {
@@ -241,12 +252,21 @@ export default function RichTextEditor({ content, onChange, onBlur, placeholder,
         <ToolbarButton onClick={addImage} title="Image">
           <span className="text-xs font-bold">🖼</span>
         </ToolbarButton>
+        <ToolbarButton onClick={() => setShowChartDialog(true)} title="Chart" id="tour-editor-chart">
+          <BarChart3 className="w-3.5 h-3.5" />
+        </ToolbarButton>
       </div>
 
       {/* Editor */}
       <div>
         <EditorContent editor={editor} />
       </div>
+
+      <ChartCreator
+        open={showChartDialog}
+        onOpenChange={setShowChartDialog}
+        onInsert={insertChart}
+      />
     </div>
   );
 }
