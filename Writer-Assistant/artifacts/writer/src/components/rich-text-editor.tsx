@@ -97,7 +97,8 @@ export default function RichTextEditor({ content, onChange, onBlur, placeholder,
     ],
     content: content || "",
     onUpdate: ({ editor: ed }) => {
-      onChange(ed.getHTML());
+      const html = ed.getHTML();
+      requestAnimationFrame(() => onChange(html));
     },
     editorProps: {
       attributes: {
@@ -116,7 +117,28 @@ export default function RichTextEditor({ content, onChange, onBlur, placeholder,
   useEffect(() => {
     if (!editor) return;
     const dom = editor.view.dom;
+    const throttleMs = 100;
+    let lastCall = 0;
+    let pendingId: number | undefined;
     const handler = () => {
+      const now = performance.now();
+      if (now - lastCall < throttleMs) {
+        if (pendingId === undefined) {
+          pendingId = requestAnimationFrame(() => {
+            pendingId = undefined;
+            lastCall = performance.now();
+            try {
+              const cb = onSelectionChangeRef.current;
+              if (!cb) return;
+              const sel = window.getSelection();
+              if (!sel || sel.isCollapsed || !dom.contains(sel.anchorNode)) { cb(""); return; }
+              cb(sel.toString());
+            } catch { /* selection handler error */ }
+          });
+        }
+        return;
+      }
+      lastCall = now;
       try {
         const cb = onSelectionChangeRef.current;
         if (!cb) return;
@@ -128,6 +150,7 @@ export default function RichTextEditor({ content, onChange, onBlur, placeholder,
     document.addEventListener("selectionchange", handler);
     return () => {
       document.removeEventListener("selectionchange", handler);
+      if (pendingId !== undefined) cancelAnimationFrame(pendingId);
     };
   }, [editor]);
 

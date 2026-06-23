@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useLocation } from "wouter";
 import {
   useGetDocument, useUpdateDocument, useAiSuggest, useAiGrammarCheck, useAiGenerateImage,
@@ -100,6 +100,8 @@ export default function Editor({ params }: { params: { id: string } }) {
   const [grammarErrors, setGrammarErrors] = useState<any[]>([]);
   const [correctedText, setCorrectedText] = useState("");
   const [isCheckingGrammar, setIsCheckingGrammar] = useState(false);
+  const grammarErrorsRef = useRef(grammarErrors);
+  grammarErrorsRef.current = grammarErrors;
 
   // Suggest
   const [suggestion, setSuggestion] = useState("");
@@ -233,7 +235,7 @@ export default function Editor({ params }: { params: { id: string } }) {
     );
   }, [documentId, queryClient, toast]);
 
-  const autoSaveTimer = useRef<ReturnType<typeof setTimeout>>();
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const titleRef = useRef(title);
   titleRef.current = title;
@@ -525,9 +527,10 @@ export default function Editor({ params }: { params: { id: string } }) {
   };
 
   const handleSaveVersion = () => {
-    const wordCount = stripHtml(content).trim() ? stripHtml(content).trim().split(/\s+/).length : 0;
+    const text = stripHtml(content).trim();
+    const wc = text ? text.split(/\s+/).length : 0;
     createVersion.mutate(
-      { id: documentId, data: { title, content, wordCount, label: versionLabel || null } },
+      { id: documentId, data: { title, content, wordCount: wc, label: versionLabel || null } },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getListDocumentVersionsQueryKey(documentId) });
@@ -574,7 +577,10 @@ export default function Editor({ params }: { params: { id: string } }) {
     return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-muted-foreground" /></div>;
   }
 
-  const wordCount = stripHtml(content).trim() ? stripHtml(content).trim().split(/\s+/).length : 0;
+  const wordCount = useMemo(() => {
+    const text = stripHtml(content).trim();
+    return text ? text.split(/\s+/).length : 0;
+  }, [content, stripHtml]);
   const goalProgress = goalWordCount ? Math.min(100, Math.round((wordCount / goalWordCount) * 100)) : null;
 
   const EDITOR_TOUR_STEPS = [
@@ -677,7 +683,7 @@ export default function Editor({ params }: { params: { id: string } }) {
               setContent(html);
               if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
               autoSaveTimer.current = setTimeout(() => saveContent(title, html), 500);
-              if (grammarErrors.length > 0) { setGrammarErrors([]); setCorrectedText(""); }
+              if (grammarErrorsRef.current.length > 0) { setGrammarErrors([]); setCorrectedText(""); }
             }} onSelectionChange={(text) => {
               setSelectedWordCount(text.trim() ? text.trim().split(/\s+/).length : 0);
             }} placeholder="Start writing..." />
