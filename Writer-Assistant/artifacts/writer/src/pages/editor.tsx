@@ -573,14 +573,15 @@ export default function Editor({ params }: { params: { id: string } }) {
     }
   };
 
-  if (isDocumentLoading) {
-    return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-muted-foreground" /></div>;
-  }
-
   const wordCount = useMemo(() => {
     const text = stripHtml(content).trim();
     return text ? text.split(/\s+/).length : 0;
   }, [content, stripHtml]);
+
+  if (isDocumentLoading) {
+    return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-muted-foreground" /></div>;
+  }
+
   const goalProgress = goalWordCount ? Math.min(100, Math.round((wordCount / goalWordCount) * 100)) : null;
 
   const EDITOR_TOUR_STEPS = [
