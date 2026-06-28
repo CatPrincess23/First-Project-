@@ -15,10 +15,12 @@ import { usePro } from "@/lib/pro-context";
 import {
   Plus, FileText, Trash2, Loader2, ArrowRight, Sun, Moon, Globe, Target,
   LayoutDashboard, Sparkles, BookOpen, Image as ImageIcon, History,
-  CheckCircle, Wand2, Crown, User, ChevronRight, HelpCircle,
+  CheckCircle, Wand2, Crown, User, ChevronRight, HelpCircle, Menu,
 } from "lucide-react";
 import { UserButton } from "@clerk/react";
 import OnboardingTour from "@/components/onboarding-tour";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 type View = "home" | "documents" | "world" | "ai-features" | "stats";
 
@@ -49,6 +51,7 @@ export default function Documents() {
   const { theme, toggleTheme } = useTheme();
   const [activeView, setActiveView] = useState<View>("home");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const isMobile = useIsMobile();
   const clerkEnabled = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
   const { data: documents, isLoading: isLoadingDocs, isError: isDocsError } = useListDocuments({ query: { queryKey: getListDocumentsQueryKey() } });
@@ -97,8 +100,62 @@ export default function Documents() {
 
   return (
     <div className="min-h-screen bg-background flex">
-      {/* Sidebar */}
-      <aside className={`${sidebarCollapsed ? "w-16" : "w-60"} flex-none border-r bg-card flex flex-col transition-all duration-200 sticky top-0 h-screen overflow-hidden`}>
+      {/* Mobile sidebar */}
+      <Sheet>
+        <SheetTrigger asChild>
+          <Button variant="ghost" size="icon" className="fixed top-3 left-3 z-40 md:hidden">
+            <Menu className="w-5 h-5" />
+          </Button>
+        </SheetTrigger>
+        <SheetContent side="left" className="w-72 p-0 [&>button]:hidden">
+          <div className="h-full flex flex-col">
+            <div className="h-16 flex items-center gap-3 px-4 border-b shrink-0">
+              <img src="/favicon.svg" alt="Whimsical Writer" className="w-8 h-8 shrink-0" />
+              <div className="min-w-0">
+                <div className="font-serif font-semibold text-base leading-tight tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">Whimsical Writer</div>
+                {isPro && <div className="text-[10px] text-primary font-bold uppercase tracking-wider">Pro</div>}
+              </div>
+            </div>
+            <div className="p-3 border-b shrink-0 space-y-2">
+              <Button onClick={handleCreateDocument} disabled={createDoc.isPending} className="w-full gap-2" size="sm">
+                {createDoc.isPending ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Plus className="w-4 h-4 shrink-0" />}
+                New Document
+              </Button>
+            </div>
+            <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
+              {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
+                <SheetTrigger asChild key={id}>
+                  <button
+                    onClick={() => setActiveView(id)}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors text-left
+                      ${activeView === id
+                        ? "bg-primary/10 text-primary font-medium"
+                        : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                      }
+                    `}
+                  >
+                    <Icon className="w-4 h-4 shrink-0" />
+                    <span>{label}</span>
+                  </button>
+                </SheetTrigger>
+              ))}
+            </nav>
+            <div className="p-3 border-t space-y-1 shrink-0">
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="icon" onClick={toggleTheme} className="text-muted-foreground h-8 w-8">
+                  {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                </Button>
+                <Button variant="ghost" size="icon" onClick={restartTour} className="h-8 w-8 text-primary" title="Show tour">
+                  <HelpCircle className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Desktop Sidebar */}
+      <aside className={`${sidebarCollapsed ? "w-16" : "w-60"} flex-none border-r bg-card flex-col transition-all duration-200 sticky top-0 h-screen overflow-hidden hidden md:flex`}>
         {/* Logo */}
         <div className="h-16 flex items-center gap-3 px-4 border-b shrink-0">
           <img src="/favicon.svg" alt="Whimsical Writer" className="w-8 h-8 shrink-0" />
@@ -181,7 +238,7 @@ export default function Documents() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 min-w-0 overflow-y-auto">
+      <main className="flex-1 min-w-0 overflow-y-auto md:ml-0">
         {/* Home View */}
         {activeView === "home" && (
           <div className="p-6 md:p-8 space-y-8">

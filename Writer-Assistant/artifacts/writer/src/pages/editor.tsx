@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from "react";
 import { useLocation } from "wouter";
 import {
   useGetDocument, useUpdateDocument, useAiSuggest, useAiGrammarCheck, useAiGenerateImage,
@@ -10,7 +10,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -23,12 +23,71 @@ import RichTextEditor from "@/components/rich-text-editor";
 import {
   ArrowLeft, Sparkles, Image as ImageIcon, CheckCircle, Save, Loader2, Wand2,
   Globe, History, FileDown, Sun, Moon, BookOpen, Target, Clock, RotateCcw, MessageCircle,
-  Plus, Trash2, ChevronRight, ChevronLeft,
+  Plus, Trash2, ChevronRight, ChevronLeft, PanelRight,
 } from "lucide-react";
 import { UserButton } from "@clerk/react";
 import { UpgradeModal } from "@/components/upgrade-modal";
 import OnboardingTour from "@/components/onboarding-tour";
 import { format } from "date-fns";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
+
+const ExportDropdown = memo(({ isExporting, onExport }: {
+  isExporting: boolean;
+  onExport: (format: "pdf" | "docx") => void;
+}) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", handleOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative inline-flex">
+      <button
+        type="button"
+        onClick={() => setOpen(prev => !prev)}
+        disabled={isExporting}
+        className="flex items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent py-2 shadow-sm ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 h-8 w-auto gap-1 text-xs border-dashed px-2 text-muted-foreground hover:text-foreground transition-colors"
+      >
+        {isExporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileDown className="w-3 h-3" />}
+        Export
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
+          <button
+            type="button"
+            className="relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+            onClick={() => { setOpen(false); onExport("pdf"); }}
+          >
+            Export as PDF
+          </button>
+          <button
+            type="button"
+            className="relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+            onClick={() => { setOpen(false); onExport("docx"); }}
+          >
+            Export as DOCX
+          </button>
+        </div>
+      )}
+    </div>
+  );
+});
+ExportDropdown.displayName = "ExportDropdown";
 
 export default function Editor({ params }: { params: { id: string } }) {
   const documentId = parseInt(params.id, 10);
@@ -73,8 +132,11 @@ export default function Editor({ params }: { params: { id: string } }) {
   const contentSnapshotRef = useRef(content);
   contentSnapshotRef.current = content;
 
+  const isMobile = useIsMobile();
+
   // Sidebar collapse
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // Editor readiness: only render TipTap after content is loaded
   const [editorReady, setEditorReady] = useState(false);
@@ -616,8 +678,9 @@ export default function Editor({ params }: { params: { id: string } }) {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mr-2">
-            {isSaving ? <><Loader2 className="w-3 h-3 animate-spin" /><span>Saving...</span></> : <><Save className="w-3 h-3 text-green-500 dark:text-green-400" /><span>Saved</span></>}
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mr-1 sm:mr-2">
+            {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3 text-green-500 dark:text-green-400" />}
+            <span className="hidden sm:inline">{isSaving ? "Saving..." : "Saved"}</span>
             <span className="mx-1">·</span>
             {selectedWordCount > 0 ? (
               <span className="text-primary font-medium">{selectedWordCount.toLocaleString()} words</span>
@@ -631,34 +694,31 @@ export default function Editor({ params }: { params: { id: string } }) {
             )}
           </div>
 
-          <Button variant="outline" size="sm" onClick={() => saveContent(title, content)} className="h-7 text-xs gap-1" disabled={isSaving}>
+          <Button variant="outline" size="sm" onClick={() => saveContent(title, content)} className="h-7 text-xs gap-1 hidden sm:inline-flex" disabled={isSaving}>
             <Save className="w-3 h-3" /> Save
           </Button>
 
+          {/* Mobile AI sidebar trigger */}
+          {isMobile && (
+            <Button variant="ghost" size="icon" onClick={() => setMobileSidebarOpen(true)} className="text-muted-foreground h-8 w-8" title="AI Tools">
+              <Sparkles className="w-4 h-4" />
+            </Button>
+          )}
           <Button variant="ghost" size="icon" onClick={toggleTheme} className="text-muted-foreground h-8 w-8">
             {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => setShowGoalDialog(true)} className="text-muted-foreground h-8 w-8" title="Set word goal">
+          <Button variant="ghost" size="icon" onClick={() => setShowGoalDialog(true)} className="text-muted-foreground h-8 w-8 hidden sm:inline-flex" title="Set word goal">
             <Target className="w-4 h-4" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => setShowSaveVersionDialog(true)} className="text-muted-foreground h-8 w-8" title="Save version">
+          <Button variant="ghost" size="icon" onClick={() => setShowSaveVersionDialog(true)} className="text-muted-foreground h-8 w-8 hidden sm:inline-flex" title="Save version">
             <History className="w-4 h-4" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => setLocation(`/world/${documentId}`)} className="text-muted-foreground h-8 w-8" title="World building">
+          <Button variant="ghost" size="icon" onClick={() => setLocation(`/world/${documentId}`)} className="text-muted-foreground h-8 w-8 hidden sm:inline-flex" title="World building">
             <Globe className="w-4 h-4" />
           </Button>
 
-          <div id="tour-editor-export">
-            <Select onValueChange={(v) => handleExport(v as "pdf" | "docx")} disabled={isExporting}>
-            <SelectTrigger className="h-8 w-auto gap-1 text-xs border-dashed px-2">
-              {isExporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileDown className="w-3 h-3" />}
-              Export
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="pdf">Export as PDF</SelectItem>
-              <SelectItem value="docx">Export as DOCX</SelectItem>
-            </SelectContent>
-          </Select>
+          <div id="tour-editor-export" className="hidden sm:block">
+            <ExportDropdown isExporting={isExporting} onExport={handleExport} />
           </div>
           {clerkEnabled && <UserButton />}
         </div>
@@ -696,7 +756,8 @@ export default function Editor({ params }: { params: { id: string } }) {
           </div>
         </div>
 
-        {/* AI Sidebar */}
+        {/* AI Sidebar - Desktop */}
+        {!isMobile && (
         <div className="flex shrink-0">
           {/* Collapse toggle */}
           <button
@@ -975,8 +1036,149 @@ export default function Editor({ params }: { params: { id: string } }) {
           </Tabs>
         </div>
           )}
+        </div>
+        )}
       </div>
-      </div>
+
+      {/* Mobile AI Sheet */}
+      {isMobile && (
+        <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
+          <SheetContent side="right" className="w-full sm:w-80 p-0 [&>button]:hidden">
+            <div id="tour-editor-sidebar-mobile" className="h-full flex flex-col pt-12">
+              <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="flex flex-col h-full">
+                <div className="px-3 py-2.5 border-b shrink-0">
+                  <TabsList className="grid w-full grid-cols-6 h-8">
+                    <TabsTrigger value="grammar" title="Grammar" className="text-xs px-1"><CheckCircle className="w-3.5 h-3.5" /></TabsTrigger>
+                    <TabsTrigger value="suggest" title="AI Rewrite" className="text-xs px-1"><Sparkles className="w-3.5 h-3.5" /></TabsTrigger>
+                    <TabsTrigger value="ai-tools" title="Summarize / Prologue" className="text-xs px-1"><BookOpen className="w-3.5 h-3.5" /></TabsTrigger>
+                    <TabsTrigger value="image" title="Generate Image" className="text-xs px-1"><ImageIcon className="w-3.5 h-3.5" /></TabsTrigger>
+                    <TabsTrigger value="chat" title="AI Chat" className="text-xs px-1"><MessageCircle className="w-3.5 h-3.5" /></TabsTrigger>
+                    <TabsTrigger value="history" title="Version History" className="text-xs px-1"><History className="w-3.5 h-3.5" /></TabsTrigger>
+                  </TabsList>
+                </div>
+                <div className="flex-1 min-h-0">
+                  {/* Grammar Panel */}
+                  <TabsContent value="grammar" className="p-4 m-0 space-y-4 h-full overflow-y-auto">
+                    <div>
+                      <h3 className="font-medium text-sm mb-1">Grammar & Style</h3>
+                      <p className="text-xs text-muted-foreground mb-3">Check your writing for errors and improvements.</p>
+                      <Button onClick={handleGrammarCheck} disabled={isCheckingGrammar || !content.trim()} className="w-full gap-2" size="sm">
+                        {isCheckingGrammar ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                        {isCheckingGrammar ? "Checking..." : "Check Document"}
+                      </Button>
+                    </div>
+                    {grammarErrors.length === 0 && correctedText && <p className="text-sm text-muted-foreground text-center py-6">✓ No issues found</p>}
+                  </TabsContent>
+
+                  {/* Suggest Panel */}
+                  <TabsContent value="suggest" className="p-4 m-0 space-y-4 h-full overflow-y-auto">
+                    <div>
+                      <h3 className="font-medium text-sm mb-3">AI Rewrite</h3>
+                      <div className="grid grid-cols-2 gap-2">
+                        {Object.values(AiSuggestInputType).map((type) => (
+                          <Button key={type} variant={suggestType === type ? "default" : "outline"} size="sm"
+                            onClick={() => handleSuggest(type as AiSuggestInputType)} disabled={isSuggesting || !content.trim()} className="capitalize text-xs">
+                            {isSuggesting && suggestType === type ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+                            {type}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                    {suggestion && (
+                      <div className="space-y-3 pt-3 border-t">
+                        <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Suggestion</h4>
+                        <div className="p-3 bg-secondary/50 rounded-lg text-sm font-serif leading-relaxed max-h-48 overflow-y-auto">{suggestion}</div>
+                        <div className="flex gap-2">
+                          <Button onClick={handleApplySuggestion} className="flex-1" size="sm">Apply</Button>
+                          <Button onClick={() => setSuggestion("")} variant="outline" className="flex-1" size="sm">Discard</Button>
+                        </div>
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  {/* AI Tools Panel */}
+                  <TabsContent value="ai-tools" className="p-4 m-0 space-y-4 h-full overflow-y-auto">
+                    <div>
+                      <h3 className="font-medium text-sm mb-1">AI Document Tools</h3>
+                      <p className="text-xs text-muted-foreground mb-3">Analyze your full manuscript.</p>
+                      <div className="space-y-2">
+                        <Button onClick={handleSummarize} disabled={isRunningAiTool || !content.trim()} className="w-full gap-2" size="sm" variant="outline">
+                          {isRunningAiTool && aiToolType === "summary" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BookOpen className="w-3.5 h-3.5" />}
+                          Summarize Manuscript
+                        </Button>
+                        <Button onClick={handlePrologue} disabled={isRunningAiTool || !content.trim()} className="w-full gap-2" size="sm" variant="outline">
+                          {isRunningAiTool && aiToolType === "prologue" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                          Generate Prologue
+                        </Button>
+                      </div>
+                    </div>
+                    {aiToolResult && (
+                      <div className="space-y-3 pt-3 border-t">
+                        <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                          {aiToolType === "summary" ? "Summary" : "Generated Prologue"}
+                        </h4>
+                        <div className="p-3 bg-secondary/50 rounded-lg text-sm font-serif leading-relaxed max-h-64 overflow-y-auto">{aiToolResult}</div>
+                        <div className="flex gap-2">
+                          <Button onClick={handleInsertAiResult} className="flex-1" size="sm">
+                            {aiToolType === "summary" ? "Append to Doc" : "Prepend as Prologue"}
+                          </Button>
+                          <Button onClick={() => setAiToolResult("")} variant="outline" size="sm">✕</Button>
+                        </div>
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  {/* Image Panel */}
+                  <TabsContent value="image" className="p-4 m-0 space-y-4 h-full overflow-y-auto">
+                    <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                      <p className="text-xs text-amber-700 dark:text-amber-300 font-medium">Image generation is unavailable right now</p>
+                      <p className="text-xs text-amber-600/70 dark:text-amber-400/70 mt-1">No image API key is configured.</p>
+                    </div>
+                  </TabsContent>
+
+                  {/* Chat Panel */}
+                  <TabsContent value="chat" className="p-4 m-0 space-y-4 flex flex-col h-full">
+                    <div>
+                      <h3 className="font-medium text-sm mb-1">AI Chat</h3>
+                      <p className="text-xs text-muted-foreground mb-3">Chat about your writing.</p>
+                    </div>
+                    <div className="flex-1 space-y-3 overflow-y-auto min-h-0">
+                      {chatMessages.length === 0 && (
+                        <p className="text-xs text-muted-foreground text-center py-8">Start a conversation.</p>
+                      )}
+                    </div>
+                    <div className="flex gap-2 pt-2 border-t shrink-0">
+                      <textarea
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendChat(); } }}
+                        placeholder="Type a message..."
+                        className="flex-1 text-sm bg-background border rounded-lg px-3 py-2 resize-none outline-none focus:ring-1 focus:ring-primary min-h-[36px] max-h-20"
+                        rows={1}
+                      />
+                      <Button onClick={handleSendChat} disabled={isChatLoading || !chatInput.trim()} size="sm" className="shrink-0 self-end">
+                        {isChatLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5" />}
+                      </Button>
+                    </div>
+                  </TabsContent>
+
+                  {/* Version History Panel */}
+                  <TabsContent value="history" className="p-4 m-0 space-y-4 h-full overflow-y-auto">
+                    <div>
+                      <h3 className="font-medium text-sm mb-1">Version History</h3>
+                      <p className="text-xs text-muted-foreground mb-3">Save snapshots to track your progress.</p>
+                      <Button onClick={() => setShowSaveVersionDialog(true)} className="w-full gap-2" size="sm" variant="outline">
+                        <History className="w-3.5 h-3.5" /> Save Current Version
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground text-center py-6">Open the desktop sidebar to manage versions.</p>
+                  </TabsContent>
+                </div>
+              </Tabs>
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
 
       {/* Goal Dialog */}
       <Dialog open={showGoalDialog} onOpenChange={setShowGoalDialog}>

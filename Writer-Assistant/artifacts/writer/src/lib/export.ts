@@ -142,27 +142,24 @@ function chartToTableData(chart: ChartData): TableData {
 
 // ---------- PDF ----------
 
-function drawTableInPDF(pdf: jsPDF, table: TableData, x: number, y: number, w: number, lineH: number): number {
+function drawTableInPDF(pdf: jsPDF, table: TableData, x: number, y: number, w: number, lineH: number, pageHeight: number, margin: number): number {
   const cellPad = 2;
   const colCount = table.headers.length || (table.rows[0]?.length || 1);
   const colW = w / colCount;
   let yy = y;
 
+  const rowHeight = (cells: string[]) =>
+    Math.max(lineH, ...cells.map((c, i) => pdf.splitTextToSize(c, colW - cellPad * 2).length * lineH));
+
   const drawRow = (cells: string[], isHeader: boolean) => {
-    const rowH = Math.max(
-      lineH,
-      ...cells.map((c, i) => {
-        const lines = pdf.splitTextToSize(c, colW - cellPad * 2);
-        return lines.length * lineH;
-      })
-    );
+    const rh = rowHeight(cells);
     for (let i = 0; i < cells.length; i++) {
       const cx = x + i * colW;
       pdf.setDrawColor(180, 180, 180);
-      pdf.rect(cx, yy, colW, rowH);
+      pdf.rect(cx, yy, colW, rh);
       if (isHeader) {
         pdf.setFillColor(240, 240, 240);
-        pdf.rect(cx, yy, colW, rowH, "F");
+        pdf.rect(cx, yy, colW, rh, "F");
       }
       pdf.setFont("times", isHeader ? "bold" : "normal");
       pdf.setFontSize(9);
@@ -171,11 +168,20 @@ function drawTableInPDF(pdf: jsPDF, table: TableData, x: number, y: number, w: n
         pdf.text(String(lines[j]), cx + cellPad, yy + lineH * (j + 1) - 1);
       }
     }
-    yy += rowH;
+    yy += rh;
   };
 
   if (table.headers.length) drawRow(table.headers, true);
-  for (const row of table.rows) drawRow(row, false);
+
+  for (const row of table.rows) {
+    const rh = rowHeight(row);
+    if (yy + rh > pageHeight - margin) {
+      pdf.addPage();
+      yy = margin;
+      if (table.headers.length) drawRow(table.headers, true);
+    }
+    drawRow(row, false);
+  }
 
   return yy;
 }
@@ -272,9 +278,7 @@ async function exportToPDF(title: string, content: string): Promise<void> {
       }
       case "table": {
         y = addPageIfNeeded(y + 3);
-        const estimatedHeight = (1 + block.table.rows.length) * (lineH * 2);
-        y = addPageIfNeeded(y + estimatedHeight);
-        y = drawTableInPDF(pdf, block.table, margin, y, usableWidth, lineH);
+        y = drawTableInPDF(pdf, block.table, margin, y, usableWidth, lineH, pageHeight, margin);
         y += 4;
         break;
       }
@@ -289,9 +293,8 @@ async function exportToPDF(title: string, content: string): Promise<void> {
           pdf.setFontSize(12);
           y += lineH + 2;
         }
-        const estimatedHeight = (1 + dataTable.rows.length) * (lineH * 2);
-        y = addPageIfNeeded(y + estimatedHeight);
-        y = drawTableInPDF(pdf, dataTable, margin, y, usableWidth, lineH);
+        y = addPageIfNeeded(y + lineH);
+        y = drawTableInPDF(pdf, dataTable, margin, y, usableWidth, lineH, pageHeight, margin);
         y += 4;
         break;
       }
