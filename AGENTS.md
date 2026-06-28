@@ -110,6 +110,13 @@ Both servers must run in the background (use `nohup ... &`, `run_in_background: 
 - **Version snapshots can be deleted.** Each version card in the Version History sidebar (`editor.tsx`) has a trash icon that calls `DELETE /api/documents/:id/versions/:versionId` (added in `documents.ts`). Confirms before deleting.
 - **File import creates documents from uploaded files.** The sidebar's "Import File" button (`documents.tsx`) sends `.txt`/`.docx` files to `POST /api/import-document`, which extracts text on the server and creates a new document. The proxy config in `vite.config.ts` must include `/api/import-document` for local dev. PDF import was removed because `pdf-parse` crashes at startup on Vercel (DOMMatrix not available in Node.js).
 - **Production URL:** https://whimsicalwriter.vercel.app
+- **Mobile responsiveness:** The app uses Tailwind breakpoints (`sm: 640px`, `md: 768px`). Key mobile adaptations:
+  - Dashboard sidebar becomes a slide-out Sheet (left drawer) triggered by a hamburger button
+  - Editor AI sidebar becomes a slide-in Sheet (right drawer) triggered by a Sparkles button in the header
+  - Editor toolbar scrolls horizontally instead of wrapping
+  - Non-essential header buttons (Goal, Version, World, Export, Save button) hidden on mobile
+  - Pinch-zoom is enabled (`maximum-scale` removed from viewport meta)
+  - Mobile breakpoint is 768px via `useIsMobile()` hook in `hooks/use-mobile.tsx`
 
 ## Debugging Vercel deployment issues
 
