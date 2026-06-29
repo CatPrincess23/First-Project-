@@ -7,7 +7,7 @@ import { FontFamily } from "@tiptap/extension-font-family";
 import { TextAlign } from "@tiptap/extension-text-align";
 import { Highlight } from "@tiptap/extension-highlight";
 import { Link } from "@tiptap/extension-link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, memo } from "react";
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   Heading1, Heading2, Heading3, List, ListOrdered, Quote,
@@ -76,7 +76,13 @@ interface RichTextEditorProps {
   onSelectionChange?: (selectedText: string) => void;
 }
 
-export default function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionChange }: RichTextEditorProps) {
+function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionChange }: RichTextEditorProps) {
+  const rafRef = useRef<number>(0);
+
+  useEffect(() => {
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, []);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -97,8 +103,13 @@ export default function RichTextEditor({ content, onChange, onBlur, placeholder,
     ],
     content: content || "",
     onUpdate: ({ editor: ed }) => {
-      const html = ed.getHTML();
-      requestAnimationFrame(() => onChange(html));
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = 0;
+        if (!ed.isDestroyed) {
+          onChange(ed.getHTML());
+        }
+      });
     },
     editorProps: {
       attributes: {
@@ -340,3 +351,10 @@ export default function RichTextEditor({ content, onChange, onBlur, placeholder,
     </div>
   );
 }
+
+export default memo(RichTextEditor, (prev, next) => {
+  return prev.onChange === next.onChange
+    && prev.onBlur === next.onBlur
+    && prev.placeholder === next.placeholder
+    && prev.onSelectionChange === next.onSelectionChange;
+});

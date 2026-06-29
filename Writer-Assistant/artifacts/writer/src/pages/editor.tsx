@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo, memo } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, memo, useDeferredValue } from "react";
 import { useLocation } from "wouter";
 import {
   useGetDocument, useUpdateDocument, useAiSuggest, useAiGrammarCheck, useAiGenerateImage,
@@ -120,6 +120,7 @@ export default function Editor({ params }: { params: { id: string } }) {
   const [content, setContent] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [selectedWordCount, setSelectedWordCount] = useState(0);
+  const latestHtmlRef = useRef("");
 
   const initRef = useRef<number | null>(null);
   const lastSavedRef = useRef({ title: "", content: "" });
@@ -144,17 +145,20 @@ export default function Editor({ params }: { params: { id: string } }) {
   // Sidebar tabs
   const [activeTab, setActiveTab] = useState<"grammar" | "suggest" | "ai-tools" | "image" | "history" | "chat">("grammar");
 
-  const decodeEntities = useCallback((text: string) => text
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&#x27;/g, "'")
-    .replace(/&#x2F;/g, "/")
-    .replace(/&#(\d+);/g, (_, c) => String.fromCharCode(parseInt(c, 10)))
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, c) => String.fromCharCode(parseInt(c, 16))), []);
+  const ENTITY_MAP = useRef<Record<string, string>>({
+    "&nbsp;": " ", "&amp;": "&", "&lt;": "<", "&gt;": ">",
+    "&quot;": '"', "&#39;": "'", "&#x27;": "'", "&#x2F;": "/",
+  }).current;
+
+  const decodeEntities = useCallback((text: string) => text.replace(
+    /&(?:nbsp|amp|lt|gt|quot|#39|#x27|#x2F|#(\d+)|#x([0-9a-fA-F]+));/g,
+    (match, dec, hex) => {
+      if (ENTITY_MAP[match]) return ENTITY_MAP[match];
+      if (hex !== undefined) return String.fromCharCode(parseInt(hex, 16));
+      if (dec !== undefined) return String.fromCharCode(parseInt(dec, 10));
+      return match;
+    }
+  ), [ENTITY_MAP]);
 
   const stripHtml = useCallback((html: string) => decodeEntities(html).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(), [decodeEntities]);
 
@@ -270,6 +274,7 @@ export default function Editor({ params }: { params: { id: string } }) {
       initRef.current = documentId;
       setTitle(document.title);
       setContent(document.content);
+      latestHtmlRef.current = document.content;
       setGoalWordCount(document.goalWordCount ?? null);
       lastSavedRef.current = { title: document.title, content: document.content };
       setEditorReady(true);
@@ -298,6 +303,26 @@ export default function Editor({ params }: { params: { id: string } }) {
   }, [documentId, queryClient, toast]);
 
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Stable callback refs — avoids React.memo re-renders on RichTextEditor
+  const onChangeRef = useRef<(html: string) => void>((_html: string) => {});
+  onChangeRef.current = (html) => {
+    setContent(html);
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(() => saveContent(title, html), 500);
+    if (grammarErrorsRef.current.length > 0) { setGrammarErrors([]); setCorrectedText(""); }
+  };
+  const stableOnChange = useCallback((html: string) => onChangeRef.current(html), []);
+
+  const handleBlurRef = useRef<() => void>(() => {});
+  handleBlurRef.current = () => saveContent(title, content);
+  const stableOnBlur = useCallback(() => handleBlurRef.current(), []);
+
+  const onSelectionChangeRef = useRef<(text: string) => void>((_text: string) => {});
+  onSelectionChangeRef.current = (text) => {
+    setSelectedWordCount(text.trim() ? text.trim().split(/\s+/).length : 0);
+  };
+  const stableOnSelectionChange = useCallback((text: string) => onSelectionChangeRef.current(text), []);
 
   const titleRef = useRef(title);
   titleRef.current = title;
@@ -635,10 +660,11 @@ export default function Editor({ params }: { params: { id: string } }) {
     }
   };
 
+  const deferredContent = useDeferredValue(content);
   const wordCount = useMemo(() => {
-    const text = stripHtml(content).trim();
+    const text = stripHtml(deferredContent).trim();
     return text ? text.split(/\s+/).length : 0;
-  }, [content, stripHtml]);
+  }, [deferredContent, stripHtml]);
 
   if (isDocumentLoading) {
     return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-muted-foreground" /></div>;
@@ -740,14 +766,7 @@ export default function Editor({ params }: { params: { id: string } }) {
         <div className="flex-1 overflow-y-auto flex justify-center">
           <div id="tour-editor-textarea" className="w-full max-w-3xl px-4 md:px-8 py-6">
             {editorReady ? (
-            <RichTextEditor key={documentId} content={content} onBlur={() => saveContent(title, content)} onChange={(html) => {
-              setContent(html);
-              if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-              autoSaveTimer.current = setTimeout(() => saveContent(title, html), 500);
-              if (grammarErrorsRef.current.length > 0) { setGrammarErrors([]); setCorrectedText(""); }
-            }} onSelectionChange={(text) => {
-              setSelectedWordCount(text.trim() ? text.trim().split(/\s+/).length : 0);
-            }} placeholder="Start writing..." />
+            <RichTextEditor key={documentId} content={content} onBlur={stableOnBlur} onChange={stableOnChange} onSelectionChange={stableOnSelectionChange} placeholder="Start writing..." />
             ) : (
               <div className="min-h-[60vh] flex items-center justify-center text-muted-foreground">
                 <Loader2 className="w-6 h-6 animate-spin" />
