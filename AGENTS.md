@@ -117,6 +117,12 @@ Both servers must run in the background (use `nohup ... &`, `run_in_background: 
   - Non-essential header buttons (Goal, Version, World, Export, Save button) hidden on mobile
   - Pinch-zoom is enabled (`maximum-scale` removed from viewport meta)
   - Mobile breakpoint is 768px via `useIsMobile()` hook in `hooks/use-mobile.tsx`
+- **INP (Interaction to Next Paint) fixes for the editor:**
+  - `ed.getHTML()` runs inside `requestAnimationFrame` (cancelled on unmount), not synchronously inside `onUpdate` — prevents blocking the ProseMirror input pipeline on every keystroke (`rich-text-editor.tsx`)
+  - `RichTextEditor` is wrapped in `React.memo` with a comparator that skips `content` prop changes (TipTap only uses it as initial value), preventing unnecessary re-renders from parent state updates (`rich-text-editor.tsx`)
+  - Callbacks passed to `RichTextEditor` (`onChange`, `onBlur`, `onSelectionChange`) use ref-backed stable references (`useCallback` + `useRef`) so they don't break `React.memo`'s equality check (`editor.tsx`)
+  - `decodeEntities` uses a single regex pass with an entity map instead of 11+ chained `.replace()` calls (`editor.tsx`)
+  - `wordCount` uses `useDeferredValue(content)` so `stripHtml()` doesn't block the main thread — React can interrupt it when a new keystroke arrives (`editor.tsx`)
 
 ## Debugging Vercel deployment issues
 
