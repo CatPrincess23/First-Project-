@@ -11,6 +11,8 @@ const router = Router();
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
 const DEEPSEEK_KEY = process.env.DEEPSEEK_API_KEY;
+const GROK_KEY = process.env.GROK_API_KEY;
+const GROQ_KEY = process.env.GROQ_API_KEY;
 
 let _client: OpenAI | null = null;
 function getClient(): OpenAI {
@@ -21,7 +23,15 @@ function getClient(): OpenAI {
       "HTTP-Referer": process.env.APP_URL || "http://localhost:8080",
       "X-Title": "Whimsical Writer",
     };
-    if (DEEPSEEK_KEY) {
+    if (GROQ_KEY) {
+      baseURL = "https://api.groq.com/openai/v1";
+      apiKey = GROQ_KEY;
+      headers = {};
+    } else if (GROK_KEY) {
+      baseURL = "https://api.x.ai/v1";
+      apiKey = GROK_KEY;
+      headers = {};
+    } else if (DEEPSEEK_KEY) {
       baseURL = "https://api.deepseek.com";
       apiKey = DEEPSEEK_KEY;
       headers = {};
@@ -35,9 +45,9 @@ function getClient(): OpenAI {
   return _client;
 }
 
-const MODEL = DEEPSEEK_KEY ? "deepseek-chat" : GEMINI_KEY ? "gemini-2.0-flash" : "deepseek/deepseek-v4-flash";
+const MODEL = GROQ_KEY ? "llama-3.3-70b-versatile" : GROK_KEY ? "grok-2" : DEEPSEEK_KEY ? "deepseek-chat" : GEMINI_KEY ? "gemini-2.0-flash" : "deepseek/deepseek-v4-flash";
 
-const IMAGE_MODELS = DEEPSEEK_KEY || GEMINI_KEY ? [] : [
+const IMAGE_MODELS = DEEPSEEK_KEY || GEMINI_KEY || GROK_KEY || GROQ_KEY ? [] : [
   "openai/gpt-5.4-image-2",
   "openai/gpt-5-image",
   "black-forest-labs/flux-schnell",
@@ -251,8 +261,8 @@ function generateProceduralSvg(prompt: string): string {
 }
 
 function checkKey(res: any): boolean {
-  if (!OPENROUTER_KEY && !GEMINI_KEY && !DEEPSEEK_KEY) {
-    res.status(503).json({ error: "AI features unavailable: set OPENROUTER_API_KEY, GEMINI_API_KEY, or DEEPSEEK_API_KEY" });
+  if (!OPENROUTER_KEY && !GEMINI_KEY && !DEEPSEEK_KEY && !GROK_KEY && !GROQ_KEY) {
+    res.status(503).json({ error: "AI features unavailable: set OPENROUTER_API_KEY, GEMINI_API_KEY, DEEPSEEK_API_KEY, GROK_API_KEY, or GROQ_API_KEY" });
     return false;
   }
   return true;

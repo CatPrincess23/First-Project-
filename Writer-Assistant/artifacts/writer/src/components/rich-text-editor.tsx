@@ -208,7 +208,7 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
   return (
     <div>
       {/* Toolbar */}
-      <div className="flex items-center gap-0.5 py-2 mb-2 overflow-x-auto flex-nowrap scrollbar-thin">
+      <div className="sticky top-0 z-10 bg-background flex items-center gap-0.5 py-2 mb-2 overflow-x-auto flex-nowrap scrollbar-thin border-b">
         <div id="tour-editor-undo" className="flex items-center gap-0.5">
         <ToolbarButton onClick={() => editor.chain().focus().undo().run()} title="Undo">
           <Undo2 className="w-3.5 h-3.5" />

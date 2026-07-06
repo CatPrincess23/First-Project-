@@ -251,11 +251,11 @@ export default function Documents() {
                   </div>
                   <div>
                     <h1 className="text-3xl font-serif font-bold">Welcome to Whimsical Writer</h1>
-                    <p className="text-indigo-200 text-sm mt-1">Your AI-powered creative writing companion</p>
+                    <p className="text-indigo-200 dark:text-indigo-100 text-sm mt-1">Your AI-powered creative writing companion</p>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-3 mt-6">
-                  <Button onClick={handleCreateDocument} disabled={createDoc.isPending} className="bg-white text-indigo-700 hover:bg-indigo-50 gap-2 shadow-lg" size="sm">
+                  <Button onClick={handleCreateDocument} disabled={createDoc.isPending} className="bg-white dark:bg-gray-800 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-gray-700 gap-2 shadow-lg" size="sm">
                     {createDoc.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                     New Document
                   </Button>

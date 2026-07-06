@@ -129662,6 +129662,8 @@ var router4 = (0, import_express4.Router)();
 var OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
 var GEMINI_KEY = process.env.GEMINI_API_KEY;
 var DEEPSEEK_KEY = process.env.DEEPSEEK_API_KEY;
+var GROK_KEY = process.env.GROK_API_KEY;
+var GROQ_KEY = process.env.GROQ_API_KEY;
 var _client = null;
 function getClient() {
   if (!_client) {
@@ -129671,7 +129673,15 @@ function getClient() {
       "HTTP-Referer": process.env.APP_URL || "http://localhost:8080",
       "X-Title": "Whimsical Writer"
     };
-    if (DEEPSEEK_KEY) {
+    if (GROQ_KEY) {
+      baseURL = "https://api.groq.com/openai/v1";
+      apiKey = GROQ_KEY;
+      headers = {};
+    } else if (GROK_KEY) {
+      baseURL = "https://api.x.ai/v1";
+      apiKey = GROK_KEY;
+      headers = {};
+    } else if (DEEPSEEK_KEY) {
       baseURL = "https://api.deepseek.com";
       apiKey = DEEPSEEK_KEY;
       headers = {};
@@ -129684,8 +129694,8 @@ function getClient() {
   }
   return _client;
 }
-var MODEL = DEEPSEEK_KEY ? "deepseek-chat" : GEMINI_KEY ? "gemini-2.0-flash" : "deepseek/deepseek-v4-flash";
-var IMAGE_MODELS = DEEPSEEK_KEY || GEMINI_KEY ? [] : [
+var MODEL = GROQ_KEY ? "llama-3.3-70b-versatile" : GROK_KEY ? "grok-2" : DEEPSEEK_KEY ? "deepseek-chat" : GEMINI_KEY ? "gemini-2.0-flash" : "deepseek/deepseek-v4-flash";
+var IMAGE_MODELS = DEEPSEEK_KEY || GEMINI_KEY || GROK_KEY || GROQ_KEY ? [] : [
   "openai/gpt-5.4-image-2",
   "openai/gpt-5-image",
   "black-forest-labs/flux-schnell"
@@ -129869,8 +129879,8 @@ function generateProceduralSvg(prompt) {
 </svg>`;
 }
 function checkKey(res) {
-  if (!OPENROUTER_KEY && !GEMINI_KEY && !DEEPSEEK_KEY) {
-    res.status(503).json({ error: "AI features unavailable: set OPENROUTER_API_KEY, GEMINI_API_KEY, or DEEPSEEK_API_KEY" });
+  if (!OPENROUTER_KEY && !GEMINI_KEY && !DEEPSEEK_KEY && !GROK_KEY && !GROQ_KEY) {
+    res.status(503).json({ error: "AI features unavailable: set OPENROUTER_API_KEY, GEMINI_API_KEY, DEEPSEEK_API_KEY, GROK_API_KEY, or GROQ_API_KEY" });
     return false;
   }
   return true;

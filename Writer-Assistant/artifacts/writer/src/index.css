@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is(.dark &));
 
 @theme inline {
   --color-background: hsl(var(--background));
@@ -76,26 +76,46 @@
 
 .dark {
   --background: 220 20% 15%;
-  --foreground: 40 20% 90%;
+  --foreground: 40 10% 96%;
   --border: 220 10% 25%;
   --input: 220 10% 25%;
-  --ring: 40 20% 90%;
+  --ring: 40 10% 96%;
   --card: 220 20% 18%;
-  --card-foreground: 40 20% 90%;
+  --card-foreground: 40 10% 96%;
   --card-border: 220 10% 25%;
   --popover: 220 20% 18%;
-  --popover-foreground: 40 20% 90%;
+  --popover-foreground: 40 10% 96%;
   --popover-border: 220 10% 25%;
-  --primary: 40 20% 90%;
+  --primary: 40 10% 96%;
   --primary-foreground: 220 20% 15%;
   --secondary: 220 15% 25%;
-  --secondary-foreground: 40 20% 90%;
+  --secondary-foreground: 40 10% 96%;
   --muted: 220 10% 25%;
-  --muted-foreground: 40 10% 60%;
+  --muted-foreground: 40 10% 70%;
   --accent: 220 15% 25%;
-  --accent-foreground: 40 20% 90%;
+  --accent-foreground: 40 10% 96%;
   --destructive: 0 60% 50%;
   --destructive-foreground: 0 0% 100%;
+
+  /* Directly override Tailwind theme variables so text is clearly white */
+  --color-background: hsl(220 20% 15%);
+  --color-foreground: hsl(40 10% 96%);
+  --color-border: hsl(220 10% 25%);
+  --color-input: hsl(220 10% 25%);
+  --color-card: hsl(220 20% 18%);
+  --color-card-foreground: hsl(40 10% 96%);
+  --color-popover: hsl(220 20% 18%);
+  --color-popover-foreground: hsl(40 10% 96%);
+  --color-muted: hsl(220 10% 25%);
+  --color-muted-foreground: hsl(40 10% 70%);
+  --color-accent: hsl(220 15% 25%);
+  --color-accent-foreground: hsl(40 10% 96%);
+  --color-primary: hsl(40 10% 96%);
+  --color-primary-foreground: hsl(220 20% 15%);
+  --color-secondary: hsl(220 15% 25%);
+  --color-secondary-foreground: hsl(40 10% 96%);
+  --color-destructive: hsl(0 60% 50%);
+  --color-destructive-foreground: hsl(0 0% 100%);
 }
 
 @layer base {
