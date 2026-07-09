@@ -2,17 +2,29 @@ import { createContext, useContext, useEffect, useState } from "react";
 
 type Theme = "light" | "dark";
 
+function getInitialTheme(): Theme {
+  try {
+    const stored = localStorage.getItem("writeai-theme");
+    if (stored === "dark" || stored === "light") return stored;
+    if (window.matchMedia("(prefers-color-scheme: dark)").matches) return "dark";
+  } catch {}
+  return "light";
+}
+
+const initialTheme = getInitialTheme();
+if (initialTheme === "dark") {
+  document.documentElement.classList.add("dark");
+} else {
+  document.documentElement.classList.remove("dark");
+}
+
 const ThemeContext = createContext<{ theme: Theme; toggleTheme: () => void }>({
-  theme: "light",
+  theme: initialTheme,
   toggleTheme: () => {},
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(() => {
-    const stored = localStorage.getItem("writeai-theme");
-    if (stored === "dark" || stored === "light") return stored;
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  });
+  const [theme, setTheme] = useState<Theme>(initialTheme);
 
   useEffect(() => {
     const root = document.documentElement;
