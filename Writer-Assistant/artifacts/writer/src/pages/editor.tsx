@@ -17,6 +17,7 @@ import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { usePro } from "@/lib/pro-context";
 import { useTheme } from "@/lib/theme";
+import { ENTITY_MAP } from "@/lib/html";
 import { useToast } from "@/hooks/use-toast";
 import { exportToPDF, exportToDOCX } from "@/lib/export";
 import RichTextEditor, { type RichTextEditorHandle } from "@/components/rich-text-editor";
@@ -147,10 +148,7 @@ export default function Editor({ params }: { params: { id: string } }) {
   // Sidebar tabs
   const [activeTab, setActiveTab] = useState<"grammar" | "suggest" | "ai-tools" | "image" | "history" | "chat">("grammar");
 
-  const ENTITY_MAP = useRef<Record<string, string>>({
-    "&nbsp;": " ", "&amp;": "&", "&lt;": "<", "&gt;": ">",
-    "&quot;": '"', "&#39;": "'", "&#x27;": "'", "&#x2F;": "/",
-  }).current;
+  // ENTITY_MAP is imported from @/lib/html (shared with the dashboard previews).
 
   // Strip HTML to plain text exactly like stripHtml, but also build a map from
   // each plain-text character index back to its source index in the raw HTML.
@@ -842,7 +840,7 @@ export default function Editor({ params }: { params: { id: string } }) {
                     <p className="text-xs font-medium text-muted-foreground">{grammarErrors.length} issue{grammarErrors.length !== 1 ? "s" : ""} found</p>
                     {grammarErrors.map((err, i) => {
                       const range = plainSpanToHtml(err.offset, err.length);
-                      const errSnippet = range ? content.slice(range[0], range[1]) : (err.message || "");
+                      const errSnippet = range ? stripHtml(content.slice(range[0], range[1])) : (err.message || "");
                       return (
                       <div key={i} className="p-3 bg-secondary/50 rounded-lg text-xs space-y-2 cursor-pointer hover:bg-secondary/80 transition-colors" onClick={() => scrollToError(err.offset, err.length)}>
                         <div className="flex items-start justify-between gap-2">

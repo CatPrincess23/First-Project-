@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useLocation, Link } from "wouter";
 import {
   useListDocuments, useCreateDocument, useGetDocumentStats, useDeleteDocument,
@@ -12,11 +12,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "@/lib/theme";
 import { usePro } from "@/lib/pro-context";
+import { stripHtml } from "@/lib/html";
 import {
   Plus, FileText, Trash2, Loader2, ArrowRight, Sun, Moon, Globe, Target,
   LayoutDashboard, Sparkles, BookOpen, Image as ImageIcon, History,
   CheckCircle, Wand2, Crown, User, ChevronRight, HelpCircle, Menu,
-  Upload,
 } from "lucide-react";
 import { UserButton } from "@clerk/react";
 import OnboardingTour from "@/components/onboarding-tour";
@@ -24,19 +24,6 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 type View = "home" | "documents" | "world" | "ai-features" | "stats";
-
-// Document content is stored as HTML (TipTap). For list/dashboard previews we
-// need the readable text, not the raw tags — strip them. Mirrors the server's
-// countWords() decoding so previews match the saved word counts.
-function stripHtml(html: string): string {
-  return (html || "")
-    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'")
-    .replace(/&#x27;/g, "'").replace(/&#x2F;/g, "/")
-    .replace(/&#(\d+);/g, (_, c) => String.fromCharCode(parseInt(c, 10)))
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, c) => String.fromCharCode(parseInt(c, 16)))
-    .replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-}
 
 // Defensive: docs from the API should always have wordCount, but stale cache or
 // partial responses shouldn't crash the dashboard with a null deref.
@@ -73,9 +60,6 @@ export default function Documents() {
   const { theme, toggleTheme } = useTheme();
   const [activeView, setActiveView] = useState<View>("home");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const mobileFileInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
   const clerkEnabled = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
@@ -96,33 +80,6 @@ export default function Documents() {
     });
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const input = e.target;
-    const file = input.files?.[0];
-    if (!file) return;
-    setIsUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      if (!res.ok) {
-        let msg = "Upload failed";
-        try { const err = await res.json(); if (err?.error) msg = err.error; } catch { /* non-JSON error body */ }
-        throw new Error(msg);
-      }
-      const data = await res.json();
-      // Upload succeeded; clipboard copy is best-effort and can fail for
-      // permissions / non-secure contexts — don't report it as an upload failure.
-      try { await navigator.clipboard.writeText(data.url); } catch { /* clipboard blocked */ }
-      toast({ title: "Image uploaded! URL copied to clipboard." });
-    } catch (err: any) {
-      toast({ title: err.message || "Upload failed", variant: "destructive" });
-    } finally {
-      setIsUploading(false);
-      input.value = "";
-    }
-  };
-
   const handleDelete = (e: React.MouseEvent, id: number) => {
     e.preventDefault(); e.stopPropagation();
     if (!confirm("Delete this document?")) return;
@@ -139,7 +96,6 @@ export default function Documents() {
   const DOCS_TOUR_STEPS = [
     { target: "#tour-home-hero", title: "Welcome to Whimsical Writer", description: "Your AI-powered creative writing companion. Create documents, build worlds, and track your progress — all in one place.", placement: "bottom" as const },
     { target: "#tour-docs-new", title: "Create a New Document", description: "Start a fresh manuscript with one click. Each document gets its own AI chat, versions, and world-building space.", placement: "right" as const },
-    { target: "#tour-docs-upload", title: "Upload Images", description: "Upload images from your computer. The image URL is copied to your clipboard so you can paste it anywhere.", placement: "right" as const },
     { target: "#tour-home-world", title: "Build Your World", description: "Create character profiles, map out locations, and define key items for your fictional universe.", placement: "bottom" as const },
     { target: "#tour-home-ai", title: "AI-Powered Tools", description: "Grammar checks, rewrites, summarization, prologue generation, and image creation — all built into the editor sidebar.", placement: "bottom" as const },
     { target: "#tour-home-stats", title: "Track Your Progress", description: "See your word count, writing streaks, and goal completion at a glance.", placement: "bottom" as const },
@@ -173,11 +129,6 @@ export default function Documents() {
               <Button onClick={handleCreateDocument} disabled={createDoc.isPending} className="w-full gap-2" size="sm">
                 {createDoc.isPending ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Plus className="w-4 h-4 shrink-0" />}
                 New Document
-              </Button>
-              <input type="file" ref={mobileFileInputRef} onChange={handleFileUpload} accept="image/*" className="hidden" />
-              <Button onClick={() => mobileFileInputRef.current?.click()} disabled={isUploading} variant="outline" className="w-full gap-2" size="sm">
-                {isUploading ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Upload className="w-4 h-4 shrink-0" />}
-                {isUploading ? "Uploading..." : "Upload Image"}
               </Button>
             </div>
             <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
@@ -235,18 +186,6 @@ export default function Documents() {
           >
             {createDoc.isPending ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Plus className="w-4 h-4 shrink-0" />}
             {!sidebarCollapsed && "New Document"}
-          </Button>
-          <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="image/*" className="hidden" />
-          <Button
-            id="tour-docs-upload"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            variant="outline"
-            className={`w-full gap-2 ${sidebarCollapsed ? "px-0 justify-center" : ""}`}
-            size="sm"
-          >
-            {isUploading ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Upload className="w-4 h-4 shrink-0" />}
-            {!sidebarCollapsed && (isUploading ? "Uploading..." : "Upload Image")}
           </Button>
         </div>
 
