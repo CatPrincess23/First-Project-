@@ -19,7 +19,7 @@ import { usePro } from "@/lib/pro-context";
 import { useTheme } from "@/lib/theme";
 import { useToast } from "@/hooks/use-toast";
 import { exportToPDF, exportToDOCX } from "@/lib/export";
-import RichTextEditor from "@/components/rich-text-editor";
+import RichTextEditor, { type RichTextEditorHandle } from "@/components/rich-text-editor";
 import {
   ArrowLeft, Sparkles, Image as ImageIcon, CheckCircle, Save, Loader2, Wand2,
   Globe, History, FileDown, Sun, Moon, BookOpen, Target, Clock, RotateCcw, MessageCircle,
@@ -121,15 +121,17 @@ export default function Editor({ params }: { params: { id: string } }) {
   const [isSaving, setIsSaving] = useState(false);
   const [selectedWordCount, setSelectedWordCount] = useState(0);
   const latestHtmlRef = useRef("");
+  const richEditorRef = useRef<RichTextEditorHandle>(null);
+
+  // Push a programmatic content change into BOTH the TipTap editor (imperatively,
+  // since its memo comparator skips `content` prop changes) and parent state.
+  const applyEditorContent = useCallback((html: string) => {
+    setContent(html);
+    richEditorRef.current?.setContent(html);
+  }, []);
 
   const initRef = useRef<number | null>(null);
   const lastSavedRef = useRef({ title: "", content: "" });
-  const contentRef = useRef<HTMLTextAreaElement>(null);
-  const highlightRef = useRef<HTMLDivElement>(null);
-  const isTypingRef = useRef(false);
-  const undoStackRef = useRef<string[]>([]);
-  const redoStackRef = useRef<string[]>([]);
-  const isUndoRedoingRef = useRef(false);
   const contentSnapshotRef = useRef(content);
   contentSnapshotRef.current = content;
 
@@ -150,17 +152,83 @@ export default function Editor({ params }: { params: { id: string } }) {
     "&quot;": '"', "&#39;": "'", "&#x27;": "'", "&#x2F;": "/",
   }).current;
 
-  const decodeEntities = useCallback((text: string) => text.replace(
-    /&(?:nbsp|amp|lt|gt|quot|#39|#x27|#x2F|#(\d+)|#x([0-9a-fA-F]+));/g,
-    (match, dec, hex) => {
-      if (ENTITY_MAP[match]) return ENTITY_MAP[match];
-      if (hex !== undefined) return String.fromCharCode(parseInt(hex, 16));
-      if (dec !== undefined) return String.fromCharCode(parseInt(dec, 10));
-      return match;
+  // Strip HTML to plain text exactly like stripHtml, but also build a map from
+  // each plain-text character index back to its source index in the raw HTML.
+  // The grammar endpoint returns offsets relative to the plain text; this map
+  // lets us translate those offsets back into HTML positions so fixes can be
+  // applied to the rich content without corrupting it (and without losing
+  // formatting, which a naive "replace whole document" would).
+  const buildPlainTextWithMap = useCallback((html: string): { text: string; mapStart: number[]; mapLen: number[] } => {
+    // Phase 1: decode entities, recording each decoded char's html start index
+    // AND its source length (entities span several html chars but decode to one).
+    const decStart: number[] = [];
+    const decLen: number[] = [];
+    let decoded = "";
+    let i = 0;
+    while (i < html.length) {
+      const ch = html[i];
+      if (ch === "&") {
+        let end = -1;
+        for (let k = i + 1; k < Math.min(i + 13, html.length); k++) {
+          if (html[k] === ";") { end = k; break; }
+        }
+        let dec: string | null = null;
+        if (end !== -1) {
+          const ent = html.slice(i, end + 1);
+          if (ENTITY_MAP[ent]) dec = ENTITY_MAP[ent];
+          else {
+            const num = ent.match(/^&#(\d+);$/);
+            const hex = ent.match(/^&#x([0-9a-fA-F]+);$/i);
+            if (num) dec = String.fromCharCode(parseInt(num[1], 10));
+            else if (hex) dec = String.fromCharCode(parseInt(hex[1], 16));
+          }
+        }
+        if (dec !== null) {
+          const srcLen = end + 1 - i;
+          for (const c of dec) { decoded += c; decStart.push(i); decLen.push(srcLen); }
+          i = end + 1;
+          continue;
+        }
+      }
+      decoded += ch;
+      decStart.push(i);
+      decLen.push(1);
+      i++;
     }
-  ), [ENTITY_MAP]);
 
-  const stripHtml = useCallback((html: string) => decodeEntities(html).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(), [decodeEntities]);
+    // Phase 2: replace <[^>]+> with a space, collapse whitespace, trim — matching stripHtml.
+    // For each output plain char we keep its html start and source length, so a
+    // flagged span's end can be computed as start+len of its LAST char (not the
+    // start of the next char, which would wrongly swallow intervening spaces).
+    let text = "";
+    const mapStart: number[] = [];
+    const mapLen: number[] = [];
+    let needSpace = false;
+    let j = 0;
+    while (j < decoded.length) {
+      const ch = decoded[j];
+      if (ch === "<") {
+        const gt = decoded.indexOf(">", j);
+        if (gt !== -1) { j = gt + 1; needSpace = true; continue; }
+      }
+      if (/\s/.test(ch)) { needSpace = true; j++; continue; }
+      if (needSpace) {
+        // Synthesized boundary space: zero source width at the next real char.
+        text += " "; mapStart.push(decStart[j]); mapLen.push(0);
+        needSpace = false;
+      }
+      text += ch;
+      mapStart.push(decStart[j]);
+      mapLen.push(decLen[j]);
+      j++;
+    }
+    let s = 0, e = text.length;
+    while (s < e && text[s] === " ") s++;
+    while (e > s && text[e - 1] === " ") e--;
+    return { text: text.slice(s, e), mapStart: mapStart.slice(s, e), mapLen: mapLen.slice(s, e) };
+  }, [ENTITY_MAP]);
+
+  const stripHtml = useCallback((html: string) => buildPlainTextWithMap(html).text, [buildPlainTextWithMap]);
 
   // Grammar
   const [grammarErrors, setGrammarErrors] = useState<any[]>([]);
@@ -168,6 +236,23 @@ export default function Editor({ params }: { params: { id: string } }) {
   const [isCheckingGrammar, setIsCheckingGrammar] = useState(false);
   const grammarErrorsRef = useRef(grammarErrors);
   grammarErrorsRef.current = grammarErrors;
+  // Offset maps (plain-text index -> html start + source length) for the content
+  // the last grammar check ran against. Errors are cleared whenever content
+  // changes, so these stay valid for as long as the errors are displayed.
+  const grammarStartRef = useRef<number[]>([]);
+  const grammarLenRef = useRef<number[]>([]);
+
+  // Translate a plain-text [offset, length) span into an HTML [start, end) range
+  // using the stored maps. Returns null when the span can't be mapped.
+  const plainSpanToHtml = useCallback((offset: number, length: number): [number, number] | null => {
+    const start = grammarStartRef.current;
+    const len = grammarLenRef.current;
+    if (start.length === 0 || offset < 0 || length <= 0 || offset + length > start.length) return null;
+    const lastIdx = offset + length - 1;
+    // Span end = html start of the LAST flagged char + its source length, so we
+    // never swallow the whitespace that follows the flagged word.
+    return [start[offset], start[lastIdx] + len[lastIdx]];
+  }, []);
 
   // Suggest
   const [suggestion, setSuggestion] = useState("");
@@ -334,89 +419,28 @@ export default function Editor({ params }: { params: { id: string } }) {
     return () => clearInterval(interval);
   }, [documentId, saveContent]);
 
-  const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    if (!isTypingRef.current && !isUndoRedoingRef.current) {
-      undoStackRef.current.push(contentSnapshotRef.current);
-      redoStackRef.current = [];
-      if (undoStackRef.current.length > 50) undoStackRef.current.shift();
-    }
-    isTypingRef.current = true;
-    setContent(e.currentTarget.value);
-    if (grammarErrors.length > 0) { setGrammarErrors([]); setCorrectedText(""); }
-  };
-
-  const handleBlur = useCallback(() => {
-    saveContent(title, content);
-  }, [saveContent, title, content]);
-
-  function undoRedoAction(action: "undo" | "redo") {
-    const stack = action === "undo" ? undoStackRef : redoStackRef;
-    const other = action === "undo" ? redoStackRef : undoStackRef;
-    if (stack.current.length === 0) return;
-    isUndoRedoingRef.current = true;
-    const current = contentSnapshotRef.current;
-    const target = stack.current.pop()!;
-    other.current.push(current);
-    setContent(target);
-    if (contentRef.current) {
-      contentRef.current.value = target;
-      contentRef.current.focus();
-      contentRef.current.selectionStart = target.length;
-    }
-    setTimeout(() => { isUndoRedoingRef.current = false; }, 200);
-  }
-
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+      // Only Ctrl/Cmd+S is handled globally; undo/redo (Ctrl+Z / Ctrl+Shift+Z)
+      // are handled natively by the TipTap editor (StarterKit history + the
+      // Undo/Redo toolbar buttons), so we must not intercept them here.
+      if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S")) {
         e.preventDefault();
-        saveContent(title, content);
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
-        e.preventDefault();
-        undoRedoAction("undo");
-      }
-      if ((e.ctrlKey || e.metaKey) && ((e.key === "z" && e.shiftKey) || e.key === "y")) {
-        e.preventDefault();
-        undoRedoAction("redo");
+        saveContent(titleRef.current, contentSnapshotRef.current);
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [saveContent, title, content]);
-
-  const buildHighlightSegments = useCallback((text: string, errors: any[]) => {
-    if (!errors.length) return [{ text }];
-    const sorted = [...errors].sort((a, b) => a.offset - b.offset);
-    const segments: { text: string; error?: { type: string; message: string } }[] = [];
-    let pos = 0;
-    for (const err of sorted) {
-      if (err.offset > pos) segments.push({ text: text.slice(pos, err.offset) });
-      const end = Math.min(err.offset + err.length, text.length);
-      segments.push({ text: text.slice(err.offset, end), error: { type: err.type, message: err.message } });
-      pos = end;
-    }
-    if (pos < text.length) segments.push({ text: text.slice(pos) });
-    return segments;
-  }, []);
-
-  const errorHighlightClass = (type: string) =>
-    type === "spelling" ? "border-b-2 border-red-500 bg-red-500/15" :
-    type === "grammar" ? "border-b-2 border-amber-500 bg-amber-500/15" :
-    type === "punctuation" ? "border-b-2 border-purple-500 bg-purple-500/15" :
-    "border-b-2 border-blue-500 bg-blue-500/15";
-
-  const syncHighlightScroll = useCallback(() => {
-    if (highlightRef.current && contentRef.current) {
-      highlightRef.current.scrollTop = contentRef.current.scrollTop;
-      highlightRef.current.scrollLeft = contentRef.current.scrollLeft;
-    }
-  }, []);
+  }, [saveContent]);
 
   const handleGrammarCheck = () => {
-    if (!stripHtml(content).trim() || !useRequest()) return;
+    const { text, mapStart, mapLen } = buildPlainTextWithMap(content);
+    if (!text.trim() || !useRequest()) return;
+    // Cache the maps so returned offsets can be translated back into HTML later.
+    grammarStartRef.current = mapStart;
+    grammarLenRef.current = mapLen;
     setIsCheckingGrammar(true);
-    aiGrammar.mutate({ data: { text: stripHtml(content) } }, {
+    aiGrammar.mutate({ data: { text } }, {
       onSuccess: (result) => { setGrammarErrors(result.errors); setCorrectedText(result.correctedText); setIsCheckingGrammar(false); },
       onError: (e) => { setIsCheckingGrammar(false); toast({ title: (e as any)?.error || "Grammar check failed", variant: "destructive" }); }
     });
@@ -424,46 +448,46 @@ export default function Editor({ params }: { params: { id: string } }) {
 
   const handleApplyGrammar = () => {
     if (!correctedText) return;
-    setContent(correctedText);
+    // Apply every flagged error from last to first so earlier offsets stay valid.
+    // Each fix is mapped into HTML via the stored maps, preserving formatting.
+    const html = content;
+    let updated = html;
+    const sorted = [...grammarErrors].sort((a, b) => b.offset - a.offset);
+    for (const err of sorted) {
+      const range = plainSpanToHtml(err.offset, err.length);
+      if (!range) continue;
+      updated = updated.slice(0, range[0]) + (err.suggestion || "") + updated.slice(range[1]);
+    }
+    grammarStartRef.current = [];
+    grammarLenRef.current = [];
     setGrammarErrors([]); setCorrectedText("");
+    applyEditorContent(updated);
   };
 
   const handleApplySingleError = (index: number) => {
     const err = grammarErrors[index];
     if (!err) return;
-    const before = content.slice(0, err.offset);
-    const after = content.slice(err.offset + err.length);
+    const range = plainSpanToHtml(err.offset, err.length);
+    if (!range) return;
+    const [htmlStart, htmlEnd] = range;
     const suggestion = err.suggestion || "";
-    const newContent = before + suggestion + after;
-    setContent(newContent);
+    const newContent = content.slice(0, htmlStart) + suggestion + content.slice(htmlEnd);
 
-    const delta = suggestion.length - err.length;
-    const newErrors = grammarErrors
-      .filter((_, i) => i !== index)
-      .map(e => {
-        // Only shift errors that start after the end of the fixed span
-        if (e.offset >= err.offset + err.length) return { ...e, offset: e.offset + delta };
-        return e;
-      });
-
-    if (newErrors.length === 0) {
-      setGrammarErrors([]);
-      setCorrectedText("");
-    } else {
-      setGrammarErrors(newErrors);
-    }
+    // The offset maps were built for the pre-edit content, so they are now stale.
+    // Drop the remaining errors (the user can re-check) rather than risk
+    // applying a shifted offset to the wrong HTML position.
+    grammarStartRef.current = [];
+    grammarLenRef.current = [];
+    setGrammarErrors([]);
+    setCorrectedText("");
+    applyEditorContent(newContent);
   };
 
-  const scrollToError = useCallback((offset: number, length: number) => {
-    const ta = contentRef.current;
-    if (!ta) return;
-    ta.focus();
-    ta.setSelectionRange(offset, offset + length);
-    // Ensure selection is visible
-    const lineHeight = parseInt(getComputedStyle(ta).lineHeight) || 28;
-    const before = ta.value.slice(0, offset);
-    const line = before.split("\n").length - 1;
-    ta.scrollTop = Math.max(0, line * lineHeight - ta.clientHeight / 3);
+  // The rich-text editor doesn't expose plain-text selection positions cheaply,
+  // so clicking an error just focuses the editor. (Offsets are in plain-text
+  // space and don't map to ProseMirror document positions without a walk.)
+  const scrollToError = useCallback((_offset: number, _length: number) => {
+    richEditorRef.current?.focus();
   }, []);
 
   const handleSuggest = (type: AiSuggestInputType) => {
@@ -477,7 +501,7 @@ export default function Editor({ params }: { params: { id: string } }) {
 
   const handleApplySuggestion = () => {
     if (!suggestion) return;
-    setContent(suggestion);
+    applyEditorContent(suggestion);
     setSuggestion("");
   };
 
@@ -503,7 +527,7 @@ export default function Editor({ params }: { params: { id: string } }) {
     const newContent = aiToolType === "summary"
       ? content + "\n\n--- Summary ---\n" + aiToolResult
       : aiToolResult + "\n\n" + content;
-    setContent(newContent);
+    applyEditorContent(newContent);
     setAiToolResult("");
   };
 
@@ -633,7 +657,7 @@ export default function Editor({ params }: { params: { id: string } }) {
   const handleRestoreVersion = (version: any) => {
     if (!confirm(`Restore to version "${version.label || format(new Date(version.createdAt), "MMM d, h:mm a")}"? Current content will be overwritten.`)) return;
     setTitle(version.title);
-    setContent(version.content);
+    applyEditorContent(version.content);
     toast({ title: "Version restored — save to keep changes" });
   };
 
@@ -678,6 +702,7 @@ export default function Editor({ params }: { params: { id: string } }) {
     { target: "#tour-editor-sidebar", title: "AI Writing Assistant", description: "Grammar check, AI rewrites, summarization, prologue generation, chat with the AI about your document, and image creation — all in one sidebar.", placement: "left" as const },
     { target: "#tour-editor-undo", title: "Undo & Redo", description: "Made a mistake? Undo (Ctrl+Z) and Redo (Ctrl+Shift+Z) let you step through your editing history.", placement: "bottom" as const },
     { target: "#tour-editor-export", title: "Export Your Work", description: "When you're ready, export your document as a polished PDF or DOCX file with one click.", placement: "bottom" as const },
+    { target: "#tour-editor-upload", title: "Upload Images", description: "Upload images from your computer and insert them directly at your cursor position in the document.", placement: "bottom" as const },
     { target: "#tour-editor-table", title: "Insert Tables", description: "Add tables to your document. Click to open the grid, then hover and click to pick your desired rows and columns.", placement: "bottom" as const },
     { target: "#tour-editor-chart", title: "Insert Charts", description: "Add bar, line, pie, or area charts to your document. Perfect for visualizing data, stats, or comparisons in your writing.", placement: "bottom" as const },
   ];
@@ -766,7 +791,7 @@ export default function Editor({ params }: { params: { id: string } }) {
         <div className="flex-1 overflow-y-auto flex justify-center">
           <div id="tour-editor-textarea" className="w-full max-w-3xl px-4 md:px-8 py-6">
             {editorReady ? (
-            <RichTextEditor key={documentId} content={content} onBlur={stableOnBlur} onChange={stableOnChange} onSelectionChange={stableOnSelectionChange} placeholder="Start writing..." />
+            <RichTextEditor key={documentId} ref={richEditorRef} content={content} onBlur={stableOnBlur} onChange={stableOnChange} onSelectionChange={stableOnSelectionChange} placeholder="Start writing..." />
             ) : (
               <div className="min-h-[60vh] flex items-center justify-center text-muted-foreground">
                 <Loader2 className="w-6 h-6 animate-spin" />
@@ -815,7 +840,10 @@ export default function Editor({ params }: { params: { id: string } }) {
                 {grammarErrors.length > 0 && (
                   <div className="space-y-3">
                     <p className="text-xs font-medium text-muted-foreground">{grammarErrors.length} issue{grammarErrors.length !== 1 ? "s" : ""} found</p>
-                    {grammarErrors.map((err, i) => (
+                    {grammarErrors.map((err, i) => {
+                      const range = plainSpanToHtml(err.offset, err.length);
+                      const errSnippet = range ? content.slice(range[0], range[1]) : (err.message || "");
+                      return (
                       <div key={i} className="p-3 bg-secondary/50 rounded-lg text-xs space-y-2 cursor-pointer hover:bg-secondary/80 transition-colors" onClick={() => scrollToError(err.offset, err.length)}>
                         <div className="flex items-start justify-between gap-2">
                           <Badge variant="outline" className={`
@@ -830,7 +858,7 @@ export default function Editor({ params }: { params: { id: string } }) {
                           <div
                             className="text-muted-foreground line-through bg-background/70 p-1.5 rounded border border-dashed cursor-pointer hover:bg-muted/50 transition-colors"
                             onClick={(e) => { e.stopPropagation(); scrollToError(err.offset, err.length); }}
-                          >{content.slice(err.offset, err.offset + err.length)}</div>
+                          >{errSnippet}</div>
                           {err.suggestion && (
                             <div
                               className="bg-green-50 dark:bg-green-950/30 p-1.5 rounded border border-green-200 dark:border-green-800 cursor-pointer hover:bg-green-100 dark:hover:bg-green-950/50 transition-colors"
@@ -841,7 +869,8 @@ export default function Editor({ params }: { params: { id: string } }) {
                           )}
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                     {correctedText && <Button onClick={handleApplyGrammar} className="w-full gap-1.5" size="sm">Apply All {grammarErrors.length} Correction{grammarErrors.length !== 1 ? "s" : ""}</Button>}
                   </div>
                 )}

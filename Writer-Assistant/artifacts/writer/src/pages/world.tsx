@@ -63,7 +63,10 @@ function EntityForm({ entity, onSave, onCancel, documentId, isLoading }: any) {
     setIsGeneratingImage(true);
     aiImage.mutate({ data: { prompt, size: "1024x1024" } }, {
       onSuccess: (result) => {
-        setImageUrl(`data:image/png;base64,${result.b64_json}`);
+        // The endpoint may return SVG (image/svg+xml) when falling back to the
+        // procedural generator; honour the reported mime instead of assuming PNG.
+        const mime = (result as any).mime || "image/png";
+        setImageUrl(`data:${mime};base64,${result.b64_json}`);
         setIsGeneratingImage(false);
       },
       onError: (e) => { setIsGeneratingImage(false); toast({ title: (e as any)?.error || "Image generation failed", variant: "destructive" }); }

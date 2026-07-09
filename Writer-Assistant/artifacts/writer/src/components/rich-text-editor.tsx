@@ -7,12 +7,13 @@ import { FontFamily } from "@tiptap/extension-font-family";
 import { TextAlign } from "@tiptap/extension-text-align";
 import { Highlight } from "@tiptap/extension-highlight";
 import { Link } from "@tiptap/extension-link";
-import { useCallback, useEffect, useRef, useState, memo } from "react";
+import { Image } from "@tiptap/extension-image";
+import { useCallback, useEffect, useRef, useState, memo, forwardRef, useImperativeHandle } from "react";
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   Heading1, Heading2, Heading3, List, ListOrdered, Quote,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
-  Undo2, Redo2, Minus, Code, FileCode, BarChart3,
+  Undo2, Redo2, Minus, Code, FileCode, BarChart3, Upload,
 } from "lucide-react";
 import { TableKit } from "@tiptap/extension-table";
 import { ChartExtension } from "@/extensions/chart";
@@ -76,8 +77,19 @@ interface RichTextEditorProps {
   onSelectionChange?: (selectedText: string) => void;
 }
 
-function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionChange }: RichTextEditorProps) {
+export interface RichTextEditorHandle {
+  // Imperatively replace the editor's document. The `content` prop is only used
+  // as the initial value (the memo comparator below intentionally skips content
+  // changes to keep typing off the React render path), so external updates —
+  // grammar apply, AI suggestion apply, version restore — must go through here.
+  setContent: (html: string) => void;
+  focus: () => void;
+}
+
+function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionChange }: RichTextEditorProps, ref: React.Ref<RichTextEditorHandle>) {
   const rafRef = useRef<number>(0);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const savedSelectionRef = useRef<any>(null);
 
   useEffect(() => {
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
@@ -96,6 +108,7 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
       TextAlign.configure({ types: ["heading", "paragraph"] }),
       Highlight.configure({ multicolor: true }),
       Link.configure({ openOnClick: false, protocols: ["http", "https", "mailto"] }),
+      Image,
       ChartExtension,
       TableKit.configure({
         table: { resizable: true, allowTableNodeSelection: true },
@@ -124,6 +137,15 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
 
   const onSelectionChangeRef = useRef(onSelectionChange);
   onSelectionChangeRef.current = onSelectionChange;
+
+  useImperativeHandle(ref, () => ({
+    setContent: (html: string) => {
+      if (editor && !editor.isDestroyed) editor.commands.setContent(html ?? "");
+    },
+    focus: () => {
+      editor?.commands.focus();
+    },
+  }), [editor]);
 
   useEffect(() => {
     if (!editor) return;
@@ -197,10 +219,56 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
     editor.chain().focus().setLink({ href: url }).run();
   }, [editor]);
 
+  const handleUploadClick = useCallback(() => {
+    if (!editor) return;
+    savedSelectionRef.current = { from: editor.state.selection.from, to: editor.state.selection.to };
+    imageInputRef.current?.click();
+  }, [editor]);
+
+  const handleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!editor) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (savedSelectionRef.current) {
+      const from = savedSelectionRef.current.from;
+      editor.chain().focus().setTextSelection(from).run();
+      savedSelectionRef.current = null;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Upload failed"); }
+      const data = await res.json();
+      editor.chain().focus().setImage({ src: data.url }).run();
+    } catch (err: any) {
+      alert(err.message || "Upload failed");
+    } finally {
+      if (imageInputRef.current) imageInputRef.current.value = "";
+    }
+  }, [editor]);
+
   const addImage = useCallback(() => {
     if (!editor) return;
     const url = prompt("Enter image URL:");
-    if (url) editor.chain().focus().setImage({ src: url }).run();
+    if (!url) return;
+    // Allow http(s) and data: image URLs (uploads use data: URIs). Reject other
+    // schemes — javascript:/data:text-html etc. are not valid <img> sources and
+    // could be abused. Mirrors the setLink() allowlist check.
+    let ok = false;
+    try {
+      const parsed = new URL(url);
+      ok = parsed.protocol === "http:" || parsed.protocol === "https:";
+    } catch {
+      ok = /^data:image\//i.test(url.trim());
+    }
+    if (!ok) {
+      alert("Only http(s) image URLs or uploaded images are allowed.");
+      return;
+    }
+    editor.chain().focus().setImage({ src: url }).run();
   }, [editor]);
 
   if (!editor) return null;
@@ -302,7 +370,11 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
         <ToolbarButton onClick={setLink} active={editor.isActive("link")} title="Link">
           <span className="text-xs font-bold">🔗</span>
         </ToolbarButton>
-        <ToolbarButton onClick={addImage} title="Image">
+        <input type="file" ref={imageInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
+        <ToolbarButton onClick={handleUploadClick} title="Upload Image" id="tour-editor-upload">
+          <Upload className="w-3.5 h-3.5" />
+        </ToolbarButton>
+        <ToolbarButton onClick={addImage} title="Image URL">
           <span className="text-xs font-bold">🖼</span>
         </ToolbarButton>
         <TableGridPopover id="tour-editor-table" onInsert={insertTable} />
@@ -352,7 +424,7 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
   );
 }
 
-export default memo(RichTextEditor, (prev, next) => {
+export default memo(forwardRef<RichTextEditorHandle, RichTextEditorProps>(RichTextEditor), (prev, next) => {
   return prev.onChange === next.onChange
     && prev.onBlur === next.onBlur
     && prev.placeholder === next.placeholder

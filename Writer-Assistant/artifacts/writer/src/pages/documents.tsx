@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useLocation, Link } from "wouter";
 import {
   useListDocuments, useCreateDocument, useGetDocumentStats, useDeleteDocument,
@@ -16,6 +16,7 @@ import {
   Plus, FileText, Trash2, Loader2, ArrowRight, Sun, Moon, Globe, Target,
   LayoutDashboard, Sparkles, BookOpen, Image as ImageIcon, History,
   CheckCircle, Wand2, Crown, User, ChevronRight, HelpCircle, Menu,
+  Upload,
 } from "lucide-react";
 import { UserButton } from "@clerk/react";
 import OnboardingTour from "@/components/onboarding-tour";
@@ -23,6 +24,27 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 type View = "home" | "documents" | "world" | "ai-features" | "stats";
+
+// Document content is stored as HTML (TipTap). For list/dashboard previews we
+// need the readable text, not the raw tags — strip them. Mirrors the server's
+// countWords() decoding so previews match the saved word counts.
+function stripHtml(html: string): string {
+  return (html || "")
+    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/&#x27;/g, "'").replace(/&#x2F;/g, "/")
+    .replace(/&#(\d+);/g, (_, c) => String.fromCharCode(parseInt(c, 10)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, c) => String.fromCharCode(parseInt(c, 16)))
+    .replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+// Defensive: docs from the API should always have wordCount, but stale cache or
+// partial responses shouldn't crash the dashboard with a null deref.
+function goalPct(wordCount: any, goal: any): number {
+  const wc = typeof wordCount === "number" ? wordCount : 0;
+  const g = typeof goal === "number" && goal > 0 ? goal : 0;
+  return g ? Math.min(100, Math.round((wc / g) * 100)) : 0;
+}
 
 const NAV_ITEMS: { id: View; label: string; icon: React.ElementType; description: string }[] = [
   { id: "home", label: "Home", icon: LayoutDashboard, description: "Your writing dashboard" },
@@ -51,6 +73,9 @@ export default function Documents() {
   const { theme, toggleTheme } = useTheme();
   const [activeView, setActiveView] = useState<View>("home");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const mobileFileInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
   const clerkEnabled = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
@@ -71,6 +96,33 @@ export default function Documents() {
     });
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.target;
+    const file = input.files?.[0];
+    if (!file) return;
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!res.ok) {
+        let msg = "Upload failed";
+        try { const err = await res.json(); if (err?.error) msg = err.error; } catch { /* non-JSON error body */ }
+        throw new Error(msg);
+      }
+      const data = await res.json();
+      // Upload succeeded; clipboard copy is best-effort and can fail for
+      // permissions / non-secure contexts — don't report it as an upload failure.
+      try { await navigator.clipboard.writeText(data.url); } catch { /* clipboard blocked */ }
+      toast({ title: "Image uploaded! URL copied to clipboard." });
+    } catch (err: any) {
+      toast({ title: err.message || "Upload failed", variant: "destructive" });
+    } finally {
+      setIsUploading(false);
+      input.value = "";
+    }
+  };
+
   const handleDelete = (e: React.MouseEvent, id: number) => {
     e.preventDefault(); e.stopPropagation();
     if (!confirm("Delete this document?")) return;
@@ -87,6 +139,7 @@ export default function Documents() {
   const DOCS_TOUR_STEPS = [
     { target: "#tour-home-hero", title: "Welcome to Whimsical Writer", description: "Your AI-powered creative writing companion. Create documents, build worlds, and track your progress — all in one place.", placement: "bottom" as const },
     { target: "#tour-docs-new", title: "Create a New Document", description: "Start a fresh manuscript with one click. Each document gets its own AI chat, versions, and world-building space.", placement: "right" as const },
+    { target: "#tour-docs-upload", title: "Upload Images", description: "Upload images from your computer. The image URL is copied to your clipboard so you can paste it anywhere.", placement: "right" as const },
     { target: "#tour-home-world", title: "Build Your World", description: "Create character profiles, map out locations, and define key items for your fictional universe.", placement: "bottom" as const },
     { target: "#tour-home-ai", title: "AI-Powered Tools", description: "Grammar checks, rewrites, summarization, prologue generation, and image creation — all built into the editor sidebar.", placement: "bottom" as const },
     { target: "#tour-home-stats", title: "Track Your Progress", description: "See your word count, writing streaks, and goal completion at a glance.", placement: "bottom" as const },
@@ -120,6 +173,11 @@ export default function Documents() {
               <Button onClick={handleCreateDocument} disabled={createDoc.isPending} className="w-full gap-2" size="sm">
                 {createDoc.isPending ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Plus className="w-4 h-4 shrink-0" />}
                 New Document
+              </Button>
+              <input type="file" ref={mobileFileInputRef} onChange={handleFileUpload} accept="image/*" className="hidden" />
+              <Button onClick={() => mobileFileInputRef.current?.click()} disabled={isUploading} variant="outline" className="w-full gap-2" size="sm">
+                {isUploading ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Upload className="w-4 h-4 shrink-0" />}
+                {isUploading ? "Uploading..." : "Upload Image"}
               </Button>
             </div>
             <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
@@ -178,7 +236,18 @@ export default function Documents() {
             {createDoc.isPending ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Plus className="w-4 h-4 shrink-0" />}
             {!sidebarCollapsed && "New Document"}
           </Button>
-
+          <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="image/*" className="hidden" />
+          <Button
+            id="tour-docs-upload"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            variant="outline"
+            className={`w-full gap-2 ${sidebarCollapsed ? "px-0 justify-center" : ""}`}
+            size="sm"
+          >
+            {isUploading ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Upload className="w-4 h-4 shrink-0" />}
+            {!sidebarCollapsed && (isUploading ? "Uploading..." : "Upload Image")}
+          </Button>
         </div>
 
         {/* Navigation */}
@@ -272,13 +341,13 @@ export default function Documents() {
 
             {/* Stats Overview */}
             {!isLoadingStats && stats && (stats.totalDocuments ?? 0) > 0 && (
-              <div id="tour-home-stats" className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div id="tour-home-stats" className="grid grid-cols-3 gap-4">
                 <Card className="shadow-sm border-indigo-500/10">
                   <CardHeader className="pb-2 px-4 pt-4">
                     <CardDescription className="text-xs uppercase tracking-wide flex items-center gap-1">
                       <FileText className="w-3 h-3" /> Documents
                     </CardDescription>
-                    <CardTitle className="text-3xl font-serif mt-1">{stats.totalDocuments}</CardTitle>
+                    <CardTitle className="text-3xl font-serif mt-1">{(stats.totalDocuments ?? 0).toLocaleString()}</CardTitle>
                   </CardHeader>
                 </Card>
                 <Card className="shadow-sm border-indigo-500/10">
@@ -348,7 +417,7 @@ export default function Documents() {
                 </CardFooter>
               </Card>
 
-              <Card id="tour-home-stats" className="shadow-sm cursor-pointer group hover:border-primary/50 transition-colors"
+              <Card className="shadow-sm cursor-pointer group hover:border-primary/50 transition-colors"
                 onClick={() => setActiveView("stats")}>
                 <CardHeader className="pb-3">
                   <div className="flex items-center gap-3">
@@ -390,13 +459,13 @@ export default function Documents() {
                             {doc.title || "Untitled Document"}
                           </CardTitle>
                           <CardDescription className="text-xs mt-1 flex items-center gap-2">
-                            <span>{doc.wordCount.toLocaleString()} words</span>
+                            <span>{(doc.wordCount ?? 0).toLocaleString()} words</span>
                             <span>·</span>
                             <span>{format(new Date(doc.updatedAt), "MMM d")}</span>
                           </CardDescription>
                         </CardHeader>
                         <CardContent className="pt-0 flex-1">
-                          <p className="text-xs text-muted-foreground line-clamp-2">{doc.content || "Empty document..."}</p>
+                          <p className="text-xs text-muted-foreground line-clamp-2">{stripHtml(doc.content) || "Empty document..."}</p>
                         </CardContent>
                       </Card>
                     </Link>
@@ -466,10 +535,10 @@ export default function Documents() {
                           <CardDescription className="mt-1 flex items-center gap-2 text-xs flex-wrap">
                             <span>{format(new Date(doc.updatedAt), "MMM d, yyyy")}</span>
                             <span>·</span>
-                            <span>{doc.wordCount.toLocaleString()} words</span>
+                            <span>{(doc.wordCount ?? 0).toLocaleString()} words</span>
                             {doc.goalWordCount && (
                               <span className="flex items-center gap-0.5 text-primary font-medium">
-                                <Target className="w-2.5 h-2.5" />{Math.round((doc.wordCount / doc.goalWordCount) * 100)}%
+                                <Target className="w-2.5 h-2.5" />{goalPct(doc.wordCount, doc.goalWordCount)}%
                               </span>
                             )}
                           </CardDescription>
@@ -486,12 +555,12 @@ export default function Documents() {
                         </div>
                       </CardHeader>
                       <CardContent className="flex-1">
-                        <p className="text-muted-foreground text-sm line-clamp-3 leading-relaxed">{doc.content || "Empty document..."}</p>
+                        <p className="text-muted-foreground text-sm line-clamp-3 leading-relaxed">{stripHtml(doc.content) || "Empty document..."}</p>
                       </CardContent>
                       {doc.goalWordCount && (
                         <div className="px-6 pb-2">
                           <div className="h-1 bg-secondary rounded-full overflow-hidden">
-                            <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(100, Math.round((doc.wordCount / doc.goalWordCount) * 100))}%` }} />
+                            <div className="h-full bg-primary rounded-full" style={{ width: `${goalPct(doc.wordCount, doc.goalWordCount)}%` }} />
                           </div>
                         </div>
                       )}
@@ -540,7 +609,7 @@ export default function Documents() {
                           <CardTitle className="font-serif text-lg line-clamp-1 group-hover:text-primary transition-colors">
                             {doc.title || "Untitled Document"}
                           </CardTitle>
-                          <CardDescription className="text-xs mt-1">{doc.wordCount.toLocaleString()} words · {format(new Date(doc.updatedAt), "MMM d, yyyy")}</CardDescription>
+                          <CardDescription className="text-xs mt-1">{(doc.wordCount ?? 0).toLocaleString()} words · {format(new Date(doc.updatedAt), "MMM d, yyyy")}</CardDescription>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <div className="p-2 bg-secondary rounded-lg group-hover:bg-primary/10 transition-colors">
@@ -665,13 +734,13 @@ export default function Documents() {
                       onClick={() => setLocation(`/editor/${doc.id}`)}>
                       <div className="min-w-0 flex-1">
                         <p className="font-medium line-clamp-1 group-hover:text-primary transition-colors">{doc.title || "Untitled Document"}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">{doc.wordCount.toLocaleString()} words · {format(new Date(doc.updatedAt), "MMM d, yyyy")}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{(doc.wordCount ?? 0).toLocaleString()} words · {format(new Date(doc.updatedAt), "MMM d, yyyy")}</p>
                       </div>
                       {doc.goalWordCount && (
                         <div className="text-right shrink-0 ml-4">
-                          <p className="text-xs font-medium text-primary">{Math.round((doc.wordCount / doc.goalWordCount) * 100)}% of goal</p>
+                          <p className="text-xs font-medium text-primary">{goalPct(doc.wordCount, doc.goalWordCount)}% of goal</p>
                           <div className="w-24 h-1.5 bg-secondary rounded-full mt-1">
-                            <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(100, Math.round((doc.wordCount / doc.goalWordCount) * 100))}%` }} />
+                            <div className="h-full bg-primary rounded-full" style={{ width: `${goalPct(doc.wordCount, doc.goalWordCount)}%` }} />
                           </div>
                         </div>
                       )}
