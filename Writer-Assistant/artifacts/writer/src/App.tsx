@@ -29,6 +29,25 @@ function AuthHero() {
 
 setupGuestId();
 
+// Clerk is opt-in: only render the hosted <SignIn>/<SignUp> components when a
+// publishable key is configured. Deployments without one run guest-only, so the
+// auth pages show a guest CTA instead of a broken/empty Clerk form.
+const clerkEnabled = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+
+// Fallback shown on the auth pages when Clerk isn't configured for this deploy.
+function GuestOnlyNotice({ onContinue }: { onContinue: () => void }) {
+  return (
+    <div className="rounded-xl border bg-card p-6 text-center space-y-3 shadow-sm">
+      <p className="text-sm text-muted-foreground">
+        Account sign-in isn&rsquo;t available on this deployment yet.
+      </p>
+      <Button onClick={onContinue} className="w-full gap-2">
+        Continue as Guest <ArrowRight className="w-4 h-4" />
+      </Button>
+    </div>
+  );
+}
+
 // Catch render errors so the page never goes completely white.
 window.addEventListener("error", () => {});
 window.addEventListener("unhandledrejection", () => {});
@@ -90,12 +109,16 @@ function SignInPage() {
             ui prop on ClerkProvider). routing="path" lets Clerk own its
             multi-step flow under /sign-in/*; wouter's "/sign-in/*?" route keeps
             this page mounted for all sub-paths. */}
-        <SignIn
-          routing="path"
-          path="/sign-in"
-          fallbackRedirectUrl="/documents"
-          signUpUrl="/sign-up"
-        />
+        {clerkEnabled ? (
+          <SignIn
+            routing="path"
+            path="/sign-in"
+            fallbackRedirectUrl="/documents"
+            signUpUrl="/sign-up"
+          />
+        ) : (
+          <GuestOnlyNotice onContinue={() => setLocation("/documents")} />
+        )}
         <div className="flex items-center justify-between text-sm">
           <button
             onClick={() => setLocation("/sign-up")}
@@ -122,12 +145,16 @@ function SignUpPage() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-sm space-y-6">
         <AuthHero />
-        <SignUp
-          routing="path"
-          path="/sign-up"
-          fallbackRedirectUrl="/documents"
-          signInUrl="/sign-in"
-        />
+        {clerkEnabled ? (
+          <SignUp
+            routing="path"
+            path="/sign-up"
+            fallbackRedirectUrl="/documents"
+            signInUrl="/sign-in"
+          />
+        ) : (
+          <GuestOnlyNotice onContinue={() => setLocation("/documents")} />
+        )}
         <div className="text-center text-sm">
           <button
             onClick={() => setLocation("/sign-in")}
