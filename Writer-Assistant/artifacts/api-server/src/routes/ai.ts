@@ -272,7 +272,7 @@ function checkKey(res: any): boolean {
 router.post("/suggest", async (req, res) => {
   if (!checkKey(res)) return;
   const parse = AiSuggestBody.safeParse(req.body);
-  if (!parse.success) return res.status(400).json({ error: "Invalid input" });
+  if (!parse.success) { res.status(400).json({ error: "Invalid input" }); return; }
   const { text, type, context } = parse.data;
   const prompts: Record<string, string> = {
     improve: `Improve the following text to make it clearer, more engaging, and better written. Return only the improved text:\n\n${text}`,
@@ -389,14 +389,18 @@ function wordDiff(original: string, corrected: string) {
       k++;
     }
 
+    // Pure insertions (corrWords only, no original span) have no anchor offset to
+    // report — skip them; substitutions and deletions both have origWords.
     if (origWords.length === 0) continue;
-    if (corrWords.length === 0) continue;
 
     const errSpan = original.slice(blockStart, blockEnd);
     const corrStr = corrWords.join(" ");
+    // A pure deletion (e.g. removing a doubled word) is a valid fix: the
+    // suggestion is empty, meaning "remove this span".
+    const origStr = origWords.join(" ");
 
     errors.push({
-      message: `${origWords.join(" ")} → ${corrStr}`,
+      message: corrWords.length ? `${origStr} → ${corrStr}` : `${origStr} → (remove)`,
       suggestion: corrStr,
       offset: blockStart,
       length: blockEnd - blockStart,
@@ -411,7 +415,7 @@ function wordDiff(original: string, corrected: string) {
 router.post("/grammar", async (req, res) => {
   if (!checkKey(res)) return;
   const parse = AiGrammarCheckBody.safeParse(req.body);
-  if (!parse.success) return res.status(400).json({ error: "Invalid input" });
+  if (!parse.success) { res.status(400).json({ error: "Invalid input" }); return; }
   const { text } = parse.data;
 
   // Quick pre-scan: check if the text has any errors before doing a full correction
@@ -429,7 +433,7 @@ router.post("/grammar", async (req, res) => {
   });
   const scanResult = (scanCompletion.choices[0]?.message?.content || "").trim().toUpperCase();
 
-  if (scanResult === "NO") return res.json({ errors: [], correctedText: text });
+  if (scanResult === "NO") { res.json({ errors: [], correctedText: text }); return; }
 
   // Get corrected text from AI
   const fixCompletion = await getClient().chat.completions.create({
@@ -457,7 +461,7 @@ Return ONLY the corrected text with all errors fixed. Do NOT add any explanation
   });
   const corrected = fixCompletion.choices[0]?.message?.content?.trim() || text.trim();
 
-  if (corrected === text.trim()) return res.json({ errors: [], correctedText: text });
+  if (corrected === text.trim()) { res.json({ errors: [], correctedText: text }); return; }
 
   const errors = wordDiff(text, corrected);
   res.json({ errors, correctedText: corrected });
@@ -473,13 +477,13 @@ router.post("/scan-entities", async (req, res) => {
   const entityName = body.entityName;
   const documentContent = body.documentContent;
   if (typeof type !== "string" || !(ENTITY_TYPES as readonly string[]).includes(type)) {
-    return res.status(400).json({ error: "Invalid input" });
+    res.status(400).json({ error: "Invalid input" }); return;
   }
   if (typeof documentContent !== "string" || documentContent.length < 1 || documentContent.length > 100000) {
-    return res.status(400).json({ error: "Invalid input" });
+    res.status(400).json({ error: "Invalid input" }); return;
   }
   if (entityName !== undefined && (typeof entityName !== "string" || entityName.length > 200)) {
-    return res.status(400).json({ error: "Invalid input" });
+    res.status(400).json({ error: "Invalid input" }); return;
   }
 
   const article = type === "animal" ? "an" : "a";
@@ -578,16 +582,16 @@ router.post("/image", async (req, res) => {
   const entityName = body.entityName;
   const documentContent = body.documentContent;
   if (prompt !== undefined && (typeof prompt !== "string" || prompt.length > 5000)) {
-    return res.status(400).json({ error: "Invalid input" });
+    res.status(400).json({ error: "Invalid input" }); return;
   }
   if (entityType !== undefined && (typeof entityType !== "string" || !(ENTITY_TYPES as readonly string[]).includes(entityType))) {
-    return res.status(400).json({ error: "Invalid input" });
+    res.status(400).json({ error: "Invalid input" }); return;
   }
   if (entityName !== undefined && (typeof entityName !== "string" || entityName.length > 200)) {
-    return res.status(400).json({ error: "Invalid input" });
+    res.status(400).json({ error: "Invalid input" }); return;
   }
   if (documentContent !== undefined && (typeof documentContent !== "string" || documentContent.length > 100000)) {
-    return res.status(400).json({ error: "Invalid input" });
+    res.status(400).json({ error: "Invalid input" }); return;
   }
 
   let finalPrompt: string | undefined = prompt;
@@ -619,7 +623,7 @@ Return a single detailed image generation prompt (2-3 sentences) describing this
   }
 
   if (!finalPrompt) {
-    return res.status(400).json({ error: "prompt is required" });
+    res.status(400).json({ error: "prompt is required" }); return;
   }
 
   // Generate image using OpenRouter's images API
@@ -650,7 +654,7 @@ Return a single detailed image generation prompt (2-3 sentences) describing this
   }
 
   if (imgResult) {
-    return res.json(imgResult);
+    res.json(imgResult); return;
   }
 
   // Fallback: SVG generation via deepseek
@@ -729,7 +733,7 @@ Example structure:
 router.post("/summarize", async (req, res) => {
   if (!checkKey(res)) return;
   const parse = AiSummarizeBody.safeParse(req.body);
-  if (!parse.success) return res.status(400).json({ error: "Invalid input" });
+  if (!parse.success) { res.status(400).json({ error: "Invalid input" }); return; }
   const { text, title } = parse.data;
   const completion = await getClient().chat.completions.create({
     model: MODEL,
@@ -746,7 +750,7 @@ router.post("/summarize", async (req, res) => {
 router.post("/prologue", async (req, res) => {
   if (!checkKey(res)) return;
   const parse = AiGeneratePrologueBody.safeParse(req.body);
-  if (!parse.success) return res.status(400).json({ error: "Invalid input" });
+  if (!parse.success) { res.status(400).json({ error: "Invalid input" }); return; }
   const { text, title } = parse.data;
   const completion = await getClient().chat.completions.create({
     model: MODEL,
@@ -763,7 +767,7 @@ router.post("/prologue", async (req, res) => {
 router.post("/chat", async (req, res) => {
   if (!checkKey(res)) return;
   const parse = AiChatBody.safeParse(req.body);
-  if (!parse.success) return res.status(400).json({ error: "Invalid input" });
+  if (!parse.success) { res.status(400).json({ error: "Invalid input" }); return; }
   const { messages: incomingMessages, conversationId } = parse.data;
   const userId = getUserId(req);
 
@@ -802,7 +806,7 @@ router.post("/chat", async (req, res) => {
 
   if (convId) {
     const [conv] = await db.select().from(conversations).where(and(eq(conversations.id, convId), eq(conversations.userId, userId)));
-    if (!conv) return res.status(404).json({ error: "Conversation not found" });
+    if (!conv) { res.status(404).json({ error: "Conversation not found" }); return; }
 
     const userMsg = incomingMessages.find(m => m.role === "user");
     if (userMsg) {

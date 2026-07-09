@@ -92,8 +92,12 @@ export const resolveIdentity: RequestHandler = (req, res, next) => {
   }
 
   // x-guest-id header (from localStorage on the frontend) is the fallback source.
-  // It survives cookie-only clears (which some browsers do aggressively).
-  if (typeof guestId === "string" && guestId.length > 0) {
+  // It survives cookie-only clears (which some browsers do aggressively). Only
+  // accept a well-formed UUID — the frontend always sends one via
+  // crypto.randomUUID(), so anything else is a malformed/forged value we'd rather
+  // not adopt as an identity (it would silently bind the caller to arbitrary data).
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (typeof guestId === "string" && UUID_RE.test(guestId)) {
     req.identity = { type: "guest", id: guestId };
     issueGuestCookie(res, guestId);
     return next();
@@ -111,5 +115,13 @@ export const requireIdentity: RequestHandler = (_req, _res, next) => {
 };
 
 export function getUserId(req: any): string {
-  return req.identity?.id ?? "guest";
+  // resolveIdentity (applied globally in app.ts) always sets req.identity. If it
+  // is somehow missing, fail closed with a unique per-request id rather than the
+  // shared literal "guest" — that literal would bucket every anonymous request
+  // together and leak data between unrelated callers.
+  const id = req.identity?.id;
+  if (typeof id === "string" && id.length > 0) return id;
+  const fallback = `anon:${(req.ip ?? "0.0.0.0")}`;
+  if (!req.identity) req.identity = { type: "guest", id: fallback };
+  return fallback;
 }

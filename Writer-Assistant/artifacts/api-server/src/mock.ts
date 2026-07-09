@@ -47,13 +47,13 @@ app.post("/api/documents", (req, res) => {
 
 app.get("/api/documents/:id", (req, res) => {
   const doc = docs.get(Number(req.params.id));
-  if (!doc) return res.status(404).json({ error: "Not found" });
+  if (!doc) { res.status(404).json({ error: "Not found" }); return; }
   res.json(serializeDoc(doc));
 });
 
 app.patch("/api/documents/:id", (req, res) => {
   const doc = docs.get(Number(req.params.id));
-  if (!doc) return res.status(404).json({ error: "Not found" });
+  if (!doc) { res.status(404).json({ error: "Not found" }); return; }
   const { title, content, goalWordCount } = req.body;
   if (title !== undefined) doc.title = title;
   if (content !== undefined) {
@@ -87,7 +87,7 @@ app.post("/api/world", (req, res) => {
 
 app.patch("/api/world/:id", (req, res) => {
   const entity = entities.get(Number(req.params.id));
-  if (!entity) return res.status(404).json({ error: "Not found" });
+  if (!entity) { res.status(404).json({ error: "Not found" }); return; }
   Object.assign(entity, req.body, { updatedAt: new Date().toISOString() });
   res.json(serializeDoc(entity));
 });
