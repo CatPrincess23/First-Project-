@@ -6,12 +6,6 @@ import path from "path";
 import pinoHttp from "pino-http";
 import multer from "multer";
 import { clerkMiddleware } from "@clerk/express";
-import { publishableKeyFromHost } from "@clerk/shared/keys";
-import {
-  CLERK_PROXY_PATH,
-  clerkProxyMiddleware,
-  getClerkProxyHost,
-} from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
 import { resolveIdentity } from "./middlewares/identity";
 import { logger } from "./lib/logger";
@@ -42,8 +36,6 @@ app.use(
     },
   }),
 );
-
-app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
 // Security headers. CSP is tuned so the Vite-built SPA, Clerk, and the AI
 // origins keep working; tighten further only if those integrations change.
@@ -124,18 +116,22 @@ try {
 
 const skipAuth = !process.env.CLERK_SECRET_KEY;
 
+// Clerk is optional. When CLERK_SECRET_KEY is unset we run in guest-only mode
+// (identity resolved from the signed guest cookie / x-guest-id header). Throwing
+// here would take the whole API offline in environments that haven't configured
+// Clerk yet, so warn instead and keep serving guest traffic.
 if (skipAuth && process.env.NODE_ENV === "production") {
-  throw new Error("CLERK_SECRET_KEY must be set in production");
+  logger.warn(
+    "CLERK_SECRET_KEY not set — running in guest-only mode. Sign-in will not authenticate users until it is configured.",
+  );
 }
 
 if (!skipAuth) {
   app.use(
-    clerkMiddleware((req) => ({
-      publishableKey: publishableKeyFromHost(
-        getClerkProxyHost(req) ?? "",
-        process.env.CLERK_PUBLISHABLE_KEY,
-      ),
-    })),
+    clerkMiddleware({
+      secretKey: process.env.CLERK_SECRET_KEY,
+      publishableKey: process.env.CLERK_PUBLISHABLE_KEY,
+    }),
   );
 }
 

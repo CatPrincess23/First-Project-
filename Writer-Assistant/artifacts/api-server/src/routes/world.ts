@@ -6,10 +6,13 @@ import { getUserId } from "../middlewares/identity";
 const router = Router({ mergeParams: true });
 
 // mergeParams:true means the parent route's :documentId is available here, but
-// Express's types don't know that — type the param access explicitly.
+// Express's types don't know that — type the param access explicitly. Reject
+// empty/missing values: Number("") and Number(null) are 0 (finite), which would
+// otherwise leak through as a bogus id query instead of a 400.
 type WorldParams = { documentId?: string; entityId?: string };
 const getParam = (req: { params: WorldParams }, key: keyof WorldParams): number => {
   const raw = req.params[key];
+  if (!raw) return NaN;
   const n = Number(raw);
   return Number.isFinite(n) ? n : NaN;
 };
