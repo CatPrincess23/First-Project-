@@ -402,6 +402,38 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
       <TableHandle editor={editor} />
 
       <style>{`
+        .ProseMirror ul, .ProseMirror ol {
+          list-style: revert;
+          padding-left: 1.5em;
+          margin: 0.5em 0;
+        }
+        .ProseMirror li {
+          margin: 0.25em 0;
+        }
+        .ProseMirror ul ul, .ProseMirror ol ul,
+        .ProseMirror ul ol, .ProseMirror ol ol {
+          margin: 0;
+        }
+        .ProseMirror blockquote {
+          border-left: 3px solid hsl(var(--border));
+          padding-left: 1em;
+          margin: 0.5em 0;
+          color: hsl(var(--muted-foreground));
+          font-style: italic;
+        }
+        .ProseMirror pre {
+          background: hsl(var(--muted));
+          border-radius: 0.375rem;
+          padding: 0.75em 1em;
+          font-family: monospace;
+          overflow-x: auto;
+          margin: 0.5em 0;
+        }
+        .ProseMirror hr {
+          border: none;
+          border-top: 2px solid hsl(var(--border));
+          margin: 1em 0;
+        }
         .ProseMirror table {
           border-collapse: collapse;
           table-layout: fixed;
