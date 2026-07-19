@@ -17,6 +17,15 @@ function getGuestId(): string {
   return _guestId;
 }
 
+export function clearGuestId() {
+  localStorage.removeItem(GUEST_ID_KEY);
+  _guestId = null;
+}
+
+export function getCurrentGuestId(): string | null {
+  return localStorage.getItem(GUEST_ID_KEY);
+}
+
 export function setupGuestId() {
   const originalFetch = window.fetch;
 

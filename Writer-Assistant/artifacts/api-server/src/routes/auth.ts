@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
 import { Router, type Request, type Response, type RequestHandler } from "express";
 import { rateLimit, ipKeyGenerator } from "express-rate-limit";
+import { db, documentsTable, documentVersionsTable, worldEntitiesTable, conversations } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import { issueGuestCookie, guestSigningEnabled } from "../middlewares/identity";
 
 const router = Router();
@@ -37,6 +39,60 @@ router.post("/guest", guestLimiter, botFilter, (_req, res) => {
   const uuid = crypto.randomUUID();
   issueGuestCookie(res, uuid);
   res.json({ ok: true });
+});
+
+// POST /api/auth/claim-documents — reassign guest-owned records to the
+// authenticated Clerk user. Called from the frontend after sign-in to migrate
+// documents created in guest mode to the user's permanent identity.
+router.post("/claim-documents", async (req, res) => {
+  const clerkUserId = (req as any).auth?.userId;
+  if (!clerkUserId) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+
+  const guestId = req.headers["x-guest-id"];
+  if (typeof guestId !== "string" || guestId.length === 0) {
+    res.json({ claimed: 0 });
+    return;
+  }
+
+  // Skip if the guest id looks like an `anon:` fallback — those are
+  // per-request ephemeral identities that shouldn't be claimed.
+  if (guestId.startsWith("anon:")) {
+    res.json({ claimed: 0 });
+    return;
+  }
+
+  const result = await db.transaction(async (tx) => {
+    const docResult = await tx
+      .update(documentsTable)
+      .set({ userId: clerkUserId })
+      .where(eq(documentsTable.userId, guestId))
+      .returning({ id: documentsTable.id });
+
+    await tx
+      .update(documentVersionsTable)
+      .set({ userId: clerkUserId })
+      .where(eq(documentVersionsTable.userId, guestId));
+
+    await tx
+      .update(worldEntitiesTable)
+      .set({ userId: clerkUserId })
+      .where(eq(worldEntitiesTable.userId, guestId));
+
+    await tx
+      .update(conversations)
+      .set({ userId: clerkUserId })
+      .where(eq(conversations.userId, guestId));
+
+    return { claimed: docResult.length };
+  });
+
+  // Clear the guest cookie so subsequent requests don't carry the stale identity.
+  res.clearCookie("wa_guest", { path: "/" });
+
+  res.json(result);
 });
 
 export default router;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import {
   useListDocuments, useCreateDocument, useGetDocumentStats, useDeleteDocument,
@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "@/lib/theme";
 import { usePro } from "@/lib/pro-context";
 import { stripHtml } from "@/lib/html";
+import { getCurrentGuestId, clearGuestId } from "@/lib/guest-id";
 import {
   Plus, FileText, Trash2, Loader2, ArrowRight, Sun, Moon, Globe, Target,
   LayoutDashboard, Sparkles, BookOpen, Image as ImageIcon, History,
@@ -68,6 +69,28 @@ export default function Documents() {
   const docs = Array.isArray(documents) ? documents : [];
   const createDoc = useCreateDocument();
   const deleteDoc = useDeleteDocument();
+
+  // Claim documents from guest identity after Clerk sign-in.
+  // When a user signs in, any documents created in guest mode are reassigned to
+  // their Clerk user ID so they persist across devices.
+  useEffect(() => {
+    if (!clerkEnabled) return;
+    const guestId = getCurrentGuestId();
+    if (!guestId) return;
+
+    const clerk = (window as any).Clerk;
+    if (!clerk?.session) return;
+
+    fetch("/api/auth/claim-documents", { method: "POST" })
+      .then((r) => {
+        if (r.ok) {
+          clearGuestId();
+          queryClient.invalidateQueries({ queryKey: getListDocumentsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetDocumentStatsQueryKey() });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleCreateDocument = () => {
     createDoc.mutate({ data: { title: "Untitled Document", content: "" } }, {

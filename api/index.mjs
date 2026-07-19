@@ -96901,121 +96901,6 @@ var health_default = router;
 var import_express2 = __toESM(require_express2(), 1);
 import crypto3 from "node:crypto";
 
-// artifacts/api-server/src/middlewares/identity.ts
-import crypto2 from "node:crypto";
-var isProd = process.env.NODE_ENV === "production";
-var GUEST_COOKIE = "wa_guest";
-var GUEST_COOKIE_MAX_AGE = 365 * 24 * 60 * 60 * 1e3;
-var GUEST_ID_SECRET = process.env.GUEST_ID_SECRET ?? (() => {
-  const generated = crypto2.randomBytes(32).toString("hex");
-  console.warn(
-    "[identity] GUEST_ID_SECRET not set \u2014 generated a random one. Guest cookies will be invalidated on server restart. Set GUEST_ID_SECRET for persistence."
-  );
-  return generated;
-})();
-var guestSigningEnabled = true;
-function hmacHex(uuid5) {
-  return crypto2.createHmac("sha256", GUEST_ID_SECRET).update(uuid5).digest("hex");
-}
-function signGuestId(uuid5) {
-  return `${uuid5}.${hmacHex(uuid5)}`;
-}
-function verifyGuestCookie(value) {
-  if (!guestSigningEnabled) return null;
-  const dot = value.lastIndexOf(".");
-  if (dot <= 0) return null;
-  const uuid5 = value.slice(0, dot);
-  const sig = value.slice(dot + 1);
-  const expected = hmacHex(uuid5);
-  if (sig.length !== expected.length) return null;
-  const sigBuf = Buffer.from(sig, "hex");
-  const expBuf = Buffer.from(expected, "hex");
-  if (sigBuf.length !== expBuf.length) return null;
-  if (!crypto2.timingSafeEqual(sigBuf, expBuf)) return null;
-  return uuid5;
-}
-function issueGuestCookie(res, uuid5) {
-  res.cookie(GUEST_COOKIE, signGuestId(uuid5), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: isProd,
-    path: "/",
-    maxAge: GUEST_COOKIE_MAX_AGE
-  });
-}
-var resolveIdentity = (req, res, next) => {
-  const userId = req.auth?.userId;
-  if (userId) {
-    req.identity = { type: "user", id: userId };
-    return next();
-  }
-  const guestId = req.headers["x-guest-id"];
-  const cookie = req.cookies?.[GUEST_COOKIE];
-  if (typeof cookie === "string" && cookie.length > 0) {
-    const uuid8 = verifyGuestCookie(cookie);
-    if (uuid8) {
-      req.identity = { type: "guest", id: uuid8 };
-      issueGuestCookie(res, uuid8);
-      if (typeof guestId === "string" && guestId.length > 0 && guestId !== uuid8) {
-        res.setHeader("X-Guest-Identity-Correction", uuid8);
-      }
-      return next();
-    }
-  }
-  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (typeof guestId === "string" && UUID_RE.test(guestId)) {
-    req.identity = { type: "guest", id: guestId };
-    issueGuestCookie(res, guestId);
-    return next();
-  }
-  const uuid5 = crypto2.randomUUID();
-  issueGuestCookie(res, uuid5);
-  req.identity = { type: "guest", id: uuid5 };
-  next();
-};
-var requireIdentity = (_req, _res, next) => {
-  next();
-};
-function getUserId(req) {
-  const id = req.identity?.id;
-  if (typeof id === "string" && id.length > 0) return id;
-  const fallback = `anon:${req.ip ?? "0.0.0.0"}`;
-  if (!req.identity) req.identity = { type: "guest", id: fallback };
-  return fallback;
-}
-
-// artifacts/api-server/src/routes/auth.ts
-var router2 = (0, import_express2.Router)();
-var guestLimiter = rate_limit_default({
-  windowMs: 15 * 60 * 1e3,
-  limit: 50,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req, _res) => ipKeyGenerator(req.ip ?? "", 56)
-});
-var BOT_UA = /bot|crawl|spider|curl|wget|python-requests|axios|headless/i;
-var botFilter = (req, res, next) => {
-  const ua = req.headers["user-agent"];
-  if (!ua || ua.trim() === "" || BOT_UA.test(ua)) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  next();
-};
-router2.post("/guest", guestLimiter, botFilter, (_req, res) => {
-  if (!guestSigningEnabled) {
-    res.status(503).json({ error: "Guest sign-in is currently unavailable" });
-    return;
-  }
-  const uuid5 = crypto3.randomUUID();
-  issueGuestCookie(res, uuid5);
-  res.json({ ok: true });
-});
-var auth_default = router2;
-
-// artifacts/api-server/src/routes/documents.ts
-var import_express3 = __toESM(require_express2(), 1);
-
 // node_modules/.pnpm/pg@8.20.0/node_modules/pg/esm/index.mjs
 var import_lib = __toESM(require_lib6(), 1);
 var Client2 = import_lib.default.Client;
@@ -115481,7 +115366,145 @@ pool.on(
 );
 var db = drizzle(pool, { schema: schema_exports });
 
+// artifacts/api-server/src/middlewares/identity.ts
+import crypto2 from "node:crypto";
+var isProd = process.env.NODE_ENV === "production";
+var GUEST_COOKIE = "wa_guest";
+var GUEST_COOKIE_MAX_AGE = 365 * 24 * 60 * 60 * 1e3;
+var GUEST_ID_SECRET = process.env.GUEST_ID_SECRET ?? (() => {
+  const generated = crypto2.randomBytes(32).toString("hex");
+  console.warn(
+    "[identity] GUEST_ID_SECRET not set \u2014 generated a random one. Guest cookies will be invalidated on server restart. Set GUEST_ID_SECRET for persistence."
+  );
+  return generated;
+})();
+var guestSigningEnabled = true;
+function hmacHex(uuid5) {
+  return crypto2.createHmac("sha256", GUEST_ID_SECRET).update(uuid5).digest("hex");
+}
+function signGuestId(uuid5) {
+  return `${uuid5}.${hmacHex(uuid5)}`;
+}
+function verifyGuestCookie(value) {
+  if (!guestSigningEnabled) return null;
+  const dot = value.lastIndexOf(".");
+  if (dot <= 0) return null;
+  const uuid5 = value.slice(0, dot);
+  const sig = value.slice(dot + 1);
+  const expected = hmacHex(uuid5);
+  if (sig.length !== expected.length) return null;
+  const sigBuf = Buffer.from(sig, "hex");
+  const expBuf = Buffer.from(expected, "hex");
+  if (sigBuf.length !== expBuf.length) return null;
+  if (!crypto2.timingSafeEqual(sigBuf, expBuf)) return null;
+  return uuid5;
+}
+function issueGuestCookie(res, uuid5) {
+  res.cookie(GUEST_COOKIE, signGuestId(uuid5), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isProd,
+    path: "/",
+    maxAge: GUEST_COOKIE_MAX_AGE
+  });
+}
+var resolveIdentity = (req, res, next) => {
+  const userId = req.auth?.userId;
+  if (userId) {
+    req.identity = { type: "user", id: userId };
+    return next();
+  }
+  const guestId = req.headers["x-guest-id"];
+  const cookie = req.cookies?.[GUEST_COOKIE];
+  if (typeof cookie === "string" && cookie.length > 0) {
+    const uuid8 = verifyGuestCookie(cookie);
+    if (uuid8) {
+      req.identity = { type: "guest", id: uuid8 };
+      issueGuestCookie(res, uuid8);
+      if (typeof guestId === "string" && guestId.length > 0 && guestId !== uuid8) {
+        res.setHeader("X-Guest-Identity-Correction", uuid8);
+      }
+      return next();
+    }
+  }
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (typeof guestId === "string" && UUID_RE.test(guestId)) {
+    req.identity = { type: "guest", id: guestId };
+    issueGuestCookie(res, guestId);
+    return next();
+  }
+  const uuid5 = crypto2.randomUUID();
+  issueGuestCookie(res, uuid5);
+  req.identity = { type: "guest", id: uuid5 };
+  next();
+};
+var requireIdentity = (_req, _res, next) => {
+  next();
+};
+function getUserId(req) {
+  const id = req.identity?.id;
+  if (typeof id === "string" && id.length > 0) return id;
+  const fallback = `anon:${req.ip ?? "0.0.0.0"}`;
+  if (!req.identity) req.identity = { type: "guest", id: fallback };
+  return fallback;
+}
+
+// artifacts/api-server/src/routes/auth.ts
+var router2 = (0, import_express2.Router)();
+var guestLimiter = rate_limit_default({
+  windowMs: 15 * 60 * 1e3,
+  limit: 50,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req, _res) => ipKeyGenerator(req.ip ?? "", 56)
+});
+var BOT_UA = /bot|crawl|spider|curl|wget|python-requests|axios|headless/i;
+var botFilter = (req, res, next) => {
+  const ua = req.headers["user-agent"];
+  if (!ua || ua.trim() === "" || BOT_UA.test(ua)) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  next();
+};
+router2.post("/guest", guestLimiter, botFilter, (_req, res) => {
+  if (!guestSigningEnabled) {
+    res.status(503).json({ error: "Guest sign-in is currently unavailable" });
+    return;
+  }
+  const uuid5 = crypto3.randomUUID();
+  issueGuestCookie(res, uuid5);
+  res.json({ ok: true });
+});
+router2.post("/claim-documents", async (req, res) => {
+  const clerkUserId = req.auth?.userId;
+  if (!clerkUserId) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+  const guestId = req.headers["x-guest-id"];
+  if (typeof guestId !== "string" || guestId.length === 0) {
+    res.json({ claimed: 0 });
+    return;
+  }
+  if (guestId.startsWith("anon:")) {
+    res.json({ claimed: 0 });
+    return;
+  }
+  const result2 = await db.transaction(async (tx) => {
+    const docResult = await tx.update(documentsTable).set({ userId: clerkUserId }).where(eq(documentsTable.userId, guestId)).returning({ id: documentsTable.id });
+    await tx.update(documentVersionsTable).set({ userId: clerkUserId }).where(eq(documentVersionsTable.userId, guestId));
+    await tx.update(worldEntitiesTable).set({ userId: clerkUserId }).where(eq(worldEntitiesTable.userId, guestId));
+    await tx.update(conversations).set({ userId: clerkUserId }).where(eq(conversations.userId, guestId));
+    return { claimed: docResult.length };
+  });
+  res.clearCookie("wa_guest", { path: "/" });
+  res.json(result2);
+});
+var auth_default = router2;
+
 // artifacts/api-server/src/routes/documents.ts
+var import_express3 = __toESM(require_express2(), 1);
 var router3 = (0, import_express3.Router)();
 function decodeEntities(text2) {
   return text2.replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&#x27;/g, "'").replace(/&#x2F;/g, "/").replace(/&#(\d+);/g, (_4, c) => String.fromCharCode(parseInt(c, 10))).replace(/&#x([0-9a-fA-F]+);/g, (_4, c) => String.fromCharCode(parseInt(c, 16)));
@@ -125641,7 +125664,12 @@ ${text2.slice(0, 8e3)}`
     res.json({ suggestion: completion.choices[0]?.message?.content?.trim() || "" });
   } catch (err) {
     logger2.error({ err }, "suggest failed");
-    res.status(500).json({ error: "Internal server error" });
+    const msg = err?.message || "Internal server error";
+    if (msg.includes("429") || msg.includes("Rate limit")) {
+      res.status(429).json({ error: "AI rate limit reached. Please try again later." });
+    } else {
+      res.status(500).json({ error: "Internal server error" });
+    }
   }
 });
 function classifyError(orig, corr) {
@@ -125806,7 +125834,12 @@ Return ONLY the corrected text with all errors fixed. Do NOT add any explanation
     res.json({ errors, correctedText: corrected });
   } catch (err) {
     logger2.error({ err }, "grammar check failed");
-    res.status(500).json({ error: "Internal server error" });
+    const msg = err?.message || "Internal server error";
+    if (msg.includes("429") || msg.includes("Rate limit")) {
+      res.status(429).json({ error: "AI rate limit reached. Please try again later." });
+    } else {
+      res.status(500).json({ error: "Internal server error" });
+    }
   }
 });
 router4.post("/scan-entities", async (req, res) => {
@@ -126167,7 +126200,12 @@ ${documentContext}
     res.json({ reply, conversationId: convId || void 0 });
   } catch (err) {
     logger2.error({ err }, "chat failed");
-    res.status(500).json({ error: err?.message || "Internal server error" });
+    const msg = err?.message || "Internal server error";
+    if (msg.includes("429") || msg.includes("Rate limit")) {
+      res.status(429).json({ error: "AI rate limit reached. Please try again later." });
+    } else {
+      res.status(500).json({ error: "Internal server error" });
+    }
   }
 });
 var ai_default = router4;
