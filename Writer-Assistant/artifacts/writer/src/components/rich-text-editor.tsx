@@ -13,7 +13,7 @@ import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   Heading1, Heading2, Heading3, List, ListOrdered, Quote,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
-  Undo2, Redo2, Minus, Code, FileCode, BarChart3, Upload, Highlighter,
+  Undo2, Redo2, Minus, Code, FileCode, BarChart3, Upload, Highlighter, Link as LinkIcon, Image as ImageIcon,
 } from "lucide-react";
 import { TableKit } from "@tiptap/extension-table";
 import { ChartExtension } from "@/extensions/chart";
@@ -293,7 +293,7 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
           options={fonts}
         />
         <ToolbarSelect
-          value=""
+          value={editor.getAttributes("textStyle").fontSize || ""}
           onChange={v => {
             if (v) editor.chain().focus().setMark("textStyle", { fontSize: v }).run();
           }}
@@ -375,14 +375,14 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
         <span className="w-px h-5 bg-border mx-1" />
 
         <ToolbarButton onClick={setLink} active={editor.isActive("link")} title="Link">
-          <span className="text-xs font-bold">🔗</span>
+          <LinkIcon className="w-3.5 h-3.5" />
         </ToolbarButton>
         <input type="file" ref={imageInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
         <ToolbarButton onClick={handleUploadClick} title="Upload Image" id="tour-editor-upload">
           <Upload className="w-3.5 h-3.5" />
         </ToolbarButton>
         <ToolbarButton onClick={addImage} title="Image URL">
-          <span className="text-xs font-bold">🖼</span>
+          <ImageIcon className="w-3.5 h-3.5" />
         </ToolbarButton>
         <TableGridPopover id="tour-editor-table" onInsert={insertTable} />
         <ToolbarButton onClick={() => setShowChartDialog(true)} title="Chart" id="tour-editor-chart">
