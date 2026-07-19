@@ -58,8 +58,14 @@ const AI_FEATURES = [
 // ClerkProvider. Re-runs reactively when isSignedIn flips to true (which
 // happens AFTER Clerk finishes initializing — fixing the race where the
 // claim fired too early on the post-sign-in redirect).
+//
+// We explicitly fetch the Clerk JWT via useAuth().getToken() and attach it as
+// a Bearer header. The fetch monkey-patch in guest-id.ts also tries to attach
+// the token, but right after sign-in the session token may not be generated
+// yet — getToken() returns null on the first call and only becomes available
+// a moment later. So we retry with backoff until the token is ready.
 function ClaimDocumentsEffect() {
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, getToken } = useAuth();
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -67,17 +73,35 @@ function ClaimDocumentsEffect() {
     const guestId = getCurrentGuestId();
     if (!guestId) return;
 
-    const controller = new AbortController();
-    fetch("/api/auth/claim-documents", { method: "POST", signal: controller.signal })
-      .then((r) => {
-        if (!r.ok) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const tryClaim = async (attempt: number) => {
+      if (cancelled) return;
+      const token = await getToken();
+      if (cancelled) return;
+      if (!token) {
+        // Token not generated yet — retry up to 6 times with 500ms backoff.
+        if (attempt < 6) timer = setTimeout(() => tryClaim(attempt + 1), 500);
+        return;
+      }
+      try {
+        const res = await fetch("/api/auth/claim-documents", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (cancelled || !res.ok) return;
         clearGuestId();
         queryClient.invalidateQueries({ queryKey: getListDocumentsQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetDocumentStatsQueryKey() });
-      })
-      .catch(() => {});
-    return () => controller.abort();
-  }, [isSignedIn, queryClient]);
+      } catch {
+        // network error — nothing to do
+      }
+    };
+
+    tryClaim(0);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [isSignedIn, getToken, queryClient]);
 
   return null;
 }
