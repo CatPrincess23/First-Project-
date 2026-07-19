@@ -121,6 +121,9 @@ Both servers must run in the background (use `nohup ... &`, `run_in_background: 
   - Non-essential header buttons (Goal, Version, World, Export, Save button) hidden on mobile
   - Pinch-zoom is enabled (`maximum-scale` removed from viewport meta)
   - Mobile breakpoint is 768px via `useIsMobile()` hook in `hooks/use-mobile.tsx`
+  - Mobile Sheets (editor AI sidebar, dashboard sidebar) show their X close button — removed `[&>button]:hidden` so users can dismiss without relying on overlay tap (`editor.tsx`, `documents.tsx`)
+  - World page entity cards show edit/delete buttons on mobile (no hover) using `md:opacity-0 md:group-hover:opacity-100` (`world.tsx`)
+  - World page TabsList scrolls horizontally on narrow screens with `overflow-x-auto flex-nowrap` (`world.tsx`)
 - **INP (Interaction to Next Paint) fixes for the editor:**
   - `ed.getHTML()` runs inside `requestAnimationFrame` (cancelled on unmount), not synchronously inside `onUpdate` — prevents blocking the ProseMirror input pipeline on every keystroke (`rich-text-editor.tsx`)
   - `RichTextEditor` is wrapped in `React.memo` with a comparator that skips `content` prop changes (TipTap only uses it as initial value), preventing unnecessary re-renders from parent state updates (`rich-text-editor.tsx`)
