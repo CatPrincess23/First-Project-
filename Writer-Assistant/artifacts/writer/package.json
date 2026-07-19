@@ -87,6 +87,8 @@
     "@tiptap/extension-font-family": "^3.26.1",
     "@tiptap/extension-heading": "^3.26.1",
     "@tiptap/extension-highlight": "^3.26.1",
+    "@tiptap/extension-list": "^3.26.1",
+    "@tiptap/extensions": "^3.26.1",
     "@tiptap/extension-horizontal-rule": "^3.26.1",
     "@tiptap/extension-image": "^3.26.1",
     "@tiptap/extension-link": "^3.26.1",
