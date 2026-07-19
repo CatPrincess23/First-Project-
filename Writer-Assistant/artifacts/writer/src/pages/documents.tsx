@@ -116,7 +116,7 @@ export default function Documents() {
             <Menu className="w-5 h-5" />
           </Button>
         </SheetTrigger>
-        <SheetContent side="left" className="w-72 p-0 [&>button]:hidden">
+        <SheetContent side="left" className="w-72 p-0">
           <div className="h-full flex flex-col">
             <div className="h-16 flex items-center gap-3 px-4 border-b shrink-0">
               <img src="/favicon.svg" alt="Whimsical Writer" className="w-8 h-8 shrink-0" />

@@ -222,7 +222,7 @@ export default function WorldBuilding({ params }: { params: { id: string } }) {
 
       <main className="max-w-5xl mx-auto p-6">
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as EntityType)}>
-          <TabsList className="mb-6">
+          <TabsList className="mb-6 overflow-x-auto flex-nowrap w-full justify-start md:justify-center">
             {(Object.entries(ENTITY_CONFIGS) as [EntityType, any][]).map(([type, config]) => {
               const Icon = config.icon;
               const count = entities.filter((e: any) => e.type === type).length;
@@ -268,7 +268,7 @@ export default function WorldBuilding({ params }: { params: { id: string } }) {
                                 {type}
                               </Badge>
                             </div>
-                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditingEntity(entity)}>
                                 <Pencil className="w-3.5 h-3.5" />
                               </Button>

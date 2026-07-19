@@ -1096,8 +1096,8 @@ export default function Editor({ params }: { params: { id: string } }) {
       {/* Mobile AI Sheet */}
       {isMobile && (
         <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
-          <SheetContent side="right" className="w-full sm:w-80 p-0 [&>button]:hidden">
-            <div id="tour-editor-sidebar-mobile" className="h-full flex flex-col pt-12" style={{ contain: "layout paint style" }}>
+          <SheetContent side="right" className="w-full sm:w-80 p-0">
+            <div id="tour-editor-sidebar-mobile" className="h-full flex flex-col pt-14" style={{ contain: "layout paint style" }}>
               <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="flex flex-col h-full">
                 <div className="px-3 py-2.5 border-b shrink-0">
                   <TabsList className="grid w-full grid-cols-6 h-8">
