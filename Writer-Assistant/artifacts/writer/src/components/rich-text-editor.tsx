@@ -13,7 +13,7 @@ import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   Heading1, Heading2, Heading3, List, ListOrdered, Quote,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
-  Undo2, Redo2, Minus, Code, FileCode, BarChart3, Upload,
+  Undo2, Redo2, Minus, Code, FileCode, BarChart3, Upload, Highlighter,
 } from "lucide-react";
 import { TableKit } from "@tiptap/extension-table";
 import { ChartExtension } from "@/extensions/chart";
@@ -320,8 +320,15 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
         <ToolbarButton onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive("strike")} title="Strikethrough">
           <Strikethrough className="w-3.5 h-3.5" />
         </ToolbarButton>
+        <input
+          type="color"
+          value={editor.getAttributes("highlight").color || "#ffff00"}
+          onInput={e => editor.chain().focus().toggleHighlight({ color: (e.target as HTMLInputElement).value }).run()}
+          className="w-6 h-6 p-0 border rounded cursor-pointer"
+          title="Highlight Color"
+        />
         <ToolbarButton onClick={() => editor.chain().focus().toggleHighlight().run()} active={editor.isActive("highlight")} title="Highlight">
-          <span className="text-xs font-bold">≡</span>
+          <Highlighter className="w-3.5 h-3.5" />
         </ToolbarButton>
         <span className="w-px h-5 bg-border mx-1" />
 

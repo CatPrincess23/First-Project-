@@ -440,7 +440,7 @@ export default function Editor({ params }: { params: { id: string } }) {
     setIsCheckingGrammar(true);
     aiGrammar.mutate({ data: { text } }, {
       onSuccess: (result) => { setGrammarErrors(result.errors); setCorrectedText(result.correctedText); setIsCheckingGrammar(false); },
-      onError: (e) => { setIsCheckingGrammar(false); toast({ title: (e as any)?.error || "Grammar check failed", variant: "destructive" }); }
+      onError: (e) => { setIsCheckingGrammar(false); toast({ title: (e as any)?.status === 429 ? "AI rate limit reached — please try again in a few minutes" : "Grammar check failed", variant: "destructive" }); }
     });
   };
 
@@ -493,7 +493,7 @@ export default function Editor({ params }: { params: { id: string } }) {
     setIsSuggesting(true); setSuggestType(type);
     aiSuggest.mutate({ data: { text: stripHtml(content), type } }, {
       onSuccess: (result) => { setSuggestion(result.suggestion); setIsSuggesting(false); },
-      onError: (e) => { setIsSuggesting(false); toast({ title: (e as any)?.error || "AI suggestions failed", variant: "destructive" }); }
+      onError: (e) => { setIsSuggesting(false); toast({ title: (e as any)?.status === 429 ? "AI rate limit reached — please try again in a few minutes" : "AI suggestions failed", variant: "destructive" }); }
     });
   };
 
@@ -629,7 +629,7 @@ export default function Editor({ params }: { params: { id: string } }) {
         },
         onError: (e) => {
           setIsChatLoading(false);
-          toast({ title: (e as any)?.error || "Chat failed", variant: "destructive" });
+          toast({ title: (e as any)?.status === 429 ? "AI rate limit reached — please try again in a few minutes" : "Chat failed", variant: "destructive" });
         },
       }
     );

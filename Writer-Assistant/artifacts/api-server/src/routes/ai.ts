@@ -269,25 +269,35 @@ function checkKey(res: any): boolean {
 }
 
 // POST /api/ai/suggest
-router.post("/suggest", async (req, res) => {
-  if (!checkKey(res)) return;
-  const parse = AiSuggestBody.safeParse(req.body);
-  if (!parse.success) { res.status(400).json({ error: "Invalid input" }); return; }
-  const { text, type, context } = parse.data;
-  const prompts: Record<string, string> = {
-    improve: `Improve the following text to make it clearer, more engaging, and better written. Return only the improved text:\n\n${text}`,
-    expand: `Expand the following text with more detail and depth. Return only the expanded text:\n\n${text}`,
-    shorten: `Shorten the following text while keeping the key ideas. Return only the shortened text:\n\n${text}`,
-    rephrase: `Rephrase the following text in a different way. Return only the rephrased text:\n\n${text}`,
-    continue: `Continue writing naturally from the following text. Return only the continuation (not the original):\n\n${text}`,
-  };
-  const systemMsg = context ? `You are a skilled writing assistant. Context: ${context.slice(0, 500)}` : "You are a skilled writing assistant.";
-  const completion = await getClient().chat.completions.create({
-    model: MODEL,
-    messages: [{ role: "system", content: systemMsg }, { role: "user", content: prompts[type] || prompts.improve }],
-    max_tokens: 1000,
-  });
-  res.json({ suggestion: completion.choices[0]?.message?.content?.trim() || "" });
+router.post("/suggest", async (req, res, next) => {
+  try {
+    if (!checkKey(res)) return;
+    const parse = AiSuggestBody.safeParse(req.body);
+    if (!parse.success) { res.status(400).json({ error: "Invalid input" }); return; }
+    const { text, type, context } = parse.data;
+    const prompts: Record<string, string> = {
+      improve: `Improve the following text to make it clearer, more engaging, and better written. Return only the improved text:\n\n${text.slice(0, 8000)}`,
+      expand: `Expand the following text with more detail and depth. Return only the expanded text:\n\n${text.slice(0, 8000)}`,
+      shorten: `Shorten the following text while keeping the key ideas. Return only the shortened text:\n\n${text.slice(0, 12000)}`,
+      rephrase: `Rephrase the following text in a different way. Return only the rephrased text:\n\n${text.slice(0, 8000)}`,
+      continue: `Continue writing naturally from the following text. Return only the continuation (not the original):\n\n${text.slice(0, 8000)}`,
+    };
+    const systemMsg = context ? `You are a skilled writing assistant. Context: ${context.slice(0, 500)}` : "You are a skilled writing assistant.";
+    const completion = await getClient().chat.completions.create({
+      model: MODEL,
+      messages: [{ role: "system", content: systemMsg }, { role: "user", content: prompts[type] || prompts.improve }],
+      max_tokens: 1000,
+    });
+    res.json({ suggestion: completion.choices[0]?.message?.content?.trim() || "" });
+  } catch (err: any) {
+    logger.error({ err }, "suggest failed");
+    const msg = err?.message || "Internal server error";
+    if (msg.includes("429") || msg.includes("Rate limit")) {
+      res.status(429).json({ error: "AI rate limit reached. Please try again later." });
+    } else {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
 });
 
 function classifyError(orig: string, corr: string): "spelling" | "grammar" | "style" | "punctuation" {
@@ -412,37 +422,43 @@ function wordDiff(original: string, corrected: string) {
 }
 
 // POST /api/ai/grammar
-router.post("/grammar", async (req, res) => {
-  if (!checkKey(res)) return;
-  const parse = AiGrammarCheckBody.safeParse(req.body);
-  if (!parse.success) { res.status(400).json({ error: "Invalid input" }); return; }
-  const { text } = parse.data;
+router.post("/grammar", async (req, res, next) => {
+  try {
+    if (!checkKey(res)) return;
+    const parse = AiGrammarCheckBody.safeParse(req.body);
+    if (!parse.success) { res.status(400).json({ error: "Invalid input" }); return; }
+    const { text } = parse.data;
+    // Cap input size to stay within the model's context window and avoid 500s.
+    // Offsets below are relative to this capped slice, which matches what the
+    // client sees for the inspected portion.
+    const GRAMMAR_CAP = 20000;
+    const cappedText = text.length > GRAMMAR_CAP ? text.slice(0, GRAMMAR_CAP) : text;
 
-  // Quick pre-scan: check if the text has any errors before doing a full correction
-  const scanCompletion = await getClient().chat.completions.create({
-    model: MODEL,
-    temperature: 0,
-    messages: [
-      {
-        role: "system",
-        content: `You are an expert proofreader. Scan the text for ANY errors — spelling, grammar, punctuation, capitalization, word choice, or sentence structure issues. Reply with ONLY "YES" if there are errors to fix, or "NO" if the text is perfectly error-free. Do not provide any other response.`,
-      },
-      { role: "user", content: text },
-    ],
-    max_tokens: 5,
-  });
-  const scanResult = (scanCompletion.choices[0]?.message?.content || "").trim().toUpperCase();
+    // Quick pre-scan: check if the text has any errors before doing a full correction
+    const scanCompletion = await getClient().chat.completions.create({
+      model: MODEL,
+      temperature: 0,
+      messages: [
+        {
+          role: "system",
+          content: `You are an expert proofreader. Scan the text for ANY errors — spelling, grammar, punctuation, capitalization, word choice, or sentence structure issues. Reply with ONLY "YES" if there are errors to fix, or "NO" if the text is perfectly error-free. Do not provide any other response.`,
+        },
+        { role: "user", content: cappedText },
+      ],
+      max_tokens: 5,
+    });
+    const scanResult = (scanCompletion.choices[0]?.message?.content || "").trim().toUpperCase();
 
-  if (scanResult === "NO") { res.json({ errors: [], correctedText: text }); return; }
+    if (scanResult === "NO") { res.json({ errors: [], correctedText: text }); return; }
 
-  // Get corrected text from AI
-  const fixCompletion = await getClient().chat.completions.create({
-    model: MODEL,
-    temperature: 0.1,
-    messages: [
-      {
-        role: "system",
-        content: `You are an expert professional proofreader and copy editor. Your task is to carefully review text and fix EVERY error you find — be thorough and precise. Fix ALL of the following:
+    // Get corrected text from AI
+    const fixCompletion = await getClient().chat.completions.create({
+      model: MODEL,
+      temperature: 0.1,
+      messages: [
+        {
+          role: "system",
+          content: `You are an expert professional proofreader and copy editor. Your task is to carefully review text and fix EVERY error you find — be thorough and precise. Fix ALL of the following:
 
 1. **Spelling**: Typos, misspelled words, incorrect homophones (their/there/they're, your/you're, its/it's, to/too/two, etc.)
 2. **Grammar**: Subject-verb agreement, verb tense consistency, pronoun agreement, article usage (a/an/the), pluralization, comparatives
@@ -454,17 +470,26 @@ router.post("/grammar", async (req, res) => {
 CRITICAL RULE: Never delete or remove text. Every word or phrase that needs correction must be replaced with a corrected version — never simply removed. Keep the text length as close to the original as possible.
 
 Return ONLY the corrected text with all errors fixed. Do NOT add any explanations, commentary, JSON formatting, or markdown. If there are no errors at all, return the text exactly as provided.`,
-      },
-      { role: "user", content: text },
-    ],
-    max_tokens: 2000,
-  });
-  const corrected = fixCompletion.choices[0]?.message?.content?.trim() || text.trim();
+        },
+        { role: "user", content: cappedText },
+      ],
+      max_tokens: 2000,
+    });
+    const corrected = fixCompletion.choices[0]?.message?.content?.trim() || cappedText.trim();
 
-  if (corrected === text.trim()) { res.json({ errors: [], correctedText: text }); return; }
+    if (corrected === cappedText.trim()) { res.json({ errors: [], correctedText: text }); return; }
 
-  const errors = wordDiff(text, corrected);
-  res.json({ errors, correctedText: corrected });
+    const errors = wordDiff(cappedText, corrected);
+    res.json({ errors, correctedText: corrected });
+  } catch (err: any) {
+    logger.error({ err }, "grammar check failed");
+    const msg = err?.message || "Internal server error";
+    if (msg.includes("429") || msg.includes("Rate limit")) {
+      res.status(429).json({ error: "AI rate limit reached. Please try again later." });
+    } else {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
 });
 
 // POST /api/ai/scan-entities
@@ -764,7 +789,8 @@ router.post("/prologue", async (req, res) => {
 });
 
 // POST /api/ai/chat
-router.post("/chat", async (req, res) => {
+router.post("/chat", async (req, res, next) => {
+  try {
   if (!checkKey(res)) return;
   const parse = AiChatBody.safeParse(req.body);
   if (!parse.success) { res.status(400).json({ error: "Invalid input" }); return; }
@@ -776,7 +802,7 @@ router.post("/chat", async (req, res) => {
   // dedicated, validated `documentContext` field (with a data-only fallback
   // that treats any client-supplied system message purely as document text).
   const BASE_PROMPT = "You are a helpful writing assistant. Help users with their writing — give feedback, answer questions, suggest improvements, and discuss their story. Be friendly and constructive.";
-  const DOC_CONTEXT_CAP = 100000;
+  const DOC_CONTEXT_CAP = 30000;
 
   // Primary: validated dedicated field. Invalid/oversized values are ignored
   // (not rejected) so a malformed documentContext never 400s the whole chat —
@@ -835,7 +861,7 @@ router.post("/chat", async (req, res) => {
       { role: "system", content: unifiedPrompt },
       ...conversationMessages.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
     ],
-    max_tokens: 4000,
+    max_tokens: 1500,
   });
   const reply = completion.choices[0]?.message?.content?.trim() || "";
 
@@ -844,6 +870,15 @@ router.post("/chat", async (req, res) => {
   }
 
   res.json({ reply, conversationId: convId || undefined });
+  } catch (err: any) {
+    logger.error({ err }, "chat failed");
+    const msg = err?.message || "Internal server error";
+    if (msg.includes("429") || msg.includes("Rate limit")) {
+      res.status(429).json({ error: "AI rate limit reached. Please try again later." });
+    } else {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
 });
 
 export default router;
