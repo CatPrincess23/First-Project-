@@ -131,6 +131,7 @@ Both servers must run in the background (use `nohup ... &`, `run_in_background: 
   - `decodeEntities` uses a single regex pass with an entity map instead of 11+ chained `.replace()` calls (`editor.tsx`)
   - `wordCount` uses `useDeferredValue(content)` so `stripHtml()` doesn't block the main thread — React can interrupt it when a new keystroke arrives (`editor.tsx`)
   - `contain: layout paint style` applied to editor scroll area, desktop/mobile AI sidebar panels, chat messages container, and version history container — isolates each panel's layout so the browser doesn't recalculate the whole page on inner changes (`editor.tsx`)
+  - **`contain: paint` creates a stacking context.** Siblings that come later in the DOM (like the content div) will paint on top of absolutely-positioned siblings without z-index (like the Sheet close button), blocking clicks. The Sheet close button in `components/ui/sheet.tsx` has `z-50` so it stays clickable above content with `contain: paint`.
   - Grammar error snippets pre-computed in a `useMemo` keyed on `grammarErrors` + `content` instead of calling `stripHtml()` on every render for every error — eliminates redundant O(n) HTML parses (`editor.tsx`)
   - `content-visibility: auto` on version history items so the browser skips rendering off-screen snapshots (`editor.tsx`)
 
