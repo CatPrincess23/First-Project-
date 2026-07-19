@@ -115408,8 +115408,10 @@ function issueGuestCookie(res, uuid5) {
     maxAge: GUEST_COOKIE_MAX_AGE
   });
 }
-var resolveIdentity = (req, res, next) => {
-  const userId = req.auth?.userId;
+var resolveIdentity = async (req, res, next) => {
+  const rawAuth = req.auth;
+  const auth = typeof rawAuth === "function" ? await rawAuth() : rawAuth;
+  const userId = auth?.userId;
   if (userId) {
     req.identity = { type: "user", id: userId };
     return next();
@@ -115477,19 +115479,11 @@ router2.post("/guest", guestLimiter, botFilter, (_req, res) => {
   res.json({ ok: true });
 });
 router2.post("/claim-documents", async (req, res) => {
-  const clerkUserId = req.auth?.userId;
-  const authHeader = req.headers["authorization"];
-  console.log("[claim-documents]", {
-    authUserId: clerkUserId ?? null,
-    authObjectType: typeof req.auth,
-    authKeys: req.auth ? Object.keys(req.auth) : null,
-    hasAuthHeader: typeof authHeader === "string" && authHeader.length > 0,
-    authHeaderPrefix: typeof authHeader === "string" ? authHeader.slice(0, 20) : null,
-    hasGuestId: typeof req.headers["x-guest-id"] === "string",
-    clerkSecretSet: !!process.env.CLERK_SECRET_KEY
-  });
+  const rawAuth = req.auth;
+  const auth = typeof rawAuth === "function" ? await rawAuth() : rawAuth;
+  const clerkUserId = auth?.userId;
   if (!clerkUserId) {
-    res.status(401).json({ error: "Not authenticated", debug: { hasAuthHeader: !!authHeader } });
+    res.status(401).json({ error: "Not authenticated" });
     return;
   }
   const guestId = req.headers["x-guest-id"];

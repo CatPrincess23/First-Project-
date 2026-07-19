@@ -63,8 +63,12 @@ export function issueGuestCookie(res: Response, uuid: string): void {
   });
 }
 
-export const resolveIdentity: RequestHandler = (req, res, next) => {
-  const userId = (req as any).auth?.userId;
+export const resolveIdentity: RequestHandler = async (req, res, next) => {
+  // In @clerk/express v2, req.auth is an async function that must be called to
+  // get the auth state. In v1 it was a plain object. Handle both.
+  const rawAuth = (req as any).auth;
+  const auth = typeof rawAuth === "function" ? await rawAuth() : rawAuth;
+  const userId = auth?.userId;
   if (userId) {
     req.identity = { type: "user", id: userId };
     return next();

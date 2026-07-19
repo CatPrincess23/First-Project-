@@ -45,20 +45,12 @@ router.post("/guest", guestLimiter, botFilter, (_req, res) => {
 // authenticated Clerk user. Called from the frontend after sign-in to migrate
 // documents created in guest mode to the user's permanent identity.
 router.post("/claim-documents", async (req, res) => {
-  const clerkUserId = (req as any).auth?.userId;
-  const authHeader = req.headers["authorization"];
-  // Debug: log what we're seeing so we can diagnose the 401
-  console.log("[claim-documents]", {
-    authUserId: clerkUserId ?? null,
-    authObjectType: typeof (req as any).auth,
-    authKeys: (req as any).auth ? Object.keys((req as any).auth) : null,
-    hasAuthHeader: typeof authHeader === "string" && authHeader.length > 0,
-    authHeaderPrefix: typeof authHeader === "string" ? authHeader.slice(0, 20) : null,
-    hasGuestId: typeof req.headers["x-guest-id"] === "string",
-    clerkSecretSet: !!process.env.CLERK_SECRET_KEY,
-  });
+  // In @clerk/express v2, req.auth is an async function, not a plain object.
+  const rawAuth = (req as any).auth;
+  const auth = typeof rawAuth === "function" ? await rawAuth() : rawAuth;
+  const clerkUserId = auth?.userId;
   if (!clerkUserId) {
-    res.status(401).json({ error: "Not authenticated", debug: { hasAuthHeader: !!authHeader } });
+    res.status(401).json({ error: "Not authenticated" });
     return;
   }
 
