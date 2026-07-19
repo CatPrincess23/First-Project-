@@ -127,6 +127,9 @@ Both servers must run in the background (use `nohup ... &`, `run_in_background: 
   - Callbacks passed to `RichTextEditor` (`onChange`, `onBlur`, `onSelectionChange`) use ref-backed stable references (`useCallback` + `useRef`) so they don't break `React.memo`'s equality check (`editor.tsx`)
   - `decodeEntities` uses a single regex pass with an entity map instead of 11+ chained `.replace()` calls (`editor.tsx`)
   - `wordCount` uses `useDeferredValue(content)` so `stripHtml()` doesn't block the main thread — React can interrupt it when a new keystroke arrives (`editor.tsx`)
+  - `contain: layout paint style` applied to editor scroll area, desktop/mobile AI sidebar panels, chat messages container, and version history container — isolates each panel's layout so the browser doesn't recalculate the whole page on inner changes (`editor.tsx`)
+  - Grammar error snippets pre-computed in a `useMemo` keyed on `grammarErrors` + `content` instead of calling `stripHtml()` on every render for every error — eliminates redundant O(n) HTML parses (`editor.tsx`)
+  - `content-visibility: auto` on version history items so the browser skips rendering off-screen snapshots (`editor.tsx`)
 
 ## Debugging Vercel deployment issues
 

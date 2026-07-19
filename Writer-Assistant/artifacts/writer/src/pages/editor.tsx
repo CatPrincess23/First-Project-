@@ -688,6 +688,14 @@ export default function Editor({ params }: { params: { id: string } }) {
     return text ? text.split(/\s+/).length : 0;
   }, [deferredContent, stripHtml]);
 
+  const grammarSnippets = useMemo(() => {
+    if (grammarErrors.length === 0) return [];
+    return grammarErrors.map((err) => {
+      const range = plainSpanToHtml(err.offset, err.length);
+      return range ? stripHtml(content.slice(range[0], range[1])) : (err.message || "");
+    });
+  }, [grammarErrors, content, stripHtml]);
+
   if (isDocumentLoading) {
     return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-muted-foreground" /></div>;
   }
@@ -786,7 +794,7 @@ export default function Editor({ params }: { params: { id: string } }) {
       {/* Main Workspace */}
       <div className="flex flex-1 overflow-hidden">
         {/* Editor Area */}
-        <div className="flex-1 overflow-y-auto flex justify-center">
+        <div className="flex-1 overflow-y-auto flex justify-center" style={{ contain: "layout paint style" }}>
           <div id="tour-editor-textarea" className="w-full max-w-3xl px-4 md:px-8 py-6">
             {editorReady ? (
             <RichTextEditor key={documentId} ref={richEditorRef} content={content} onBlur={stableOnBlur} onChange={stableOnChange} onSelectionChange={stableOnSelectionChange} placeholder="Start writing..." />
@@ -811,7 +819,7 @@ export default function Editor({ params }: { params: { id: string } }) {
           </button>
 
           {sidebarOpen && (
-          <div id="tour-editor-sidebar" className="w-80 border-l bg-card flex flex-col">
+          <div id="tour-editor-sidebar" className="w-80 border-l bg-card flex flex-col" style={{ contain: "layout paint style" }}>
           <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="flex flex-col h-full">
             <div className="px-3 py-2.5 border-b shrink-0">
               <TabsList className="grid w-full grid-cols-6 h-8">
@@ -824,7 +832,7 @@ export default function Editor({ params }: { params: { id: string } }) {
               </TabsList>
             </div>
 
-            <div className="flex-1 min-h-0">
+            <div className="flex-1 min-h-0" style={{ contain: "layout paint style" }}>
               {/* Grammar Panel */}
               <TabsContent value="grammar" className="p-4 m-0 space-y-4 h-full overflow-y-auto">
                 <div>
@@ -839,8 +847,7 @@ export default function Editor({ params }: { params: { id: string } }) {
                   <div className="space-y-3">
                     <p className="text-xs font-medium text-muted-foreground">{grammarErrors.length} issue{grammarErrors.length !== 1 ? "s" : ""} found</p>
                     {grammarErrors.map((err, i) => {
-                      const range = plainSpanToHtml(err.offset, err.length);
-                      const errSnippet = range ? stripHtml(content.slice(range[0], range[1])) : (err.message || "");
+                      const errSnippet = grammarSnippets[i] || err.message || "";
                       return (
                       <div key={i} className="p-3 bg-secondary/50 rounded-lg text-xs space-y-2 cursor-pointer hover:bg-secondary/80 transition-colors" onClick={() => scrollToError(err.offset, err.length)}>
                         <div className="flex items-start justify-between gap-2">
@@ -990,7 +997,7 @@ export default function Editor({ params }: { params: { id: string } }) {
                   )}
                 </div>
 
-                <div className="flex-1 space-y-3 overflow-y-auto min-h-0">
+                <div className="flex-1 space-y-3 overflow-y-auto min-h-0" style={{ contain: "layout paint style" }}>
                   {chatMessages.length === 0 && (
                     <p className="text-xs text-muted-foreground text-center py-8">Start a conversation with your writing assistant.</p>
                   )}
@@ -1040,9 +1047,9 @@ export default function Editor({ params }: { params: { id: string } }) {
                 {(versions as any[]).length === 0 ? (
                   <p className="text-xs text-muted-foreground text-center py-6">No versions saved yet</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-2" style={{ contain: "layout paint style" }}>
                     {(versions as any[]).map((v: any) => (
-                        <div key={v.id} className="p-3 bg-secondary/40 rounded-lg text-xs space-y-1.5">
+                        <div key={v.id} className="p-3 bg-secondary/40 rounded-lg text-xs space-y-1.5" style={{ contentVisibility: "auto" }}>
                           <div className="flex items-start justify-between gap-2">
                             <div>
                               <p className="font-medium">{v.label || "Checkpoint"}</p>
@@ -1090,7 +1097,7 @@ export default function Editor({ params }: { params: { id: string } }) {
       {isMobile && (
         <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
           <SheetContent side="right" className="w-full sm:w-80 p-0 [&>button]:hidden">
-            <div id="tour-editor-sidebar-mobile" className="h-full flex flex-col pt-12">
+            <div id="tour-editor-sidebar-mobile" className="h-full flex flex-col pt-12" style={{ contain: "layout paint style" }}>
               <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="flex flex-col h-full">
                 <div className="px-3 py-2.5 border-b shrink-0">
                   <TabsList className="grid w-full grid-cols-6 h-8">
@@ -1102,7 +1109,7 @@ export default function Editor({ params }: { params: { id: string } }) {
                     <TabsTrigger value="history" title="Version History" className="text-xs px-1"><History className="w-3.5 h-3.5" /></TabsTrigger>
                   </TabsList>
                 </div>
-                <div className="flex-1 min-h-0">
+                <div className="flex-1 min-h-0" style={{ contain: "layout paint style" }}>
                   {/* Grammar Panel */}
                   <TabsContent value="grammar" className="p-4 m-0 space-y-4 h-full overflow-y-auto">
                     <div>
