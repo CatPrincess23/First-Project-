@@ -46,8 +46,19 @@ router.post("/guest", guestLimiter, botFilter, (_req, res) => {
 // documents created in guest mode to the user's permanent identity.
 router.post("/claim-documents", async (req, res) => {
   const clerkUserId = (req as any).auth?.userId;
+  const authHeader = req.headers["authorization"];
+  // Debug: log what we're seeing so we can diagnose the 401
+  console.log("[claim-documents]", {
+    authUserId: clerkUserId ?? null,
+    authObjectType: typeof (req as any).auth,
+    authKeys: (req as any).auth ? Object.keys((req as any).auth) : null,
+    hasAuthHeader: typeof authHeader === "string" && authHeader.length > 0,
+    authHeaderPrefix: typeof authHeader === "string" ? authHeader.slice(0, 20) : null,
+    hasGuestId: typeof req.headers["x-guest-id"] === "string",
+    clerkSecretSet: !!process.env.CLERK_SECRET_KEY,
+  });
   if (!clerkUserId) {
-    res.status(401).json({ error: "Not authenticated" });
+    res.status(401).json({ error: "Not authenticated", debug: { hasAuthHeader: !!authHeader } });
     return;
   }
 

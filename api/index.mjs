@@ -115478,8 +115478,18 @@ router2.post("/guest", guestLimiter, botFilter, (_req, res) => {
 });
 router2.post("/claim-documents", async (req, res) => {
   const clerkUserId = req.auth?.userId;
+  const authHeader = req.headers["authorization"];
+  console.log("[claim-documents]", {
+    authUserId: clerkUserId ?? null,
+    authObjectType: typeof req.auth,
+    authKeys: req.auth ? Object.keys(req.auth) : null,
+    hasAuthHeader: typeof authHeader === "string" && authHeader.length > 0,
+    authHeaderPrefix: typeof authHeader === "string" ? authHeader.slice(0, 20) : null,
+    hasGuestId: typeof req.headers["x-guest-id"] === "string",
+    clerkSecretSet: !!process.env.CLERK_SECRET_KEY
+  });
   if (!clerkUserId) {
-    res.status(401).json({ error: "Not authenticated" });
+    res.status(401).json({ error: "Not authenticated", debug: { hasAuthHeader: !!authHeader } });
     return;
   }
   const guestId = req.headers["x-guest-id"];
