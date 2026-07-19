@@ -185,3 +185,12 @@ Both servers must run in the background (use `nohup ... &`, `run_in_background: 
 | Auth setup | `Writer-Assistant/artifacts/api-server/src/app.ts` |
 | Vite config (proxy) | `Writer-Assistant/artifacts/writer/vite.config.ts` |
 | Error handling (multer) | `Writer-Assistant/artifacts/api-server/src/app.ts` (bottom of file) |
+
+## Toolbar / rich text editor troubleshooting
+
+- **TipTap v3 StarterKit bundles many extensions internally.** `StarterKit` now includes `Underline`, `Link`, `BulletList`, `OrderedList`, `ListItem`, `Blockquote`, `Code`, `Bold`, `Italic`, `Strike`, `Heading`, `HorizontalRule`, `CodeBlock`, `Dropcursor`, `Gapcursor`, `UndoRedo`, and `HardBreak`. Individually registering them again (e.g. `import { Underline } from "@tiptap/extension-underline"` + adding to extensions array) creates duplicate registrations that silently break those features.
+- **Missing transitive deps block StarterKit features in Vite builds.** `@tiptap/starter-kit` v3 depends on `@tiptap/extension-list` and `@tiptap/extensions`, which are NOT pulled in automatically by pnpm hoisting. They must be listed in `Writer-Assistant/artifacts/writer/package.json` as direct dependencies, or Vite's bundler can't resolve them and `BulletList`, `OrderedList`, `ListItem`, `Dropcursor`, `Gapcursor`, `UndoRedo` silently fail to load.
+- **Font size needs the `FontSize` sub-extension.** The `setMark("textStyle", { fontSize })` approach silently drops the attribute because `TextStyle` doesn't declare `fontSize` by default. Import `FontSize` from `@tiptap/extension-text-style/font-size` and use the `setFontSize()` command instead.
+- **Tailwind CSS 4 base reset strips `list-style` from all `ul`/`ol`.** ProseMirror rendered lists lose their bullets/numbers. The `.ProseMirror ul, .ProseMirror ol { list-style: revert; }` rule in the inline `<style>` block restores them. Blockquotes, `pre`, and `hr` also need explicit ProseMirror CSS because Tailwind strips browser defaults.
+- **The font size dropdown must read from editor state.** Set `value={editor.getAttributes("textStyle").fontSize || ""}` so it reflects the current selection's font size. Without the `FontSize` extension this always returns empty.
+- **Toolbar icon consistency.** All toolbar buttons should use Lucide icons (not emoji) for cross-platform consistency. Link → `LinkIcon`, Image URL → `ImageIcon` from lucide-react.
