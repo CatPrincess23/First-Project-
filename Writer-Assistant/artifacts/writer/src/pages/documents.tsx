@@ -19,7 +19,7 @@ import {
   LayoutDashboard, Sparkles, BookOpen, Image as ImageIcon, History,
   CheckCircle, Wand2, Crown, User, ChevronRight, HelpCircle, Menu,
 } from "lucide-react";
-import { UserButton } from "@clerk/react";
+import { UserButton, useAuth } from "@clerk/react";
 import OnboardingTour from "@/components/onboarding-tour";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -53,6 +53,35 @@ const AI_FEATURES = [
   { icon: FileText, title: "Export PDF & DOCX", desc: "Download your manuscript in publication-ready formats.", tier: "free" },
 ];
 
+// Migrates guest-created documents to the signed-in Clerk user's account.
+// Rendered only when Clerk is enabled, so useAuth() is always inside the
+// ClerkProvider. Re-runs reactively when isSignedIn flips to true (which
+// happens AFTER Clerk finishes initializing — fixing the race where the
+// claim fired too early on the post-sign-in redirect).
+function ClaimDocumentsEffect() {
+  const { isSignedIn } = useAuth();
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!isSignedIn) return;
+    const guestId = getCurrentGuestId();
+    if (!guestId) return;
+
+    const controller = new AbortController();
+    fetch("/api/auth/claim-documents", { method: "POST", signal: controller.signal })
+      .then((r) => {
+        if (!r.ok) return;
+        clearGuestId();
+        queryClient.invalidateQueries({ queryKey: getListDocumentsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetDocumentStatsQueryKey() });
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [isSignedIn, queryClient]);
+
+  return null;
+}
+
 export default function Documents() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -69,28 +98,6 @@ export default function Documents() {
   const docs = Array.isArray(documents) ? documents : [];
   const createDoc = useCreateDocument();
   const deleteDoc = useDeleteDocument();
-
-  // Claim documents from guest identity after Clerk sign-in.
-  // When a user signs in, any documents created in guest mode are reassigned to
-  // their Clerk user ID so they persist across devices.
-  useEffect(() => {
-    if (!clerkEnabled) return;
-    const guestId = getCurrentGuestId();
-    if (!guestId) return;
-
-    const clerk = (window as any).Clerk;
-    if (!clerk?.session) return;
-
-    fetch("/api/auth/claim-documents", { method: "POST" })
-      .then((r) => {
-        if (r.ok) {
-          clearGuestId();
-          queryClient.invalidateQueries({ queryKey: getListDocumentsQueryKey() });
-          queryClient.invalidateQueries({ queryKey: getGetDocumentStatsQueryKey() });
-        }
-      })
-      .catch(() => {});
-  }, []);
 
   const handleCreateDocument = () => {
     createDoc.mutate({ data: { title: "Untitled Document", content: "" } }, {
@@ -132,6 +139,7 @@ export default function Documents() {
 
   return (
     <div className="min-h-screen bg-background flex">
+      {clerkEnabled && <ClaimDocumentsEffect />}
       {/* Mobile sidebar */}
       <Sheet>
         <SheetTrigger asChild>
