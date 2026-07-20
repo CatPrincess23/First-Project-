@@ -494,6 +494,35 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
         .dark .ProseMirror {
           color: hsl(40 10% 96%);
         }
+        .dark .ProseMirror [style*="color: black" i],
+        .dark .ProseMirror [style*="color:black" i],
+        .dark .ProseMirror [style*="color: #000000" i],
+        .dark .ProseMirror [style*="color:#000000" i],
+        .dark .ProseMirror [style*="color: rgb(0, 0, 0)" i],
+        .dark .ProseMirror [style*="color:rgb(0, 0, 0)" i],
+        .dark .ProseMirror [style*="color: rgb(0,0,0)" i],
+        .dark .ProseMirror [style*="color:rgb(0,0,0)" i],
+        .dark .ProseMirror [style*="color: rgb(17, 17, 17)" i],
+        .dark .ProseMirror [style*="color: #111111" i],
+        .dark .ProseMirror [style*="color:#111111" i],
+        .dark .ProseMirror [style*="color: #222222" i],
+        .dark .ProseMirror [style*="color:#222222" i],
+        .dark .ProseMirror [style*="color: #333333" i],
+        .dark .ProseMirror [style*="color:#333333" i],
+        .dark .ProseMirror [style*="color: #444444" i],
+        .dark .ProseMirror [style*="color:#444444" i],
+        .dark .ProseMirror [style*="color: #555555" i],
+        .dark .ProseMirror [style*="color:#555555" i],
+        .dark .ProseMirror [style*="color: #666666" i],
+        .dark .ProseMirror [style*="color:#666666" i],
+        .dark .ProseMirror [style*="color: dimgray" i],
+        .dark .ProseMirror [style*="color:dimgray" i],
+        .dark .ProseMirror [style*="color: gray" i],
+        .dark .ProseMirror [style*="color:gray" i],
+        .dark .ProseMirror [style*="color: darkgray" i],
+        .dark .ProseMirror [style*="color:darkgray" i] {
+          color: hsl(40 10% 96%) !important;
+        }
         .ProseMirror ul, .ProseMirror ol {
           list-style: revert;
           padding-left: 1.5em;
