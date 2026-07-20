@@ -258,6 +258,7 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
         blur: () => { onBlur?.(); return false; },
       },
     },
+    shouldRerenderOnTransaction: true,
   });
 
   const onSelectionChangeRef = useRef(onSelectionChange);
