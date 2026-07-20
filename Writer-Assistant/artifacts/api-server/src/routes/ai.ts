@@ -467,7 +467,12 @@ router.post("/grammar", async (req, res, next) => {
 5. **Word choice**: Awkward phrasing, incorrect word usage, redundancies, clunky constructions
 6. **Sentence structure**: Run-on sentences, fragments, awkward constructions
 
-CRITICAL RULE: Never delete or remove text. Every word or phrase that needs correction must be replaced with a corrected version — never simply removed. Keep the text length as close to the original as possible.
+CRITICAL RULES:
+- Never delete or remove any text. Every word or phrase that needs correction must be replaced with a corrected version — never simply removed, shortened, or cut.
+- Never suggest deleting or cutting any phrase, clause, or sentence. Only fix errors.
+- Preserve the author's original wording and sentence structure. Do not rewrite sentences to be "tighter" or "more concise."
+- Only fix actual errors — do not make stylistic changes, rephrase, or condense the text.
+- When in doubt, leave the text unchanged.
 
 Return ONLY the corrected text with all errors fixed. Do NOT add any explanations, commentary, JSON formatting, or markdown. If there are no errors at all, return the text exactly as provided.`,
         },
