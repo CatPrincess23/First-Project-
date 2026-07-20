@@ -56,13 +56,14 @@ function ToolbarButton({ onClick, active, children, title, id }: {
   );
 }
 
-function ToolbarSelect({ value, onChange, options }: {
-  value: string; onChange: (v: string) => void; options: string[];
+function ToolbarSelect({ value, onChange, options, onMouseDown }: {
+  value: string; onChange: (v: string) => void; options: string[]; onMouseDown?: () => void;
 }) {
   return (
     <select
       value={value}
       onChange={e => onChange(e.target.value)}
+      onMouseDown={e => { if (onMouseDown) { onMouseDown(); } }}
       className="h-7 text-xs rounded border bg-background px-1.5 text-foreground"
     >
       {options.map(o => <option key={o} value={o}>{o}</option>)}
@@ -100,6 +101,7 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
   const rafRef = useRef<number>(0);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const savedSelectionRef = useRef<any>(null);
+  const toolbarSelectionRef = useRef<{ from: number; to: number } | null>(null);
   const grammarRef = useRef<GrammarError[]>([]);
   grammarRef.current = grammarErrors || [];
 
@@ -192,6 +194,50 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
           ];
         },
       }),
+      // Dark color override — only overrides dark inline colors in dark mode,
+      // preserving intentional bright colors (red, blue, etc.)
+      Extension.create({
+        name: "darkColorFix",
+        addProseMirrorPlugins() {
+          return [
+            new Plugin({
+              key: new PluginKey("dark-color-fix"),
+              props: {
+                decorations(state) {
+                  if (!document.documentElement.classList.contains("dark")) return null;
+                  const decos: Decoration[] = [];
+                  state.doc.descendants((node, pos) => {
+                    if (!node.isText) return;
+                    const ts = node.marks.find(m => m.type.name === "textStyle");
+                    if (!ts?.attrs.color) return;
+                    const color = ts.attrs.color as string;
+                    let isDark = false;
+                    try {
+                      const el = document.createElement("div");
+                      el.style.color = color;
+                      el.style.display = "none";
+                      document.body.appendChild(el);
+                      const computed = window.getComputedStyle(el).color;
+                      document.body.removeChild(el);
+                      const m = computed.match(/\d+/g);
+                      if (m && m.length >= 3) {
+                        const [r, g, b] = m.map(Number);
+                        isDark = (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.5;
+                      }
+                    } catch { /* ignore */ }
+                    if (isDark) {
+                      decos.push(Decoration.inline(pos, pos + node.nodeSize, {
+                        style: "color: hsl(40 10% 96%) !important;",
+                      }));
+                    }
+                  });
+                  return decos.length ? DecorationSet.create(state.doc, decos) : null;
+                },
+              },
+            }),
+          ];
+        },
+      }),
     ],
     content: content || "",
     onUpdate: ({ editor: ed }) => {
@@ -230,6 +276,34 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
     if (!editor || editor.isDestroyed) return;
     editor.view.dispatch(editor.state.tr);
   }, [editor, grammarErrors]);
+
+  // Re-evaluate dark color decorations when the theme toggles
+  useEffect(() => {
+    if (!editor) return;
+    const observer = new MutationObserver(() => {
+      if (!editor.isDestroyed) editor.view.dispatch(editor.state.tr);
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, [editor]);
+
+  // Save editor selection before toolbar controls steal focus
+  const saveToolbarSelection = useCallback(() => {
+    if (editor) {
+      const { from, to } = editor.state.selection;
+      toolbarSelectionRef.current = { from, to };
+    }
+  }, [editor]);
+
+  // Restore saved selection and run a command
+  const runWithSelection = useCallback((fn: () => void) => {
+    const sel = toolbarSelectionRef.current;
+    if (editor && sel && sel.from !== sel.to) {
+      editor.chain().focus().setTextSelection({ from: sel.from, to: sel.to }).run();
+    }
+    fn();
+    toolbarSelectionRef.current = null;
+  }, [editor]);
 
   useEffect(() => {
     if (!editor) return;
@@ -373,20 +447,23 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
 
         <ToolbarSelect
           value={editor.getAttributes("textStyle").fontFamily || ""}
-          onChange={v => editor.chain().focus().setFontFamily(v).run()}
+          onMouseDown={saveToolbarSelection}
+          onChange={v => runWithSelection(() => editor.chain().focus().setFontFamily(v).run())}
           options={fonts}
         />
         <ToolbarSelect
           value={editor.getAttributes("textStyle").fontSize || ""}
+          onMouseDown={saveToolbarSelection}
           onChange={v => {
-            if (v) editor.chain().focus().setFontSize(v).run();
+            if (v) runWithSelection(() => editor.chain().focus().setFontSize(v).run());
           }}
           options={fontSizes}
         />
         <input
           type="color"
           value={editor.getAttributes("textStyle").color || "#000000"}
-          onChange={e => editor.chain().focus().setColor(e.target.value).run()}
+          onMouseDown={saveToolbarSelection}
+          onChange={e => runWithSelection(() => editor.chain().focus().setColor(e.target.value).run())}
           className="w-6 h-6 p-0 border rounded cursor-pointer"
           title="Text Color"
         />
@@ -407,7 +484,8 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
         <input
           type="color"
           value={editor.getAttributes("highlight").color || "#ffff00"}
-          onInput={e => editor.chain().focus().toggleHighlight({ color: (e.target as HTMLInputElement).value }).run()}
+          onMouseDown={saveToolbarSelection}
+          onInput={e => runWithSelection(() => editor.chain().focus().toggleHighlight({ color: (e.target as HTMLInputElement).value }).run())}
           className="w-6 h-6 p-0 border rounded cursor-pointer"
           title="Highlight Color"
         />
@@ -491,9 +569,8 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
         .ProseMirror {
           color: hsl(var(--foreground));
         }
-        .dark .ProseMirror,
-        .dark .ProseMirror * {
-          color: hsl(40 10% 96%) !important;
+        .dark .ProseMirror {
+          color: hsl(40 10% 96%);
         }
         .ProseMirror ul, .ProseMirror ol {
           list-style: revert;
