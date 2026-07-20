@@ -403,14 +403,16 @@ function wordDiff(original: string, corrected: string) {
     // report — skip them; substitutions and deletions both have origWords.
     if (origWords.length === 0) continue;
 
+    // SAFETY: Skip any correction that removes or shortens text — the AI
+    // should never delete or condense the user's writing.
+    if (corrWords.length === 0 || corrWords.length < origWords.length) continue;
+
     const errSpan = original.slice(blockStart, blockEnd);
     const corrStr = corrWords.join(" ");
-    // A pure deletion (e.g. removing a doubled word) is a valid fix: the
-    // suggestion is empty, meaning "remove this span".
     const origStr = origWords.join(" ");
 
     errors.push({
-      message: corrWords.length ? `${origStr} → ${corrStr}` : `${origStr} → (remove)`,
+      message: `${origStr} → ${corrStr}`,
       suggestion: corrStr,
       offset: blockStart,
       length: blockEnd - blockStart,
@@ -441,7 +443,7 @@ router.post("/grammar", async (req, res, next) => {
       messages: [
         {
           role: "system",
-          content: `You are a proofreader. Scan for errors in spelling, grammar, punctuation, and capitalization only. Reply with ONLY "YES" if there are errors, or "NO" if the text is error-free. Do not provide any other response.`,
+          content: `You are a proofreader. Scan for errors in spelling, grammar, punctuation, capitalization, and style. Reply with ONLY "YES" if there are errors or improvements to make, or "NO" if the text is fine as-is. Do not provide any other response.`,
         },
         { role: "user", content: cappedText },
       ],
@@ -458,20 +460,23 @@ router.post("/grammar", async (req, res, next) => {
       messages: [
         {
           role: "system",
-          content: `You are a strict proofreader. Only fix actual errors. Do NOT rewrite, rephrase, or suggest cuts.
+          content: `You are a proofreader and style editor. Fix errors and improve readability, but NEVER remove or shorten text.
 
-Fix ONLY these error types:
+Fix these types:
 1. **Spelling**: Typos, misspelled words, incorrect homophones (their/there/they're, your/you're, its/it's, to/too/two, etc.)
 2. **Grammar**: Subject-verb agreement, verb tense consistency, pronoun agreement, article usage (a/an/the), pluralization
 3. **Punctuation**: Missing or incorrect commas, periods, apostrophes, quotation marks, semicolons, colons, dashes
 4. **Capitalization**: Sentence starts, proper nouns, titles
+5. **Style**: Improve word choice and flow to make the text read better, WITHOUT removing or shortening anything.
 
-STRICT RULES:
-- Never remove, delete, or cut any text — even a single word. Only replace errors with corrections.
-- Never shorten or condense sentences.
-- Never change phrasing, word choice, or sentence structure unless it is grammatically incorrect.
-- If a word or phrase is not an actual error (spelling, grammar, punctuation, capitalization), leave it exactly as-is.
-- When in doubt, leave it unchanged.
+CRITICAL — NEVER DO THESE:
+- Never delete, remove, or cut any words, phrases, or sentences — even a single word.
+- Never replace a phrase with a shorter one or fewer words.
+- Never shorten or condense anything.
+- Every correction must keep the same number of words or add words — never remove them.
+- Style improvements must preserve the original meaning and length.
+
+If a word or phrase has no error, leave it exactly as-is. When in doubt, leave it unchanged.
 
 Return ONLY the corrected text. No explanations, no commentary, no markdown. If no errors, return the text exactly as provided.`,
         },
