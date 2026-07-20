@@ -56,14 +56,14 @@ function ToolbarButton({ onClick, active, children, title, id }: {
   );
 }
 
-function ToolbarSelect({ value, onChange, options, onMouseDown }: {
-  value: string; onChange: (v: string) => void; options: string[]; onMouseDown?: () => void;
+function ToolbarSelect({ value, onChange, options }: {
+  value: string; onChange: (v: string) => void; options: string[];
 }) {
   return (
     <select
       value={value}
       onChange={e => onChange(e.target.value)}
-      onMouseDown={e => { if (onMouseDown) { onMouseDown(); } }}
+      onMouseDown={e => e.preventDefault()}
       className="h-7 text-xs rounded border bg-background px-1.5 text-foreground"
     >
       {options.map(o => <option key={o} value={o}>{o}</option>)}
@@ -101,7 +101,6 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
   const rafRef = useRef<number>(0);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const savedSelectionRef = useRef<any>(null);
-  const toolbarSelectionRef = useRef<{ from: number; to: number } | null>(null);
   const grammarRef = useRef<GrammarError[]>([]);
   grammarRef.current = grammarErrors || [];
 
@@ -288,24 +287,6 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
     return () => observer.disconnect();
   }, [editor]);
 
-  // Save editor selection before toolbar controls steal focus
-  const saveToolbarSelection = useCallback(() => {
-    if (editor) {
-      const { from, to } = editor.state.selection;
-      toolbarSelectionRef.current = { from, to };
-    }
-  }, [editor]);
-
-  // Restore saved selection and run a command
-  const runWithSelection = useCallback((fn: () => void) => {
-    const sel = toolbarSelectionRef.current;
-    if (editor && sel && sel.from !== sel.to) {
-      editor.chain().focus().setTextSelection({ from: sel.from, to: sel.to }).run();
-    }
-    fn();
-    toolbarSelectionRef.current = null;
-  }, [editor]);
-
   useEffect(() => {
     if (!editor) return;
     const dom = editor.view.dom;
@@ -448,23 +429,21 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
 
         <ToolbarSelect
           value={editor.getAttributes("textStyle").fontFamily || ""}
-          onMouseDown={saveToolbarSelection}
-          onChange={v => runWithSelection(() => editor.chain().focus().setFontFamily(v).run())}
+          onChange={v => editor.chain().focus().setFontFamily(v).run()}
           options={fonts}
         />
         <ToolbarSelect
           value={editor.getAttributes("textStyle").fontSize || ""}
-          onMouseDown={saveToolbarSelection}
           onChange={v => {
-            if (v) runWithSelection(() => editor.chain().focus().setFontSize(v).run());
+            if (v) editor.chain().focus().setFontSize(v).run();
           }}
           options={fontSizes}
         />
         <input
           type="color"
           value={editor.getAttributes("textStyle").color || "#000000"}
-          onMouseDown={saveToolbarSelection}
-          onChange={e => runWithSelection(() => editor.chain().focus().setColor(e.target.value).run())}
+          onMouseDown={e => e.preventDefault()}
+          onChange={e => editor.chain().focus().setColor(e.target.value).run()}
           className="w-6 h-6 p-0 border rounded cursor-pointer"
           title="Text Color"
         />
@@ -485,8 +464,8 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
         <input
           type="color"
           value={editor.getAttributes("highlight").color || "#ffff00"}
-          onMouseDown={saveToolbarSelection}
-          onInput={e => runWithSelection(() => editor.chain().focus().toggleHighlight({ color: (e.target as HTMLInputElement).value }).run())}
+          onMouseDown={e => e.preventDefault()}
+          onInput={e => editor.chain().focus().toggleHighlight({ color: (e.target as HTMLInputElement).value }).run()}
           className="w-6 h-6 p-0 border rounded cursor-pointer"
           title="Highlight Color"
         />
