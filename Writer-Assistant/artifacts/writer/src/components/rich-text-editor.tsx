@@ -488,6 +488,12 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
       <TableHandle editor={editor} />
 
       <style>{`
+        .ProseMirror {
+          color: hsl(var(--foreground));
+        }
+        .dark .ProseMirror {
+          color: hsl(40 10% 96%);
+        }
         .ProseMirror ul, .ProseMirror ol {
           list-style: revert;
           padding-left: 1.5em;
