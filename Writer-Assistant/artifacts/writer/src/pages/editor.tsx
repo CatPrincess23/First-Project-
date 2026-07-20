@@ -797,7 +797,7 @@ export default function Editor({ params }: { params: { id: string } }) {
         <div className="flex-1 overflow-y-auto flex justify-center" style={{ contain: "layout paint style" }}>
           <div id="tour-editor-textarea" className="w-full max-w-3xl px-4 md:px-8 py-6">
             {editorReady ? (
-            <RichTextEditor key={documentId} ref={richEditorRef} content={content} onBlur={stableOnBlur} onChange={stableOnChange} onSelectionChange={stableOnSelectionChange} placeholder="Start writing..." />
+            <RichTextEditor key={documentId} ref={richEditorRef} content={content} onBlur={stableOnBlur} onChange={stableOnChange} onSelectionChange={stableOnSelectionChange} placeholder="Start writing..." grammarErrors={grammarErrors} />
             ) : (
               <div className="min-h-[60vh] flex items-center justify-center text-muted-foreground">
                 <Loader2 className="w-6 h-6 animate-spin" />

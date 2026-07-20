@@ -6,6 +6,9 @@ import { FontFamily } from "@tiptap/extension-font-family";
 import { TextAlign } from "@tiptap/extension-text-align";
 import { Highlight } from "@tiptap/extension-highlight";
 import { Image } from "@tiptap/extension-image";
+import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import { Extension } from "@tiptap/core";
 import { useCallback, useEffect, useRef, useState, memo, forwardRef, useImperativeHandle } from "react";
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
@@ -67,12 +70,21 @@ function ToolbarSelect({ value, onChange, options }: {
   );
 }
 
+interface GrammarError {
+  offset: number;
+  length: number;
+  type: "spelling" | "grammar" | "style" | "punctuation";
+  message?: string;
+  suggestion?: string;
+}
+
 interface RichTextEditorProps {
   content: string;
   onChange: (html: string) => void;
   onBlur?: () => void;
   placeholder?: string;
   onSelectionChange?: (selectedText: string) => void;
+  grammarErrors?: GrammarError[];
 }
 
 export interface RichTextEditorHandle {
@@ -84,10 +96,12 @@ export interface RichTextEditorHandle {
   focus: () => void;
 }
 
-function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionChange }: RichTextEditorProps, ref: React.Ref<RichTextEditorHandle>) {
+function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionChange, grammarErrors }: RichTextEditorProps, ref: React.Ref<RichTextEditorHandle>) {
   const rafRef = useRef<number>(0);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const savedSelectionRef = useRef<any>(null);
+  const grammarRef = useRef<GrammarError[]>([]);
+  grammarRef.current = grammarErrors || [];
 
   useEffect(() => {
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
@@ -110,6 +124,73 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
       ChartExtension,
       TableKit.configure({
         table: { resizable: true, allowTableNodeSelection: true },
+      }),
+      // Grammar highlight extension
+      Extension.create({
+        name: "grammarHighlight",
+        addProseMirrorPlugins() {
+          const errorColors: Record<string, string> = {
+            spelling: "red", grammar: "orange", style: "blue", punctuation: "purple",
+          };
+          return [
+            new Plugin({
+              key: new PluginKey("grammar-decorations"),
+              props: {
+                decorations(state) {
+                  const errors = grammarRef.current;
+                  if (!errors.length) return null;
+                  const decos: Decoration[] = [];
+                  const doc = state.doc;
+                  const textNodes: { text: string; pos: number }[] = [];
+                  doc.descendants((node, pos) => {
+                    if (node.isText) textNodes.push({ text: node.text!, pos });
+                  });
+
+                  for (const err of errors) {
+                    if (err.length <= 0) continue;
+                    const errEnd = err.offset + err.length;
+                    let cumPos = 0;
+                    let startNodeIdx = -1, endNodeIdx = -1;
+                    let from = -1, to = -1;
+
+                    for (let i = 0; i < textNodes.length; i++) {
+                      const nodeEnd = cumPos + textNodes[i].text.length;
+                      if (startNodeIdx === -1 && err.offset >= cumPos && err.offset < nodeEnd) {
+                        startNodeIdx = i;
+                        from = textNodes[i].pos + (err.offset - cumPos);
+                      }
+                      if (errEnd > cumPos && errEnd <= nodeEnd) {
+                        endNodeIdx = i;
+                        to = textNodes[i].pos + (errEnd - cumPos);
+                        break;
+                      }
+                      cumPos = nodeEnd;
+                    }
+
+                    if (startNodeIdx === -1 || from === -1 || to === -1) continue;
+                    const color = errorColors[err.type] || "gray";
+                    const deco = (f: number, t: number) =>
+                      Decoration.inline(f, t, {
+                        style: `text-decoration: underline wavy ${color}; text-underline-offset: 4px;`,
+                        class: "grammar-underline",
+                      });
+
+                    if (startNodeIdx === endNodeIdx) {
+                      decos.push(deco(from, to));
+                    } else {
+                      decos.push(deco(from, textNodes[startNodeIdx].pos + textNodes[startNodeIdx].text.length));
+                      for (let i = startNodeIdx + 1; i < endNodeIdx; i++) {
+                        decos.push(deco(textNodes[i].pos, textNodes[i].pos + textNodes[i].text.length));
+                      }
+                      decos.push(deco(textNodes[endNodeIdx].pos, to));
+                    }
+                  }
+                  return DecorationSet.create(doc, decos);
+                },
+              },
+            }),
+          ];
+        },
       }),
     ],
     content: content || "",
@@ -144,6 +225,11 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
       editor?.commands.focus();
     },
   }), [editor]);
+
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return;
+    editor.view.dispatch(editor.state.tr);
+  }, [editor, grammarErrors]);
 
   useEffect(() => {
     if (!editor) return;
@@ -456,6 +542,10 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
         .ProseMirror .selectedCell {
           background: hsl(var(--accent) / 0.15);
         }
+        .grammar-underline {
+          text-decoration-skip-ink: none;
+          text-decoration-thickness: 2px;
+        }
       `}</style>
     </div>
   );
@@ -465,5 +555,6 @@ export default memo(forwardRef<RichTextEditorHandle, RichTextEditorProps>(RichTe
   return prev.onChange === next.onChange
     && prev.onBlur === next.onBlur
     && prev.placeholder === next.placeholder
-    && prev.onSelectionChange === next.onSelectionChange;
+    && prev.onSelectionChange === next.onSelectionChange
+    && prev.grammarErrors === next.grammarErrors;
 });
