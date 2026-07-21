@@ -125765,11 +125765,12 @@ function wordDiff(original, corrected) {
       k++;
     }
     if (origWords.length === 0) continue;
+    if (corrWords.length === 0 || corrWords.length < origWords.length) continue;
     const errSpan = original.slice(blockStart, blockEnd);
     const corrStr = corrWords.join(" ");
     const origStr = origWords.join(" ");
     errors.push({
-      message: corrWords.length ? `${origStr} \u2192 ${corrStr}` : `${origStr} \u2192 (remove)`,
+      message: `${origStr} \u2192 ${corrStr}`,
       suggestion: corrStr,
       offset: blockStart,
       length: blockEnd - blockStart,
@@ -125795,7 +125796,7 @@ router4.post("/grammar", async (req, res, next) => {
       messages: [
         {
           role: "system",
-          content: `You are an expert proofreader. Scan the text for ANY errors \u2014 spelling, grammar, punctuation, capitalization, word choice, or sentence structure issues. Reply with ONLY "YES" if there are errors to fix, or "NO" if the text is perfectly error-free. Do not provide any other response.`
+          content: `You are a proofreader. Scan for errors in spelling, grammar, punctuation, capitalization, and style. Reply with ONLY "YES" if there are errors or improvements to make, or "NO" if the text is fine as-is. Do not provide any other response.`
         },
         { role: "user", content: cappedText }
       ],
@@ -125812,18 +125813,25 @@ router4.post("/grammar", async (req, res, next) => {
       messages: [
         {
           role: "system",
-          content: `You are an expert professional proofreader and copy editor. Your task is to carefully review text and fix EVERY error you find \u2014 be thorough and precise. Fix ALL of the following:
+          content: `You are a proofreader and style editor. Fix errors and improve readability, but NEVER remove or shorten text.
 
+Fix these types:
 1. **Spelling**: Typos, misspelled words, incorrect homophones (their/there/they're, your/you're, its/it's, to/too/two, etc.)
-2. **Grammar**: Subject-verb agreement, verb tense consistency, pronoun agreement, article usage (a/an/the), pluralization, comparatives
-3. **Punctuation**: Missing or incorrect commas, periods, apostrophes, quotation marks, semicolons, colons, dashes, hyphens
+2. **Grammar**: Subject-verb agreement, verb tense consistency, pronoun agreement, article usage (a/an/the), pluralization
+3. **Punctuation**: Missing or incorrect commas, periods, apostrophes, quotation marks, semicolons, colons, dashes
 4. **Capitalization**: Sentence starts, proper nouns, titles
-5. **Word choice**: Awkward phrasing, incorrect word usage, redundancies, clunky constructions
-6. **Sentence structure**: Run-on sentences, fragments, awkward constructions
+5. **Style**: Improve word choice and flow to make the text read better, WITHOUT removing or shortening anything.
 
-CRITICAL RULE: Never delete or remove text. Every word or phrase that needs correction must be replaced with a corrected version \u2014 never simply removed. Keep the text length as close to the original as possible.
+CRITICAL \u2014 NEVER DO THESE:
+- Never delete, remove, or cut any words, phrases, or sentences \u2014 even a single word.
+- Never replace a phrase with a shorter one or fewer words.
+- Never shorten or condense anything.
+- Every correction must keep the same number of words or add words \u2014 never remove them.
+- Style improvements must preserve the original meaning and length.
 
-Return ONLY the corrected text with all errors fixed. Do NOT add any explanations, commentary, JSON formatting, or markdown. If there are no errors at all, return the text exactly as provided.`
+If a word or phrase has no error, leave it exactly as-is. When in doubt, leave it unchanged.
+
+Return ONLY the corrected text. No explanations, no commentary, no markdown. If no errors, return the text exactly as provided.`
         },
         { role: "user", content: cappedText }
       ],
@@ -126153,7 +126161,7 @@ router4.post("/chat", async (req, res, next) => {
     const { messages: incomingMessages, conversationId } = parse4.data;
     const userId = getUserId(req);
     const BASE_PROMPT = "You are a helpful writing assistant. Help users with their writing \u2014 give feedback, answer questions, suggest improvements, and discuss their story. Be friendly and constructive.";
-    const DOC_CONTEXT_CAP = 3e4;
+    const DOC_CONTEXT_CAP = 9e4;
     const rawDocContext = req.body?.documentContext;
     let documentContext;
     if (typeof rawDocContext === "string" && rawDocContext.length <= DOC_CONTEXT_CAP && rawDocContext.length > 0) {

@@ -811,7 +811,7 @@ router.post("/chat", async (req, res, next) => {
   // dedicated, validated `documentContext` field (with a data-only fallback
   // that treats any client-supplied system message purely as document text).
   const BASE_PROMPT = "You are a helpful writing assistant. Help users with their writing — give feedback, answer questions, suggest improvements, and discuss their story. Be friendly and constructive.";
-  const DOC_CONTEXT_CAP = 30000;
+  const DOC_CONTEXT_CAP = 90000;
 
   // Primary: validated dedicated field. Invalid/oversized values are ignored
   // (not rejected) so a malformed documentContext never 400s the whole chat —
