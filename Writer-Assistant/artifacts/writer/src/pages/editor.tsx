@@ -1195,7 +1195,7 @@ export default function Editor({ params }: { params: { id: string } }) {
                       <h3 className="font-medium text-sm mb-1">AI Chat</h3>
                       <p className="text-xs text-muted-foreground mb-3">Chat about your writing.</p>
                     </div>
-                    <div className="flex-1 space-y-3 overflow-y-auto min-h-0">
+                    <div className="flex-1 space-y-3 overflow-y-auto min-h-0" style={{ contain: "layout paint style" }}>
                       {chatMessages.length === 0 && (
                         <p className="text-xs text-muted-foreground text-center py-8">Start a conversation.</p>
                       )}

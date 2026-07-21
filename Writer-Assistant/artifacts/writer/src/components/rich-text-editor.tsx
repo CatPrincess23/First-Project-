@@ -41,7 +41,7 @@ const fonts = [
 
 const fontSizes = ["12px", "14px", "16px", "18px", "20px", "24px", "28px", "32px", "36px", "48px"];
 
-function ToolbarButton({ onClick, active, children, title, id }: {
+const ToolbarButton = memo(function ToolbarButton({ onClick, active, children, title, id }: {
   onClick: () => void; active?: boolean; children: React.ReactNode; title?: string; id?: string;
 }) {
   return (
@@ -54,9 +54,9 @@ function ToolbarButton({ onClick, active, children, title, id }: {
       {children}
     </button>
   );
-}
+});
 
-function ToolbarSelect({ value, onChange, options }: {
+const ToolbarSelect = memo(function ToolbarSelect({ value, onChange, options }: {
   value: string; onChange: (v: string) => void; options: string[];
 }) {
   return (
@@ -69,7 +69,7 @@ function ToolbarSelect({ value, onChange, options }: {
       {options.map(o => <option key={o} value={o}>{o}</option>)}
     </select>
   );
-}
+});
 
 interface GrammarError {
   offset: number;
@@ -257,7 +257,6 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
         blur: () => { onBlur?.(); return false; },
       },
     },
-    shouldRerenderOnTransaction: true,
   });
 
   const onSelectionChangeRef = useRef(onSelectionChange);
@@ -271,6 +270,42 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
       editor?.commands.focus();
     },
   }), [editor]);
+
+  // Toolbar formatting state synced from editor events (avoids shouldRerenderOnTransaction).
+  const [toolbarFmt, setToolbarFmt] = useState({
+    fontFamily: "", fontSize: "", color: "#000000", highlightColor: "#ffff00",
+    isBold: false, isItalic: false, isUnderline: false, isStrike: false, isHighlight: false,
+    heading: 0,
+    isBulletList: false, isOrderedList: false, isBlockquote: false, isCodeBlock: false,
+    textAlign: "", isLink: false,
+  });
+
+  useEffect(() => {
+    if (!editor) return;
+    const sync = () => {
+      setToolbarFmt({
+        fontFamily: editor.getAttributes("textStyle").fontFamily || "",
+        fontSize: editor.getAttributes("textStyle").fontSize || "",
+        color: editor.getAttributes("textStyle").color || "#000000",
+        highlightColor: editor.getAttributes("highlight").color || "#ffff00",
+        isBold: editor.isActive("bold"),
+        isItalic: editor.isActive("italic"),
+        isUnderline: editor.isActive("underline"),
+        isStrike: editor.isActive("strike"),
+        isHighlight: editor.isActive("highlight"),
+        heading: editor.isActive("heading", { level: 1 }) ? 1 : editor.isActive("heading", { level: 2 }) ? 2 : editor.isActive("heading", { level: 3 }) ? 3 : 0,
+        isBulletList: editor.isActive("bulletList"),
+        isOrderedList: editor.isActive("orderedList"),
+        isBlockquote: editor.isActive("blockquote"),
+        isCodeBlock: editor.isActive("codeBlock"),
+        textAlign: editor.isActive({ textAlign: "left" }) ? "left" : editor.isActive({ textAlign: "center" }) ? "center" : editor.isActive({ textAlign: "right" }) ? "right" : editor.isActive({ textAlign: "justify" }) ? "justify" : "",
+        isLink: editor.isActive("link"),
+      });
+    };
+    editor.on("selectionUpdate", sync);
+    sync();
+    return () => { editor.off("selectionUpdate", sync); };
+  }, [editor]);
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) return;
@@ -428,12 +463,12 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
         <span className="w-px h-5 bg-border mx-1" />
 
         <ToolbarSelect
-          value={editor.getAttributes("textStyle").fontFamily || ""}
+          value={toolbarFmt.fontFamily}
           onChange={v => editor.chain().focus().setFontFamily(v).run()}
           options={fonts}
         />
         <ToolbarSelect
-          value={editor.getAttributes("textStyle").fontSize || ""}
+          value={toolbarFmt.fontSize}
           onChange={v => {
             if (v) editor.chain().focus().setFontSize(v).run();
           }}
@@ -441,60 +476,58 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
         />
         <input
           type="color"
-          value={editor.getAttributes("textStyle").color || "#000000"}
-          onMouseDown={e => e.preventDefault()}
+          value={toolbarFmt.color}
           onChange={e => editor.chain().focus().setColor(e.target.value).run()}
           className="w-6 h-6 p-0 border rounded cursor-pointer"
           title="Text Color"
         />
         <span className="w-px h-5 bg-border mx-1" />
 
-        <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive("bold")} title="Bold">
+        <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} active={toolbarFmt.isBold} title="Bold">
           <Bold className="w-3.5 h-3.5" />
         </ToolbarButton>
-        <ToolbarButton onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive("italic")} title="Italic">
+        <ToolbarButton onClick={() => editor.chain().focus().toggleItalic().run()} active={toolbarFmt.isItalic} title="Italic">
           <Italic className="w-3.5 h-3.5" />
         </ToolbarButton>
-        <ToolbarButton onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive("underline")} title="Underline">
+        <ToolbarButton onClick={() => editor.chain().focus().toggleUnderline().run()} active={toolbarFmt.isUnderline} title="Underline">
           <UnderlineIcon className="w-3.5 h-3.5" />
         </ToolbarButton>
-        <ToolbarButton onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive("strike")} title="Strikethrough">
+        <ToolbarButton onClick={() => editor.chain().focus().toggleStrike().run()} active={toolbarFmt.isStrike} title="Strikethrough">
           <Strikethrough className="w-3.5 h-3.5" />
         </ToolbarButton>
         <input
           type="color"
-          value={editor.getAttributes("highlight").color || "#ffff00"}
-          onMouseDown={e => e.preventDefault()}
+          value={toolbarFmt.highlightColor}
           onInput={e => editor.chain().focus().toggleHighlight({ color: (e.target as HTMLInputElement).value }).run()}
           className="w-6 h-6 p-0 border rounded cursor-pointer"
           title="Highlight Color"
         />
-        <ToolbarButton onClick={() => editor.chain().focus().toggleHighlight().run()} active={editor.isActive("highlight")} title="Highlight">
+        <ToolbarButton onClick={() => editor.chain().focus().toggleHighlight().run()} active={toolbarFmt.isHighlight} title="Highlight">
           <Highlighter className="w-3.5 h-3.5" />
         </ToolbarButton>
         <span className="w-px h-5 bg-border mx-1" />
 
-        <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive("heading", { level: 1 })} title="Heading 1">
+        <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={toolbarFmt.heading === 1} title="Heading 1">
           <Heading1 className="w-3.5 h-3.5" />
         </ToolbarButton>
-        <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive("heading", { level: 2 })} title="Heading 2">
+        <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={toolbarFmt.heading === 2} title="Heading 2">
           <Heading2 className="w-3.5 h-3.5" />
         </ToolbarButton>
-        <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive("heading", { level: 3 })} title="Heading 3">
+        <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={toolbarFmt.heading === 3} title="Heading 3">
           <Heading3 className="w-3.5 h-3.5" />
         </ToolbarButton>
         <span className="w-px h-5 bg-border mx-1" />
 
-        <ToolbarButton onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive("bulletList")} title="Bullet List">
+        <ToolbarButton onClick={() => editor.chain().focus().toggleBulletList().run()} active={toolbarFmt.isBulletList} title="Bullet List">
           <List className="w-3.5 h-3.5" />
         </ToolbarButton>
-        <ToolbarButton onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive("orderedList")} title="Numbered List">
+        <ToolbarButton onClick={() => editor.chain().focus().toggleOrderedList().run()} active={toolbarFmt.isOrderedList} title="Numbered List">
           <ListOrdered className="w-3.5 h-3.5" />
         </ToolbarButton>
-        <ToolbarButton onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive("blockquote")} title="Blockquote">
+        <ToolbarButton onClick={() => editor.chain().focus().toggleBlockquote().run()} active={toolbarFmt.isBlockquote} title="Blockquote">
           <Quote className="w-3.5 h-3.5" />
         </ToolbarButton>
-        <ToolbarButton onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={editor.isActive("codeBlock")} title="Code Block">
+        <ToolbarButton onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={toolbarFmt.isCodeBlock} title="Code Block">
           <FileCode className="w-3.5 h-3.5" />
         </ToolbarButton>
         <ToolbarButton onClick={() => editor.chain().focus().setHorizontalRule().run()} title="Horizontal Rule">
@@ -502,21 +535,21 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
         </ToolbarButton>
         <span className="w-px h-5 bg-border mx-1" />
 
-        <ToolbarButton onClick={() => editor.chain().focus().setTextAlign("left").run()} active={editor.isActive({ textAlign: "left" })} title="Align Left">
+        <ToolbarButton onClick={() => editor.chain().focus().setTextAlign("left").run()} active={toolbarFmt.textAlign === "left"} title="Align Left">
           <AlignLeft className="w-3.5 h-3.5" />
         </ToolbarButton>
-        <ToolbarButton onClick={() => editor.chain().focus().setTextAlign("center").run()} active={editor.isActive({ textAlign: "center" })} title="Center">
+        <ToolbarButton onClick={() => editor.chain().focus().setTextAlign("center").run()} active={toolbarFmt.textAlign === "center"} title="Center">
           <AlignCenter className="w-3.5 h-3.5" />
         </ToolbarButton>
-        <ToolbarButton onClick={() => editor.chain().focus().setTextAlign("right").run()} active={editor.isActive({ textAlign: "right" })} title="Align Right">
+        <ToolbarButton onClick={() => editor.chain().focus().setTextAlign("right").run()} active={toolbarFmt.textAlign === "right"} title="Align Right">
           <AlignRight className="w-3.5 h-3.5" />
         </ToolbarButton>
-        <ToolbarButton onClick={() => editor.chain().focus().setTextAlign("justify").run()} active={editor.isActive({ textAlign: "justify" })} title="Justify">
+        <ToolbarButton onClick={() => editor.chain().focus().setTextAlign("justify").run()} active={toolbarFmt.textAlign === "justify"} title="Justify">
           <AlignJustify className="w-3.5 h-3.5" />
         </ToolbarButton>
         <span className="w-px h-5 bg-border mx-1" />
 
-        <ToolbarButton onClick={setLink} active={editor.isActive("link")} title="Link">
+        <ToolbarButton onClick={setLink} active={toolbarFmt.isLink} title="Link">
           <LinkIcon className="w-3.5 h-3.5" />
         </ToolbarButton>
         <input type="file" ref={imageInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
