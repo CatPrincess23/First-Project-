@@ -56,16 +56,20 @@ const ToolbarButton = memo(function ToolbarButton({ onClick, active, children, t
   );
 });
 
-const ToolbarSelect = memo(function ToolbarSelect({ value, onChange, options }: {
-  value: string; onChange: (v: string) => void; options: string[];
+const ToolbarSelect = memo(function ToolbarSelect({ value, onChange, options, onMouseDown }: {
+  value: string; onChange: (v: string) => void; options: string[]; onMouseDown?: () => void;
 }) {
   return (
     <select
       value={value}
-      onChange={e => onChange(e.target.value)}
-      onMouseDown={e => e.preventDefault()}
+      onChange={e => {
+        const v = e.target.value;
+        if (v) onChange(v);
+      }}
+      onMouseDown={() => onMouseDown?.()}
       className="h-7 text-xs rounded border bg-background px-1.5 text-foreground"
     >
+      <option value="" disabled>—</option>
       {options.map(o => <option key={o} value={o}>{o}</option>)}
     </select>
   );
@@ -364,6 +368,34 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
 
   const [showChartDialog, setShowChartDialog] = useState(false);
 
+  const saveSelection = useCallback(() => {
+    if (!editor) return;
+    const { from, to } = editor.state.selection;
+    savedSelectionRef.current = { from, to };
+  }, [editor]);
+
+  const applyFontFamily = useCallback((v: string) => {
+    if (!editor) return;
+    const saved = savedSelectionRef.current;
+    if (saved && saved.from !== saved.to) {
+      editor.chain().focus().setTextSelection({ from: saved.from, to: saved.to }).setFontFamily(v).run();
+    } else {
+      editor.chain().focus().setFontFamily(v).run();
+    }
+    savedSelectionRef.current = null;
+  }, [editor]);
+
+  const applyFontSize = useCallback((v: string) => {
+    if (!editor) return;
+    const saved = savedSelectionRef.current;
+    if (saved && saved.from !== saved.to) {
+      editor.chain().focus().setTextSelection({ from: saved.from, to: saved.to }).setFontSize(v).run();
+    } else {
+      editor.chain().focus().setFontSize(v).run();
+    }
+    savedSelectionRef.current = null;
+  }, [editor]);
+
   const insertChart = useCallback((configJson: string) => {
     if (!editor) return;
     editor.chain().focus().insertContent({ type: "chart", attrs: { config: configJson } }).run();
@@ -464,14 +496,14 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
 
         <ToolbarSelect
           value={toolbarFmt.fontFamily}
-          onChange={v => editor.chain().focus().setFontFamily(v).run()}
+          onChange={applyFontFamily}
+          onMouseDown={saveSelection}
           options={fonts}
         />
         <ToolbarSelect
           value={toolbarFmt.fontSize}
-          onChange={v => {
-            if (v) editor.chain().focus().setFontSize(v).run();
-          }}
+          onChange={applyFontSize}
+          onMouseDown={saveSelection}
           options={fontSizes}
         />
         <input
