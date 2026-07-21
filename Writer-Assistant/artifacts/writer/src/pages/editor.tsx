@@ -277,6 +277,7 @@ export default function Editor({ params }: { params: { id: string } }) {
   const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant", content: string }[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [chatChunkIndex, setChatChunkIndex] = useState(0);
   const [conversations, setConversations] = useState<any[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
@@ -613,9 +614,15 @@ export default function Editor({ params }: { params: { id: string } }) {
 
     const docContext = stripHtml(content).trim();
     if (docContext) chatDocContent.current = docContext;
-    const wordCount = chatDocContent.current ? chatDocContent.current.trim().split(/\s+/).length : 0;
-    const contextMsg = chatDocContent.current
-      ? { role: "system" as const, content: `The user's document is titled "${title}" (${wordCount} words). Here is the full content — READ IT ALL:\n\n${chatDocContent.current}\n\n---\nYou have the COMPLETE document above. Scan and analyze it entirely. Give specific feedback based on the actual text: point out strengths, weaknesses, style, pacing, character development, plot structure. Quote examples. Offer concrete improvements. Be proactive — mention things the user didn't ask for if you notice something important.` }
+    const fullText = chatDocContent.current || "";
+    const chunkStart = safeChunkIndex * DOC_CONTEXT_CAP;
+    const chunkEnd = Math.min(fullText.length, chunkStart + DOC_CONTEXT_CAP);
+    const chunkText = fullText.slice(chunkStart, chunkEnd);
+    const totalWords = fullText ? fullText.trim().split(/\s+/).length : 0;
+    const chunkWords = chunkText ? chunkText.trim().split(/\s+/).length : 0;
+    const partLabel = chatChunks > 1 ? ` This is part ${safeChunkIndex + 1} of ${chatChunks} (characters ${chunkStart.toLocaleString()}-${chunkEnd.toLocaleString()} of ${fullText.length.toLocaleString()}, ~${chunkWords} of ~${totalWords} words). Only comment on this section unless the user asks about the whole document.` : "";
+    const contextMsg = chunkText
+      ? { role: "system" as const, content: `The user's document is titled "${title}" (~${totalWords} words total). Here is the content to review — READ IT ALL:\n\n${chunkText}\n\n---\nYou have the section above.${partLabel} Give specific feedback based on the actual text: point out strengths, weaknesses, style, pacing, character development, plot structure. Quote examples. Offer concrete improvements. Be proactive — mention things the user didn't ask for if you notice something important.` }
       : null;
 
     const messagesPayload = contextMsg ? [contextMsg, userMsg] : [userMsg];
@@ -682,13 +689,16 @@ export default function Editor({ params }: { params: { id: string } }) {
     }
   };
 
-  const deferredContent = useDeferredValue(content);
-  const { wordCount, docCharCount } = useMemo(() => {
-    const text = stripHtml(deferredContent).trim();
-    return { wordCount: text ? text.split(/\s+/).length : 0, docCharCount: text.length };
-  }, [deferredContent, stripHtml]);
   const DOC_CONTEXT_CAP = 90000;
+  const deferredContent = useDeferredValue(content);
+  const { wordCount, docCharCount, chatChunks } = useMemo(() => {
+    const text = stripHtml(deferredContent).trim();
+    const charCount = text.length;
+    const chunks = charCount > 0 ? Math.max(1, Math.ceil(charCount / DOC_CONTEXT_CAP)) : 1;
+    return { wordCount: text ? text.split(/\s+/).length : 0, docCharCount: charCount, chatChunks: chunks };
+  }, [deferredContent, stripHtml]);
   const docTruncated = docCharCount > DOC_CONTEXT_CAP;
+  const safeChunkIndex = Math.min(chatChunkIndex, chatChunks - 1);
 
   const grammarSnippets = useMemo(() => {
     if (grammarErrors.length === 0) return [];
@@ -955,11 +965,27 @@ export default function Editor({ params }: { params: { id: string } }) {
                 <div>
                   <h3 className="font-medium text-sm mb-1">AI Chat</h3>
                   <p className="text-xs text-muted-foreground mb-3">Ask questions about your writing, get feedback, or brainstorm ideas.</p>
-                  {content.trim() && <Badge variant="secondary" className="text-[10px] mb-2 gap-1"><BookOpen className="w-2.5 h-2.5" /> Document synced ({wordCount} words)</Badge>}
+                  {content.trim() && <Badge variant="secondary" className="text-[10px] mb-2 gap-1"><BookOpen className="w-2.5 h-2.5" /> Document synced ({wordCount.toLocaleString()} words)</Badge>}
                   {docTruncated && (
-                    <p className="text-[11px] mt-1 mb-2 px-2 py-1.5 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300">
-                      Heads up: your document is longer than the AI can read in one go. The assistant only sees the first {(DOC_CONTEXT_CAP / 1000).toFixed(0)}K characters (~{(Math.floor(DOC_CONTEXT_CAP / 5)).toLocaleString()} words). For feedback on later sections, try selecting that text or asking about specific chapters.
-                    </p>
+                    <div className="mt-1 mb-2">
+                      <p className="text-[11px] px-2 py-1.5 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300">
+                        Your document is too long for the AI to read at once (~{(docCharCount / 1000).toFixed(0)}K chars). Pick which part to share:
+                      </p>
+                      <div className="flex items-center gap-1 mt-1.5">
+                        <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={safeChunkIndex === 0} onClick={() => setChatChunkIndex(i => Math.max(0, i - 1))}>
+                          <ChevronLeft className="w-3.5 h-3.5" />
+                        </Button>
+                        <span className="text-xs text-muted-foreground flex-1 text-center">
+                          Part {safeChunkIndex + 1} of {chatChunks}
+                        </span>
+                        <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={safeChunkIndex >= chatChunks - 1} onClick={() => setChatChunkIndex(i => Math.min(chatChunks - 1, i + 1))}>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-1 text-center">
+                        chars {(safeChunkIndex * DOC_CONTEXT_CAP).toLocaleString()}–{Math.min(docCharCount, (safeChunkIndex + 1) * DOC_CONTEXT_CAP).toLocaleString()}
+                      </p>
+                    </div>
                   )}
                 </div>
 
@@ -1202,9 +1228,22 @@ export default function Editor({ params }: { params: { id: string } }) {
                       <h3 className="font-medium text-sm mb-1">AI Chat</h3>
                       <p className="text-xs text-muted-foreground mb-3">Chat about your writing.</p>
                       {docTruncated && (
-                        <p className="text-[11px] mt-1 mb-2 px-2 py-1.5 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300">
-                          Your document is longer than the AI can read at once — only the first {(DOC_CONTEXT_CAP / 1000).toFixed(0)}K characters are visible to it.
-                        </p>
+                        <div className="mt-1 mb-2">
+                          <p className="text-[11px] px-2 py-1.5 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300">
+                            Doc too long — pick which part to share:
+                          </p>
+                          <div className="flex items-center gap-1 mt-1.5">
+                            <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={safeChunkIndex === 0} onClick={() => setChatChunkIndex(i => Math.max(0, i - 1))}>
+                              <ChevronLeft className="w-3.5 h-3.5" />
+                            </Button>
+                            <span className="text-xs text-muted-foreground flex-1 text-center">
+                              Part {safeChunkIndex + 1} of {chatChunks}
+                            </span>
+                            <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={safeChunkIndex >= chatChunks - 1} onClick={() => setChatChunkIndex(i => Math.min(chatChunks - 1, i + 1))}>
+                              <ChevronRight className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </div>
                       )}
                     </div>
                     <div className="flex-1 space-y-3 overflow-y-auto min-h-0" style={{ contain: "layout paint style" }}>
