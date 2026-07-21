@@ -35,11 +35,40 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 
 // Build a short "start … end" snippet for a chunk of plain text so users can
 // identify which part of a long document will be sent to the AI.
-function chunkSnippet(text: string, chunkIndex: number, chunkSize: number, maxLen = 40): { first: string; last: string; start: number; end: number } {
+// Snippets extend to full sentence boundaries (up to maxLen chars) so users
+// see complete thoughts instead of cut-off fragments.
+function chunkSnippet(text: string, chunkIndex: number, chunkSize: number, maxLen = 160): { first: string; last: string; start: number; end: number } {
   const start = chunkIndex * chunkSize;
   const end = Math.min(text.length, start + chunkSize);
-  const first = text.slice(start, start + maxLen).replace(/\s+/g, " ").trim();
-  const last = text.slice(Math.max(start, end - maxLen), end).replace(/\s+/g, " ").trim();
+
+  // First snippet: from chunk start, extend to the end of the first sentence.
+  const firstWindow = text.slice(start);
+  let firstCut = Math.min(firstWindow.length, 60); // fallback if no sentence end found
+  for (let i = 0; i < Math.min(firstWindow.length, maxLen); i++) {
+    const ch = firstWindow[i];
+    if (ch === "." || ch === "!" || ch === "?") {
+      let j = i + 1;
+      while (j < firstWindow.length && (firstWindow[j] === '"' || firstWindow[j] === "'" || firstWindow[j] === ")" || firstWindow[j] === "]")) j++;
+      if (j >= firstWindow.length || /\s/.test(firstWindow[j])) { firstCut = j; break; }
+    }
+  }
+  const first = firstWindow.slice(0, firstCut).replace(/\s+/g, " ").trim();
+
+  // Last snippet: from the start of the last sentence to chunk end.
+  const lastWindow = text.slice(Math.max(0, end - maxLen), end);
+  let lastStartIdx = 0;
+  for (let i = lastWindow.length - 1; i >= 0; i--) {
+    const ch = lastWindow[i];
+    if (ch === "." || ch === "!" || ch === "?") {
+      let j = i + 1;
+      while (j < lastWindow.length && (lastWindow[j] === '"' || lastWindow[j] === "'" || lastWindow[j] === ")" || lastWindow[j] === "]")) j++;
+      if (j < lastWindow.length && /\s/.test(lastWindow[j]) && j + 1 < lastWindow.length) {
+        lastStartIdx = j + 1; break;
+      }
+    }
+  }
+  const last = lastWindow.slice(lastStartIdx).replace(/\s+/g, " ").trim();
+
   return { first, last, start, end };
 }
 
@@ -72,7 +101,7 @@ const ChunkSelector = memo(({
           <ChevronRight className="w-3.5 h-3.5" />
         </Button>
       </div>
-      <p className="text-[10px] text-muted-foreground mt-1 text-center truncate" title={snippet}>
+      <p className="text-[10px] text-muted-foreground mt-1 text-center line-clamp-2 leading-snug" title={snippet}>
         {snippet} <span className="opacity-60">({start.toLocaleString()}–{end.toLocaleString()})</span>
       </p>
     </div>
