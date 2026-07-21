@@ -33,6 +33,52 @@ import { format } from "date-fns";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 
+// Build a short "start … end" snippet for a chunk of plain text so users can
+// identify which part of a long document will be sent to the AI.
+function chunkSnippet(text: string, chunkIndex: number, chunkSize: number, maxLen = 40): { first: string; last: string; start: number; end: number } {
+  const start = chunkIndex * chunkSize;
+  const end = Math.min(text.length, start + chunkSize);
+  const first = text.slice(start, start + maxLen).replace(/\s+/g, " ").trim();
+  const last = text.slice(Math.max(start, end - maxLen), end).replace(/\s+/g, " ").trim();
+  return { first, last, start, end };
+}
+
+const ChunkSelector = memo(({
+  label, chunkIndex, totalChunks, chunkSize, docLength, plainText, onChange,
+}: {
+  label?: string;
+  chunkIndex: number;
+  totalChunks: number;
+  chunkSize: number;
+  docLength: number;
+  plainText: string;
+  onChange: (i: number) => void;
+}) => {
+  if (totalChunks <= 1) return null;
+  const safeIndex = Math.min(chunkIndex, totalChunks - 1);
+  const { first, last, start, end } = chunkSnippet(plainText, safeIndex, chunkSize);
+  const snippet = first || last ? `"${first}${first && last ? " … " : ""}${last}"` : "";
+  return (
+    <div className="mt-2 mb-1">
+      {label && <p className="text-[11px] mb-1.5 px-2 py-1.5 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300">{label}</p>}
+      <div className="flex items-center gap-1">
+        <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={safeIndex === 0} onClick={() => onChange(Math.max(0, safeIndex - 1))}>
+          <ChevronLeft className="w-3.5 h-3.5" />
+        </Button>
+        <span className="text-xs text-muted-foreground flex-1 text-center">
+          Part {safeIndex + 1} of {totalChunks}
+        </span>
+        <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={safeIndex >= totalChunks - 1} onClick={() => onChange(Math.min(totalChunks - 1, safeIndex + 1))}>
+          <ChevronRight className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+      <p className="text-[10px] text-muted-foreground mt-1 text-center truncate" title={snippet}>
+        {snippet} <span className="opacity-60">({start.toLocaleString()}–{end.toLocaleString()})</span>
+      </p>
+    </div>
+  );
+});
+
 const ExportDropdown = memo(({ isExporting, onExport }: {
   isExporting: boolean;
   onExport: (format: "pdf" | "docx") => void;
@@ -240,6 +286,18 @@ export default function Editor({ params }: { params: { id: string } }) {
   const grammarStartRef = useRef<number[]>([]);
   const grammarLenRef = useRef<number[]>([]);
 
+  // For chunked rewrites: stores the HTML [start, end) range of the plain-text
+  // chunk that was sent to /suggest, plus the type, so the Apply button can
+  // splice the rewrite into the right spot instead of clobbering the whole doc.
+  const suggestChunkRef = useRef<{ htmlStart: number; htmlEnd: number; type: AiSuggestInputType } | null>(null);
+
+  // Wrap plain text (from the AI) into minimal HTML paragraphs for splicing.
+  const plainTextToHtml = useCallback((text: string): string => {
+    const paras = text.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
+    if (paras.length === 0) return "";
+    return paras.map(p => `<p>${p.replace(/\n/g, "<br/>")}</p>`).join("");
+  }, []);
+
   // Translate a plain-text [offset, length) span into an HTML [start, end) range
   // using the stored maps. Returns null when the span can't be mapped.
   const plainSpanToHtml = useCallback((offset: number, length: number): [number, number] | null => {
@@ -278,6 +336,8 @@ export default function Editor({ params }: { params: { id: string } }) {
   const [chatInput, setChatInput] = useState("");
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [chatChunkIndex, setChatChunkIndex] = useState(0);
+  const [grammarChunkIndex, setGrammarChunkIndex] = useState(0);
+  const [suggestChunkIndex, setSuggestChunkIndex] = useState(0);
   const [conversations, setConversations] = useState<any[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
@@ -435,12 +495,24 @@ export default function Editor({ params }: { params: { id: string } }) {
   const handleGrammarCheck = () => {
     const { text, mapStart, mapLen } = buildPlainTextWithMap(content);
     if (!text.trim() || !useRequest()) return;
-    // Cache the maps so returned offsets can be translated back into HTML later.
+    // Cache the maps (covering the FULL plain text) so returned offsets can be
+    // translated back into HTML later. Then slice just the selected chunk and
+    // remember its start offset — the AI returns offsets relative to the chunk,
+    // so we add chunkStart back when storing errors.
     grammarStartRef.current = mapStart;
     grammarLenRef.current = mapLen;
+    const chunkStart = safeGrammarChunkIndex * GRAMMAR_CAP;
+    const chunkEnd = Math.min(text.length, chunkStart + GRAMMAR_CAP);
+    const chunkText = text.slice(chunkStart, chunkEnd);
+    if (!chunkText.trim()) return;
     setIsCheckingGrammar(true);
-    aiGrammar.mutate({ data: { text } }, {
-      onSuccess: (result) => { setGrammarErrors(result.errors); setCorrectedText(result.correctedText); setIsCheckingGrammar(false); },
+    aiGrammar.mutate({ data: { text: chunkText } }, {
+      onSuccess: (result) => {
+        const shifted = result.errors.map((e: any) => ({ ...e, offset: (e.offset || 0) + chunkStart }));
+        setGrammarErrors(shifted);
+        setCorrectedText(result.correctedText);
+        setIsCheckingGrammar(false);
+      },
       onError: (e) => { setIsCheckingGrammar(false); toast({ title: (e as any)?.status === 429 ? "AI rate limit reached — please try again in a few minutes" : "Grammar check failed", variant: "destructive" }); }
     });
   };
@@ -492,7 +564,27 @@ export default function Editor({ params }: { params: { id: string } }) {
   const handleSuggest = (type: AiSuggestInputType) => {
     if (!stripHtml(content).trim() || !useRequest()) return;
     setIsSuggesting(true); setSuggestType(type);
-    aiSuggest.mutate({ data: { text: stripHtml(content), type } }, {
+    // Build a plain-text → HTML map so we can splice the rewrite back into the
+    // correct spot for long documents. Slice just the selected chunk; the
+    // backend caps suggest at 8K (12K for shorten) regardless.
+    const { text, mapStart, mapLen } = buildPlainTextWithMap(content);
+    const chunkStart = safeSuggestChunkIndex * SUGGEST_CAP;
+    const chunkEnd = Math.min(text.length, chunkStart + SUGGEST_CAP);
+    const chunkText = text.slice(chunkStart, chunkEnd);
+    if (!chunkText.trim()) { setIsSuggesting(false); return; }
+    // Compute the HTML range for this chunk so Apply can splice into it.
+    let htmlStart: number | null = null;
+    let htmlEnd: number | null = null;
+    for (let i = chunkStart; i < chunkEnd && i < mapStart.length; i++) {
+      if (mapLen[i] > 0) { htmlStart = mapStart[i]; break; }
+    }
+    for (let i = chunkEnd - 1; i >= chunkStart && i < mapStart.length; i--) {
+      if (mapLen[i] > 0) { htmlEnd = mapStart[i] + mapLen[i]; break; }
+    }
+    suggestChunkRef.current = (htmlStart !== null && htmlEnd !== null)
+      ? { htmlStart, htmlEnd, type }
+      : null;
+    aiSuggest.mutate({ data: { text: chunkText, type } }, {
       onSuccess: (result) => { setSuggestion(result.suggestion); setIsSuggesting(false); },
       onError: (e) => { setIsSuggesting(false); toast({ title: (e as any)?.status === 429 ? "AI rate limit reached — please try again in a few minutes" : "AI suggestions failed", variant: "destructive" }); }
     });
@@ -500,8 +592,23 @@ export default function Editor({ params }: { params: { id: string } }) {
 
   const handleApplySuggestion = () => {
     if (!suggestion) return;
-    applyEditorContent(suggestion);
-    setSuggestion("");
+    const chunk = suggestChunkRef.current;
+    if (chunk) {
+      // Splice the rewrite into the chunk's HTML range, preserving the rest of
+      // the document. For "continue" the AI returns only new text, so we insert
+      // it AFTER the chunk rather than replacing it.
+      const isContinue = chunk.type === ("continue" as AiSuggestInputType);
+      const insert = plainTextToHtml(suggestion);
+      const newHtml = isContinue
+        ? content.slice(0, chunk.htmlEnd) + insert + content.slice(chunk.htmlEnd)
+        : content.slice(0, chunk.htmlStart) + insert + content.slice(chunk.htmlEnd);
+      suggestChunkRef.current = null;
+      setSuggestion("");
+      applyEditorContent(newHtml);
+    } else {
+      applyEditorContent(suggestion);
+      setSuggestion("");
+    }
   };
 
   const handleSummarize = () => {
@@ -690,15 +797,25 @@ export default function Editor({ params }: { params: { id: string } }) {
   };
 
   const DOC_CONTEXT_CAP = 90000;
+  const GRAMMAR_CAP = 20000;
+  const SUGGEST_CAP = 8000;
   const deferredContent = useDeferredValue(content);
-  const { wordCount, docCharCount, chatChunks } = useMemo(() => {
+  const { wordCount, docCharCount, plainText, chatChunks, grammarChunks, suggestChunks } = useMemo(() => {
     const text = stripHtml(deferredContent).trim();
     const charCount = text.length;
-    const chunks = charCount > 0 ? Math.max(1, Math.ceil(charCount / DOC_CONTEXT_CAP)) : 1;
-    return { wordCount: text ? text.split(/\s+/).length : 0, docCharCount: charCount, chatChunks: chunks };
+    return {
+      wordCount: text ? text.split(/\s+/).length : 0,
+      docCharCount: charCount,
+      plainText: text,
+      chatChunks: Math.max(1, Math.ceil(charCount / DOC_CONTEXT_CAP)),
+      grammarChunks: Math.max(1, Math.ceil(charCount / GRAMMAR_CAP)),
+      suggestChunks: Math.max(1, Math.ceil(charCount / SUGGEST_CAP)),
+    };
   }, [deferredContent, stripHtml]);
   const docTruncated = docCharCount > DOC_CONTEXT_CAP;
   const safeChunkIndex = Math.min(chatChunkIndex, chatChunks - 1);
+  const safeGrammarChunkIndex = Math.min(grammarChunkIndex, grammarChunks - 1);
+  const safeSuggestChunkIndex = Math.min(suggestChunkIndex, suggestChunks - 1);
 
   const grammarSnippets = useMemo(() => {
     if (grammarErrors.length === 0) return [];
@@ -850,9 +967,18 @@ export default function Editor({ params }: { params: { id: string } }) {
                 <div>
                   <h3 className="font-medium text-sm mb-1">Grammar & Style</h3>
                   <p className="text-xs text-muted-foreground mb-3">Check your writing for errors and improvements.</p>
+                  <ChunkSelector
+                    label={`Doc too long for one pass — grammar checks the first ${(GRAMMAR_CAP / 1000).toFixed(0)}K chars at a time. Pick which part:`}
+                    chunkIndex={safeGrammarChunkIndex}
+                    totalChunks={grammarChunks}
+                    chunkSize={GRAMMAR_CAP}
+                    docLength={docCharCount}
+                    plainText={plainText}
+                    onChange={setGrammarChunkIndex}
+                  />
                   <Button onClick={handleGrammarCheck} disabled={isCheckingGrammar || !content.trim()} className="w-full gap-2" size="sm">
                     {isCheckingGrammar ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
-                    {isCheckingGrammar ? "Checking..." : "Check Document"}
+                    {isCheckingGrammar ? "Checking..." : grammarChunks > 1 ? `Check Part ${safeGrammarChunkIndex + 1}` : "Check Document"}
                   </Button>
                 </div>
                 {grammarErrors.length > 0 && (
@@ -898,6 +1024,15 @@ export default function Editor({ params }: { params: { id: string } }) {
               <TabsContent value="suggest" className="p-4 m-0 space-y-4 h-full overflow-y-auto">
                 <div>
                   <h3 className="font-medium text-sm mb-3">AI Rewrite</h3>
+                  <ChunkSelector
+                    label={`Rewrites process the first ${(SUGGEST_CAP / 1000).toFixed(0)}K chars at a time. Pick which part:`}
+                    chunkIndex={safeSuggestChunkIndex}
+                    totalChunks={suggestChunks}
+                    chunkSize={SUGGEST_CAP}
+                    docLength={docCharCount}
+                    plainText={plainText}
+                    onChange={setSuggestChunkIndex}
+                  />
                   <div className="grid grid-cols-2 gap-2">
                     {Object.values(AiSuggestInputType).map((type) => (
                       <Button key={type} variant={suggestType === type ? "default" : "outline"} size="sm"
@@ -967,25 +1102,15 @@ export default function Editor({ params }: { params: { id: string } }) {
                   <p className="text-xs text-muted-foreground mb-3">Ask questions about your writing, get feedback, or brainstorm ideas.</p>
                   {content.trim() && <Badge variant="secondary" className="text-[10px] mb-2 gap-1"><BookOpen className="w-2.5 h-2.5" /> Document synced ({wordCount.toLocaleString()} words)</Badge>}
                   {docTruncated && (
-                    <div className="mt-1 mb-2">
-                      <p className="text-[11px] px-2 py-1.5 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300">
-                        Your document is too long for the AI to read at once (~{(docCharCount / 1000).toFixed(0)}K chars). Pick which part to share:
-                      </p>
-                      <div className="flex items-center gap-1 mt-1.5">
-                        <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={safeChunkIndex === 0} onClick={() => setChatChunkIndex(i => Math.max(0, i - 1))}>
-                          <ChevronLeft className="w-3.5 h-3.5" />
-                        </Button>
-                        <span className="text-xs text-muted-foreground flex-1 text-center">
-                          Part {safeChunkIndex + 1} of {chatChunks}
-                        </span>
-                        <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={safeChunkIndex >= chatChunks - 1} onClick={() => setChatChunkIndex(i => Math.min(chatChunks - 1, i + 1))}>
-                          <ChevronRight className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground mt-1 text-center">
-                        chars {(safeChunkIndex * DOC_CONTEXT_CAP).toLocaleString()}–{Math.min(docCharCount, (safeChunkIndex + 1) * DOC_CONTEXT_CAP).toLocaleString()}
-                      </p>
-                    </div>
+                    <ChunkSelector
+                      label={`Doc too long (~${(docCharCount / 1000).toFixed(0)}K chars) — pick which part the AI reads:`}
+                      chunkIndex={safeChunkIndex}
+                      totalChunks={chatChunks}
+                      chunkSize={DOC_CONTEXT_CAP}
+                      docLength={docCharCount}
+                      plainText={plainText}
+                      onChange={setChatChunkIndex}
+                    />
                   )}
                 </div>
 
@@ -1148,9 +1273,18 @@ export default function Editor({ params }: { params: { id: string } }) {
                     <div>
                       <h3 className="font-medium text-sm mb-1">Grammar & Style</h3>
                       <p className="text-xs text-muted-foreground mb-3">Check your writing for errors and improvements.</p>
+                      <ChunkSelector
+                        label={`Grammar checks the first ${(GRAMMAR_CAP / 1000).toFixed(0)}K chars at a time. Pick which part:`}
+                        chunkIndex={safeGrammarChunkIndex}
+                        totalChunks={grammarChunks}
+                        chunkSize={GRAMMAR_CAP}
+                        docLength={docCharCount}
+                        plainText={plainText}
+                        onChange={setGrammarChunkIndex}
+                      />
                       <Button onClick={handleGrammarCheck} disabled={isCheckingGrammar || !content.trim()} className="w-full gap-2" size="sm">
                         {isCheckingGrammar ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
-                        {isCheckingGrammar ? "Checking..." : "Check Document"}
+                        {isCheckingGrammar ? "Checking..." : grammarChunks > 1 ? `Check Part ${safeGrammarChunkIndex + 1}` : "Check Document"}
                       </Button>
                     </div>
                     {grammarErrors.length === 0 && correctedText && <p className="text-sm text-muted-foreground text-center py-6">✓ No issues found</p>}
@@ -1160,6 +1294,15 @@ export default function Editor({ params }: { params: { id: string } }) {
                   <TabsContent value="suggest" className="p-4 m-0 space-y-4 h-full overflow-y-auto">
                     <div>
                       <h3 className="font-medium text-sm mb-3">AI Rewrite</h3>
+                      <ChunkSelector
+                        label={`Rewrites process the first ${(SUGGEST_CAP / 1000).toFixed(0)}K chars at a time. Pick which part:`}
+                        chunkIndex={safeSuggestChunkIndex}
+                        totalChunks={suggestChunks}
+                        chunkSize={SUGGEST_CAP}
+                        docLength={docCharCount}
+                        plainText={plainText}
+                        onChange={setSuggestChunkIndex}
+                      />
                       <div className="grid grid-cols-2 gap-2">
                         {Object.values(AiSuggestInputType).map((type) => (
                           <Button key={type} variant={suggestType === type ? "default" : "outline"} size="sm"
@@ -1228,22 +1371,15 @@ export default function Editor({ params }: { params: { id: string } }) {
                       <h3 className="font-medium text-sm mb-1">AI Chat</h3>
                       <p className="text-xs text-muted-foreground mb-3">Chat about your writing.</p>
                       {docTruncated && (
-                        <div className="mt-1 mb-2">
-                          <p className="text-[11px] px-2 py-1.5 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300">
-                            Doc too long — pick which part to share:
-                          </p>
-                          <div className="flex items-center gap-1 mt-1.5">
-                            <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={safeChunkIndex === 0} onClick={() => setChatChunkIndex(i => Math.max(0, i - 1))}>
-                              <ChevronLeft className="w-3.5 h-3.5" />
-                            </Button>
-                            <span className="text-xs text-muted-foreground flex-1 text-center">
-                              Part {safeChunkIndex + 1} of {chatChunks}
-                            </span>
-                            <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={safeChunkIndex >= chatChunks - 1} onClick={() => setChatChunkIndex(i => Math.min(chatChunks - 1, i + 1))}>
-                              <ChevronRight className="w-3.5 h-3.5" />
-                            </Button>
-                          </div>
-                        </div>
+                        <ChunkSelector
+                          label="Doc too long — pick which part to share:"
+                          chunkIndex={safeChunkIndex}
+                          totalChunks={chatChunks}
+                          chunkSize={DOC_CONTEXT_CAP}
+                          docLength={docCharCount}
+                          plainText={plainText}
+                          onChange={setChatChunkIndex}
+                        />
                       )}
                     </div>
                     <div className="flex-1 space-y-3 overflow-y-auto min-h-0" style={{ contain: "layout paint style" }}>
