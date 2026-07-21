@@ -683,10 +683,12 @@ export default function Editor({ params }: { params: { id: string } }) {
   };
 
   const deferredContent = useDeferredValue(content);
-  const wordCount = useMemo(() => {
+  const { wordCount, docCharCount } = useMemo(() => {
     const text = stripHtml(deferredContent).trim();
-    return text ? text.split(/\s+/).length : 0;
+    return { wordCount: text ? text.split(/\s+/).length : 0, docCharCount: text.length };
   }, [deferredContent, stripHtml]);
+  const DOC_CONTEXT_CAP = 90000;
+  const docTruncated = docCharCount > DOC_CONTEXT_CAP;
 
   const grammarSnippets = useMemo(() => {
     if (grammarErrors.length === 0) return [];
@@ -954,6 +956,11 @@ export default function Editor({ params }: { params: { id: string } }) {
                   <h3 className="font-medium text-sm mb-1">AI Chat</h3>
                   <p className="text-xs text-muted-foreground mb-3">Ask questions about your writing, get feedback, or brainstorm ideas.</p>
                   {content.trim() && <Badge variant="secondary" className="text-[10px] mb-2 gap-1"><BookOpen className="w-2.5 h-2.5" /> Document synced ({wordCount} words)</Badge>}
+                  {docTruncated && (
+                    <p className="text-[11px] mt-1 mb-2 px-2 py-1.5 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300">
+                      Heads up: your document is longer than the AI can read in one go. The assistant only sees the first {(DOC_CONTEXT_CAP / 1000).toFixed(0)}K characters (~{(Math.floor(DOC_CONTEXT_CAP / 5)).toLocaleString()} words). For feedback on later sections, try selecting that text or asking about specific chapters.
+                    </p>
+                  )}
                 </div>
 
                 {/* Conversation selector */}
@@ -1194,6 +1201,11 @@ export default function Editor({ params }: { params: { id: string } }) {
                     <div>
                       <h3 className="font-medium text-sm mb-1">AI Chat</h3>
                       <p className="text-xs text-muted-foreground mb-3">Chat about your writing.</p>
+                      {docTruncated && (
+                        <p className="text-[11px] mt-1 mb-2 px-2 py-1.5 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300">
+                          Your document is longer than the AI can read at once — only the first {(DOC_CONTEXT_CAP / 1000).toFixed(0)}K characters are visible to it.
+                        </p>
+                      )}
                     </div>
                     <div className="flex-1 space-y-3 overflow-y-auto min-h-0" style={{ contain: "layout paint style" }}>
                       {chatMessages.length === 0 && (
