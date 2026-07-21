@@ -513,7 +513,7 @@ export default function Editor({ params }: { params: { id: string } }) {
         setCorrectedText(result.correctedText);
         setIsCheckingGrammar(false);
       },
-      onError: (e) => { setIsCheckingGrammar(false); toast({ title: (e as any)?.status === 429 ? "AI rate limit reached — please try again in a few minutes" : "Grammar check failed", variant: "destructive" }); }
+      onError: (e) => { setIsCheckingGrammar(false); toast({ title: (e as any)?.status === 429 ? "Daily AI limit reached — the free tier resets every 24 hours. Please try again tomorrow." : "Grammar check failed", variant: "destructive" }); }
     });
   };
 
@@ -586,7 +586,7 @@ export default function Editor({ params }: { params: { id: string } }) {
       : null;
     aiSuggest.mutate({ data: { text: chunkText, type } }, {
       onSuccess: (result) => { setSuggestion(result.suggestion); setIsSuggesting(false); },
-      onError: (e) => { setIsSuggesting(false); toast({ title: (e as any)?.status === 429 ? "AI rate limit reached — please try again in a few minutes" : "AI suggestions failed", variant: "destructive" }); }
+      onError: (e) => { setIsSuggesting(false); toast({ title: (e as any)?.status === 429 ? "Daily AI limit reached — the free tier resets every 24 hours. Please try again tomorrow." : "AI suggestions failed", variant: "destructive" }); }
     });
   };
 
@@ -743,7 +743,7 @@ export default function Editor({ params }: { params: { id: string } }) {
         },
         onError: (e) => {
           setIsChatLoading(false);
-          toast({ title: (e as any)?.status === 429 ? "AI rate limit reached — please try again in a few minutes" : "Chat failed", variant: "destructive" });
+          toast({ title: (e as any)?.status === 429 ? "Daily AI limit reached — the free tier resets every 24 hours. Please try again tomorrow." : "Chat failed", variant: "destructive" });
         },
       }
     );
