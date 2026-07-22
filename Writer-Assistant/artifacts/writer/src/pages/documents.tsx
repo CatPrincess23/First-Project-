@@ -506,6 +506,29 @@ export default function Documents() {
               <p className="text-muted-foreground text-sm mt-1">Your manuscripts, chapters, and notes.</p>
             </div>
 
+            <Card className="shadow-sm border-indigo-500/10">
+              <CardHeader className="pb-3 px-4 pt-4">
+                <CardDescription className="text-xs uppercase tracking-wide flex items-center gap-1">
+                  <Zap className="w-3 h-3" /> AI Tokens Today
+                </CardDescription>
+                <div className="flex items-baseline gap-3">
+                  <CardTitle className="text-3xl font-serif">{(usage?.today.totalTokens ?? 0).toLocaleString()}</CardTitle>
+                  <span className="text-xs text-muted-foreground">
+                    {usage?.today.requests ?? 0} requests · {usage?.provider ?? "—"}
+                  </span>
+                </div>
+                <div className="mt-2">
+                  <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                    <span>Daily limit: {((usage?.dailyLimit ?? 100000) / 1000).toFixed(0)}K</span>
+                    <span>{Math.min(100, Math.round(((usage?.today.totalTokens ?? 0) / (usage?.dailyLimit ?? 100000)) * 100))}%</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all" style={{ width: `${Math.min(100, ((usage?.today.totalTokens ?? 0) / (usage?.dailyLimit ?? 100000)) * 100)}%` }} />
+                  </div>
+                </div>
+              </CardHeader>
+            </Card>
+
             {isLoadingDocs ? (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
                 {[1, 2, 3].map(i => (

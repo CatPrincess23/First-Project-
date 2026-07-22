@@ -35,51 +35,29 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 
 // Build a short "start … end" snippet for a chunk of plain text so users can
 // identify which part of a long document will be sent to the AI.
-function sentenceStartBefore(text: string, pos: number): number {
-  if (text.length === 0) return 0;
-  let p = Math.min(pos, text.length - 1);
-  while (p >= 0) {
-    const ch = text[p];
-    if (ch === "." || ch === "!" || ch === "?") {
-      let j = p + 1;
-      while (j < text.length && (text[j] === '"' || text[j] === "'" || text[j] === ")" || text[j] === "]" || text[j] === "»")) j++;
-      if (j < text.length && /\s/.test(text[j])) return j + 1;
-    }
-    p--;
-  }
-  return 0;
-}
-
-function sentenceEndAfter(text: string, pos: number): number {
-  let p = pos;
-  while (p < text.length) {
-    const ch = text[p];
-    if (ch === "." || ch === "!" || ch === "?") {
-      let j = p + 1;
-      while (j < text.length && (text[j] === '"' || text[j] === "'" || text[j] === ")" || text[j] === "]" || text[j] === "»")) j++;
-      if (j >= text.length || /\s/.test(text[j])) return Math.min(j + 1, text.length);
-    }
-    p++;
-  }
-  return text.length;
+// Show a short window of text centered on a chunk boundary point so the writer
+// can see exactly where the split happens. Caps at `radius` chars per side and
+// snaps to word boundaries; adds … when there's more text beyond the window.
+function boundarySnippet(text: string, cutPos: number, radius = 35): string {
+  let lo = Math.max(0, cutPos - radius);
+  let hi = Math.min(text.length, cutPos + radius);
+  // Snap to word boundaries in the original text
+  if (lo > 0) { const s = text.indexOf(" ", lo); if (s !== -1 && s < cutPos) lo = s + 1; }
+  if (hi < text.length) { const s = text.lastIndexOf(" ", hi); if (s > cutPos) hi = s; }
+  let snippet = text.slice(lo, hi).replace(/\s+/g, " ").trim();
+  if (lo > 0) snippet = "…" + snippet;
+  if (hi < text.length) snippet = snippet + "…";
+  return snippet;
 }
 
 function chunkSnippet(text: string, chunkIndex: number, chunkSize: number): { first: string; last: string; start: number; end: number } {
   const rawStart = chunkIndex * chunkSize;
   const rawEnd = Math.min(text.length, rawStart + chunkSize);
 
-  const firstStart = sentenceStartBefore(text, rawStart);
-  const firstEnd = sentenceEndAfter(text, rawStart);
-  const firstRaw = text.slice(firstStart, firstEnd).replace(/\s+/g, " ").trim();
-  const first = (firstStart < rawStart ? "…" : "") + firstRaw;
-
-  let last = "";
-  const lastStart = sentenceStartBefore(text, Math.max(0, rawEnd - 1));
-  const lastEnd = sentenceEndAfter(text, Math.max(0, rawEnd - 1));
-  if (firstStart !== lastStart || firstEnd !== lastEnd) {
-    const lastRaw = text.slice(lastStart, lastEnd).replace(/\s+/g, " ").trim();
-    last = lastRaw + (lastEnd > rawEnd ? "…" : "");
-  }
+  // First: a short window around the chunk START boundary (where this part begins)
+  const first = boundarySnippet(text, rawStart);
+  // Last: a short window around the chunk END boundary (where this part ends)
+  const last = boundarySnippet(text, rawEnd);
 
   return { first, last, start: rawStart, end: rawEnd };
 }
