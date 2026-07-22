@@ -125760,7 +125760,10 @@ function checkKey(res) {
 }
 async function trackTokens(userId, completion) {
   const usage = completion.usage;
-  if (!usage) return;
+  if (!usage) {
+    logger2.warn({ model: completion.model, id: completion.id }, "trackTokens: no usage data");
+    return;
+  }
   const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
   try {
     await db.insert(aiUsageTable).values({

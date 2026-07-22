@@ -270,7 +270,10 @@ function checkKey(res: any): boolean {
 
 async function trackTokens(userId: string, completion: OpenAI.Chat.Completions.ChatCompletion) {
   const usage = completion.usage;
-  if (!usage) return;
+  if (!usage) {
+    logger.warn({ model: completion.model, id: completion.id }, "trackTokens: no usage data");
+    return;
+  }
   const today = new Date().toISOString().split("T")[0];
   try {
     await db
