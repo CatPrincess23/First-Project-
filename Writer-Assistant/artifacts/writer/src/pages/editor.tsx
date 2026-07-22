@@ -6,7 +6,7 @@ import {
   useDeleteDocumentVersion, getGetDocumentQueryKey, getListDocumentVersionsQueryKey,
 } from "@workspace/api-client-react";
 import { AiSuggestInputType, AiImageInputSize } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -24,7 +24,7 @@ import RichTextEditor, { type RichTextEditorHandle } from "@/components/rich-tex
 import {
   ArrowLeft, Sparkles, Image as ImageIcon, CheckCircle, Save, Loader2, Wand2,
   Globe, History, FileDown, Sun, Moon, BookOpen, Target, Clock, RotateCcw, MessageCircle,
-  Plus, Trash2, ChevronRight, ChevronLeft, PanelRight,
+  Plus, Trash2, ChevronRight, ChevronLeft, PanelRight, Zap,
 } from "lucide-react";
 import { UserButton } from "@clerk/react";
 import { UpgradeModal } from "@/components/upgrade-modal";
@@ -162,6 +162,13 @@ export default function Editor({ params }: { params: { id: string } }) {
   const queryClient = useQueryClient();
   const { useRequest } = usePro();
   const { theme, toggleTheme } = useTheme();
+
+  const { data: aiUsage } = useQuery<{ today: { totalTokens: number; requests: number }; dailyLimit: number }>({
+    queryKey: ["ai-usage"],
+    queryFn: async () => (await fetch("/api/ai/usage")).json(),
+    staleTime: 10000,
+    refetchInterval: 15000,
+  });
 
   const clerkEnabled = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
@@ -759,6 +766,7 @@ export default function Editor({ params }: { params: { id: string } }) {
           setChatMessages(prev => [...prev, { role: "assistant", content: result.reply }]);
           setIsChatLoading(false);
           loadConversations();
+          queryClient.invalidateQueries({ queryKey: ["ai-usage"] });
         },
         onError: (e) => {
           setIsChatLoading(false);
@@ -1224,6 +1232,12 @@ export default function Editor({ params }: { params: { id: string } }) {
                 / {goalWordCount?.toLocaleString()} ({goalProgress}%)
               </span>
             )}
+            <span className="mx-1 hidden md:inline">·</span>
+            <span className="hidden md:inline-flex items-center gap-1" title="AI tokens used today">
+              <Zap className="w-3 h-3 text-indigo-500 dark:text-indigo-400" />
+              {(aiUsage?.today.totalTokens ?? 0).toLocaleString()}
+              <span className="text-muted-foreground/70">/ {((aiUsage?.dailyLimit ?? 100000) / 1000).toFixed(0)}K</span>
+            </span>
           </div>
 
           <Button variant="outline" size="sm" onClick={() => saveContent(title, content)} className="h-7 text-xs gap-1 hidden sm:inline-flex" disabled={isSaving}>
