@@ -157,8 +157,10 @@ export default function Documents() {
     { target: "#tour-home-hero", title: "Welcome to Whimsical Writer", description: "Your AI-powered creative writing companion. Create documents, build worlds, and track your progress — all in one place.", placement: "bottom" as const },
     { target: "#tour-docs-new", title: "Create a New Document", description: "Start a fresh manuscript with one click. Each document gets its own AI chat, versions, and world-building space.", placement: "right" as const },
     { target: "#tour-home-world", title: "Build Your World", description: "Create character profiles, map out locations, and define key items for your fictional universe.", placement: "bottom" as const },
-    { target: "#tour-home-ai", title: "AI-Powered Tools", description: "Grammar checks, rewrites, summarization, prologue generation, and image creation — all built into the editor sidebar.", placement: "bottom" as const },
-    { target: "#tour-home-stats", title: "Track Your Progress", description: "See your word count, writing streaks, and goal completion at a glance.", placement: "bottom" as const },
+    { target: "#tour-home-ai", title: "AI-Powered Tools", description: "Grammar checks with inline highlights, AI rewrites, summarization, prologue generation, chat, and image creation — all built into the editor sidebar.", placement: "bottom" as const },
+    { target: "#tour-home-stats", title: "Track Your Progress", description: "See your document count, total words written, and AI token usage with a daily limit progress bar.", placement: "bottom" as const },
+    { target: "#tour-sidebar-theme", title: "Light & Dark Mode", description: "Toggle between light and dark themes any time. Your preference is saved automatically.", placement: "right" as const },
+    { target: "#tour-sidebar-help", title: "Need a Refresher?", description: "Click this help icon any time to replay this tour and rediscover all the features Whimsical Writer has to offer.", placement: "right" as const },
   ];
 
   const [tourVersion, setTourVersion] = useState(0);
@@ -212,10 +214,10 @@ export default function Documents() {
             </nav>
             <div className="p-3 border-t space-y-1 shrink-0">
               <div className="flex items-center gap-1">
-                <Button variant="ghost" size="icon" onClick={toggleTheme} className="text-muted-foreground h-8 w-8">
+                <Button variant="ghost" size="icon" id="tour-sidebar-theme" onClick={toggleTheme} className="text-muted-foreground h-8 w-8">
                   {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
                 </Button>
-                <Button variant="ghost" size="icon" onClick={restartTour} className="h-8 w-8 text-primary" title="Show tour">
+                <Button variant="ghost" size="icon" id="tour-sidebar-help" onClick={restartTour} className="h-8 w-8 text-primary" title="Show tour">
                   <HelpCircle className="w-4 h-4" />
                 </Button>
               </div>
@@ -290,10 +292,10 @@ export default function Documents() {
           )}
           <div className={`flex items-center ${sidebarCollapsed ? "flex-col gap-2" : "justify-between"}`}>
             <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" onClick={toggleTheme} className="text-muted-foreground h-8 w-8">
+            <Button variant="ghost" size="icon" id="tour-sidebar-theme" onClick={toggleTheme} className="text-muted-foreground h-8 w-8">
               {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </Button>
-            <Button variant="ghost" size="icon" onClick={restartTour} className="h-8 w-8 text-primary" title="Show tour">
+            <Button variant="ghost" size="icon" id="tour-sidebar-help" onClick={restartTour} className="h-8 w-8 text-primary" title="Show tour">
               <HelpCircle className="w-4 h-4" />
             </Button>
             </div>

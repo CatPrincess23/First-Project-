@@ -1219,7 +1219,12 @@ export default function Editor({ params }: { params: { id: string } }) {
   const EDITOR_TOUR_STEPS = [
     { target: "#tour-editor-title", title: "Name Your Work", description: "Give your document a title. Changes auto-save within a second after you stop typing.", placement: "bottom" as const },
     { target: "#tour-editor-textarea", title: "Your Canvas", description: "This is where the magic happens. Write freely — grammar highlights, AI suggestions, and word count tracking work in real-time.", placement: "bottom" as const },
-    { target: "#tour-editor-sidebar", title: "AI Writing Assistant", description: "Grammar check, AI rewrites, summarization, prologue generation, chat with the AI about your document, and image creation — all in one sidebar.", placement: "left" as const },
+    { target: "#tour-editor-sidebar", title: "AI Writing Assistant", description: "Grammar check with inline highlights, AI rewrites, summarization, prologue generation, chat with the AI about your document, and image creation — all in one sidebar.", placement: "left" as const },
+    { target: "#tour-editor-tokens", title: "AI Token Usage", description: "Track how many AI tokens you've used today. Each AI action (chat, grammar, rewrite) consumes tokens from your daily limit.", placement: "bottom" as const },
+    { target: "#tour-editor-goal", title: "Set Word Count Goals", description: "Click the target icon to set a word count goal. A progress bar appears at the top of the editor to keep you motivated.", placement: "bottom" as const },
+    { target: "#tour-editor-versions", title: "Version History", description: "Save snapshots of your document at any point. Restore previous versions if you want to go back to an earlier draft.", placement: "bottom" as const },
+    { target: "#tour-editor-world", title: "World Building", description: "Jump straight to the world builder for this document — create character profiles, locations, and items.", placement: "bottom" as const },
+    { target: "#tour-editor-theme", title: "Light & Dark Mode", description: "Toggle between light and dark themes any time. Your preference is saved automatically.", placement: "bottom" as const },
     { target: "#tour-editor-undo", title: "Undo & Redo", description: "Made a mistake? Undo (Ctrl+Z) and Redo (Ctrl+Shift+Z) let you step through your editing history.", placement: "bottom" as const },
     { target: "#tour-editor-export", title: "Export Your Work", description: "When you're ready, export your document as a polished PDF or DOCX file with one click.", placement: "bottom" as const },
     { target: "#tour-editor-upload", title: "Upload Images", description: "Upload images from your computer and insert them directly at your cursor position in the document.", placement: "bottom" as const },
@@ -1264,7 +1269,7 @@ export default function Editor({ params }: { params: { id: string } }) {
               </span>
             )}
             <span className="mx-1 hidden md:inline">·</span>
-            <span className="hidden md:inline-flex items-center gap-1" title="AI tokens used today">
+            <span id="tour-editor-tokens" className="hidden md:inline-flex items-center gap-1" title="AI tokens used today">
               <Zap className="w-3 h-3 text-indigo-500 dark:text-indigo-400" />
               {(aiUsage?.today.totalTokens ?? 0).toLocaleString()}
               <span className="text-muted-foreground/70">/ {((aiUsage?.dailyLimit ?? 100000) / 1000).toFixed(0)}K</span>
@@ -1281,16 +1286,16 @@ export default function Editor({ params }: { params: { id: string } }) {
               <Sparkles className="w-4 h-4" />
             </Button>
           )}
-          <Button variant="ghost" size="icon" onClick={toggleTheme} className="text-muted-foreground h-8 w-8">
+          <Button variant="ghost" size="icon" id="tour-editor-theme" onClick={toggleTheme} className="text-muted-foreground h-8 w-8">
             {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => setShowGoalDialog(true)} className="text-muted-foreground h-8 w-8 hidden sm:inline-flex" title="Set word goal">
+          <Button variant="ghost" size="icon" id="tour-editor-goal" onClick={() => setShowGoalDialog(true)} className="text-muted-foreground h-8 w-8 hidden sm:inline-flex" title="Set word goal">
             <Target className="w-4 h-4" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => setShowSaveVersionDialog(true)} className="text-muted-foreground h-8 w-8 hidden sm:inline-flex" title="Save version">
+          <Button variant="ghost" size="icon" id="tour-editor-versions" onClick={() => setShowSaveVersionDialog(true)} className="text-muted-foreground h-8 w-8 hidden sm:inline-flex" title="Save version">
             <History className="w-4 h-4" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => setLocation(`/world/${documentId}`)} className="text-muted-foreground h-8 w-8 hidden sm:inline-flex" title="World building">
+          <Button variant="ghost" size="icon" id="tour-editor-world" onClick={() => setLocation(`/world/${documentId}`)} className="text-muted-foreground h-8 w-8 hidden sm:inline-flex" title="World building">
             <Globe className="w-4 h-4" />
           </Button>
 
