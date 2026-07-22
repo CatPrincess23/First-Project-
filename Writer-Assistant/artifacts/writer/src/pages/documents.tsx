@@ -802,10 +802,13 @@ export default function Documents() {
       </main>
       <OnboardingTour key={tourVersion} steps={DOCS_TOUR_STEPS} tourKey="documents" onComplete={() => {
         if (chainedTour && docs.length > 0) {
-          // Defer navigation so the browser paints the "Done" click feedback
-          // before the heavy synchronous editor mount (TipTap init + React
-          // reconciliation) runs — this was blocking paint for ~640ms (INP).
+          // Navigating away — documents.tsx unmounts, so skip the wasteful
+          // setChainedTour(false) re-render of the whole dashboard (it was
+          // reconciling the doc list right before unmount, ~150ms billed to the
+          // click). chainedTour resets to its initial `false` on remount anyway.
+          // Defer the navigation so the tour-hide paints first (low INP).
           setTimeout(() => setLocation(`/editor/${docs[0].id}`), 0);
+          return;
         }
         setChainedTour(false);
       }} />
