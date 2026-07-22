@@ -233,6 +233,16 @@ export default function Editor({ params }: { params: { id: string } }) {
   // Editor readiness: only render TipTap after content is loaded
   const [editorReady, setEditorReady] = useState(false);
 
+  // Shell readiness: defer the heavy editor subtree (chrome + sidebars + TipTap)
+  // to the frame AFTER the navigation's first paint. When the document detail
+  // query is cached (staleTime 10s), navigating to the editor otherwise mounts
+  // the whole tree synchronously inside the click's interaction and blocks paint
+  // (~475ms INP). Yielding one frame lets a lightweight loader complete the
+  // interaction; the heavy work runs in a follow-up task (not user-initiated, so
+  // it doesn't count toward INP).
+  const [shellReady, setShellReady] = useState(false);
+  useEffect(() => { setShellReady(true); }, []);
+
   // Sidebar tabs
   const [activeTab, setActiveTab] = useState<"grammar" | "suggest" | "ai-tools" | "image" | "history" | "chat">("grammar");
 
@@ -1210,7 +1220,7 @@ export default function Editor({ params }: { params: { id: string } }) {
   chatChunks, safeChunkIndex, docTruncated, wordCount,
 ]);
 
-  if (isDocumentLoading) {
+  if (isDocumentLoading || !shellReady) {
     return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-muted-foreground" /></div>;
   }
 
