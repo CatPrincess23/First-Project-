@@ -160,12 +160,15 @@ export default function Documents() {
     { target: "#tour-home-ai", title: "AI-Powered Tools", description: "Grammar checks with inline highlights, AI rewrites, summarization, prologue generation, chat, and image creation — all built into the editor sidebar.", placement: "bottom" as const },
     { target: "#tour-home-stats", title: "Track Your Progress", description: "See your document count, total words written, and AI token usage with a daily limit progress bar.", placement: "bottom" as const },
     { target: "#tour-sidebar-theme", title: "Light & Dark Mode", description: "Toggle between light and dark themes any time. Your preference is saved automatically.", placement: "right" as const },
-    { target: "#tour-sidebar-help", title: "Need a Refresher?", description: "Click this help icon any time to replay this tour and rediscover all the features Whimsical Writer has to offer.", placement: "right" as const },
+    { target: "#tour-sidebar-help", title: "Replay Anytime", description: "Click this help icon any time to replay the full tour — including the editor's AI tools, goals, version history, and more.", placement: "right" as const },
   ];
 
   const [tourVersion, setTourVersion] = useState(0);
+  const [chainedTour, setChainedTour] = useState(false);
   const restartTour = () => {
     localStorage.removeItem("wa-tour-seen-documents");
+    localStorage.removeItem("wa-tour-seen-editor");
+    setChainedTour(true);
     setTourVersion(v => v + 1);
   };
 
@@ -797,7 +800,12 @@ export default function Documents() {
           </div>
         )}
       </main>
-      <OnboardingTour key={tourVersion} steps={DOCS_TOUR_STEPS} tourKey="documents" />
+      <OnboardingTour key={tourVersion} steps={DOCS_TOUR_STEPS} tourKey="documents" onComplete={() => {
+        if (chainedTour && docs.length > 0) {
+          setLocation(`/editor/${docs[0].id}`);
+        }
+        setChainedTour(false);
+      }} />
     </div>
   );
 }
