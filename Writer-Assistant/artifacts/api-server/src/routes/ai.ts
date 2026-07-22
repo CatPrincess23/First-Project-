@@ -363,7 +363,8 @@ router.post("/suggest", async (req, res, next) => {
   } catch (err: any) {
     logger.error({ err }, "suggest failed");
     const msg = err?.message || "Internal server error";
-    if (msg.includes("429") || msg.includes("Rate limit")) {
+    const status = err?.status || err?.statusCode || 500;
+    if (status === 429 || status === 413 || msg.includes("429") || msg.includes("413") || msg.includes("Rate limit") || msg.includes("rate_limit")) {
       res.status(429).json({ error: "AI rate limit reached. Please try again later." });
     } else {
       res.status(500).json({ error: "Internal server error" });
@@ -567,7 +568,8 @@ Return ONLY the corrected text. No explanations, no commentary, no markdown. If 
   } catch (err: any) {
     logger.error({ err }, "grammar check failed");
     const msg = err?.message || "Internal server error";
-    if (msg.includes("429") || msg.includes("Rate limit")) {
+    const status = err?.status || err?.statusCode || 500;
+    if (status === 429 || status === 413 || msg.includes("429") || msg.includes("413") || msg.includes("Rate limit") || msg.includes("rate_limit")) {
       res.status(429).json({ error: "AI rate limit reached. Please try again later." });
     } else {
       res.status(500).json({ error: "Internal server error" });
@@ -895,7 +897,7 @@ router.post("/chat", async (req, res, next) => {
   // dedicated, validated `documentContext` field (with a data-only fallback
   // that treats any client-supplied system message purely as document text).
   const BASE_PROMPT = "You are a helpful writing assistant. Help users with their writing — give feedback, answer questions, suggest improvements, and discuss their story. Be friendly and constructive.";
-  const DOC_CONTEXT_CAP = 90000;
+  const DOC_CONTEXT_CAP = 16000;
 
   // Primary: validated dedicated field. Invalid/oversized values are ignored
   // (not rejected) so a malformed documentContext never 400s the whole chat —
@@ -967,7 +969,8 @@ router.post("/chat", async (req, res, next) => {
   } catch (err: any) {
     logger.error({ err }, "chat failed");
     const msg = err?.message || "Internal server error";
-    if (msg.includes("429") || msg.includes("Rate limit")) {
+    const status = err?.status || err?.statusCode || 500;
+    if (status === 429 || status === 413 || msg.includes("429") || msg.includes("413") || msg.includes("Rate limit") || msg.includes("rate_limit")) {
       res.status(429).json({ error: "AI rate limit reached. Please try again later." });
     } else {
       res.status(500).json({ error: "Internal server error" });

@@ -815,7 +815,7 @@ export default function Editor({ params }: { params: { id: string } }) {
     }
   };
 
-  const DOC_CONTEXT_CAP = 90000;
+  const DOC_CONTEXT_CAP = 16000;
   const GRAMMAR_CAP = 20000;
   const SUGGEST_CAP = 8000;
   const deferredContent = useDeferredValue(content);
