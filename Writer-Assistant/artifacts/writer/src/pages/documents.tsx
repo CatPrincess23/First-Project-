@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation, Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import {
   useListDocuments, useCreateDocument, useGetDocumentStats, useDeleteDocument,
   getListDocumentsQueryKey, getGetDocumentStatsQueryKey,
@@ -17,7 +18,7 @@ import { getCurrentGuestId, clearGuestId } from "@/lib/guest-id";
 import {
   Plus, FileText, Trash2, Loader2, ArrowRight, Sun, Moon, Globe, Target,
   LayoutDashboard, Sparkles, BookOpen, Image as ImageIcon, History,
-  CheckCircle, Wand2, Crown, User, ChevronRight, HelpCircle, Menu,
+  CheckCircle, Wand2, Crown, User, ChevronRight, HelpCircle, Menu, Zap,
 } from "lucide-react";
 import { UserButton, useAuth } from "@clerk/react";
 import OnboardingTour from "@/components/onboarding-tour";
@@ -119,6 +120,11 @@ export default function Documents() {
 
   const { data: documents, isLoading: isLoadingDocs, isError: isDocsError } = useListDocuments({ query: { queryKey: getListDocumentsQueryKey() } });
   const { data: stats, isLoading: isLoadingStats } = useGetDocumentStats({ query: { queryKey: getGetDocumentStatsQueryKey() } });
+  const { data: usage } = useQuery<{ today: { totalTokens: number; promptTokens: number; completionTokens: number; requests: number }; dailyLimit: number; provider: string }>({
+    queryKey: ["ai-usage"],
+    queryFn: async () => (await fetch("/api/ai/usage")).json(),
+    staleTime: 30000,
+  });
   const docs = Array.isArray(documents) ? documents : [];
   const createDoc = useCreateDocument();
   const deleteDoc = useDeleteDocument();
@@ -355,9 +361,18 @@ export default function Documents() {
                 <Card className="shadow-sm border-indigo-500/10">
                   <CardHeader className="pb-2 px-4 pt-4">
                     <CardDescription className="text-xs uppercase tracking-wide flex items-center gap-1">
-                      <Sparkles className="w-3 h-3" /> AI Requests
+                      <Zap className="w-3 h-3" /> AI Tokens Today
                     </CardDescription>
-                    <CardTitle className="text-3xl font-serif mt-1">Unlimited</CardTitle>
+                    <CardTitle className="text-3xl font-serif mt-1">{(usage?.today.totalTokens ?? 0).toLocaleString()}</CardTitle>
+                    <div className="mt-2">
+                      <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                        <span>Daily limit: {((usage?.dailyLimit ?? 100000) / 1000).toFixed(0)}K</span>
+                        <span>{Math.min(100, Math.round(((usage?.today.totalTokens ?? 0) / (usage?.dailyLimit ?? 100000)) * 100))}%</span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all" style={{ width: `${Math.min(100, ((usage?.today.totalTokens ?? 0) / (usage?.dailyLimit ?? 100000)) * 100)}%` }} />
+                      </div>
+                    </div>
                   </CardHeader>
                 </Card>
               </div>

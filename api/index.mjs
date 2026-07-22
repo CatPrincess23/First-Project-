@@ -99838,6 +99838,115 @@ var pgTable = (name, columns, extraConfig) => {
   return pgTableWithSchema(name, columns, extraConfig, void 0);
 };
 
+// node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.20.0_pg@8.20.0/node_modules/drizzle-orm/pg-core/indexes.js
+var IndexBuilderOn = class {
+  constructor(unique, name) {
+    this.unique = unique;
+    this.name = name;
+  }
+  static [entityKind] = "PgIndexBuilderOn";
+  on(...columns) {
+    return new IndexBuilder(
+      columns.map((it) => {
+        if (is(it, SQL)) {
+          return it;
+        }
+        it = it;
+        const clonedIndexedColumn = new IndexedColumn(it.name, !!it.keyAsName, it.columnType, it.indexConfig);
+        it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
+        return clonedIndexedColumn;
+      }),
+      this.unique,
+      false,
+      this.name
+    );
+  }
+  onOnly(...columns) {
+    return new IndexBuilder(
+      columns.map((it) => {
+        if (is(it, SQL)) {
+          return it;
+        }
+        it = it;
+        const clonedIndexedColumn = new IndexedColumn(it.name, !!it.keyAsName, it.columnType, it.indexConfig);
+        it.indexConfig = it.defaultConfig;
+        return clonedIndexedColumn;
+      }),
+      this.unique,
+      true,
+      this.name
+    );
+  }
+  /**
+   * Specify what index method to use. Choices are `btree`, `hash`, `gist`, `spgist`, `gin`, `brin`, or user-installed access methods like `bloom`. The default method is `btree.
+   *
+   * If you have the `pg_vector` extension installed in your database, you can use the `hnsw` and `ivfflat` options, which are predefined types.
+   *
+   * **You can always specify any string you want in the method, in case Drizzle doesn't have it natively in its types**
+   *
+   * @param method The name of the index method to be used
+   * @param columns
+   * @returns
+   */
+  using(method, ...columns) {
+    return new IndexBuilder(
+      columns.map((it) => {
+        if (is(it, SQL)) {
+          return it;
+        }
+        it = it;
+        const clonedIndexedColumn = new IndexedColumn(it.name, !!it.keyAsName, it.columnType, it.indexConfig);
+        it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
+        return clonedIndexedColumn;
+      }),
+      this.unique,
+      true,
+      this.name,
+      method
+    );
+  }
+};
+var IndexBuilder = class {
+  static [entityKind] = "PgIndexBuilder";
+  /** @internal */
+  config;
+  constructor(columns, unique, only, name, method = "btree") {
+    this.config = {
+      name,
+      columns,
+      unique,
+      only,
+      method
+    };
+  }
+  concurrently() {
+    this.config.concurrently = true;
+    return this;
+  }
+  with(obj2) {
+    this.config.with = obj2;
+    return this;
+  }
+  where(condition) {
+    this.config.where = condition;
+    return this;
+  }
+  /** @internal */
+  build(table) {
+    return new Index(this.config, table);
+  }
+};
+var Index = class {
+  static [entityKind] = "PgIndex";
+  config;
+  constructor(config2, table) {
+    this.config = { ...config2, table };
+  }
+};
+function uniqueIndex(name) {
+  return new IndexBuilderOn(true, name);
+}
+
 // node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.20.0_pg@8.20.0/node_modules/drizzle-orm/pg-core/primary-keys.js
 var PrimaryKeyBuilder = class {
   static [entityKind] = "PgPrimaryKeyBuilder";
@@ -103872,6 +103981,7 @@ function drizzle(...params) {
 // lib/db/src/schema/index.ts
 var schema_exports = {};
 __export(schema_exports, {
+  aiUsageTable: () => aiUsageTable,
   conversations: () => conversations,
   documentVersionsTable: () => documentVersionsTable,
   documentsTable: () => documentsTable,
@@ -115344,6 +115454,21 @@ var insertMessageSchema = createInsertSchema(messages).omit({
   createdAt: true
 });
 
+// lib/db/src/schema/usage.ts
+var aiUsageTable = pgTable("ai_usage", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  date: date("date").notNull(),
+  promptTokens: integer("prompt_tokens").notNull().default(0),
+  completionTokens: integer("completion_tokens").notNull().default(0),
+  totalTokens: integer("total_tokens").notNull().default(0),
+  requests: integer("requests").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow()
+}, (t) => ({
+  userDateIdx: uniqueIndex("ai_usage_user_date_idx").on(t.userId, t.date)
+}));
+
 // lib/db/src/index.ts
 var { Pool: Pool3 } = esm_default;
 if (!process.env.DATABASE_URL) {
@@ -125633,6 +125758,35 @@ function checkKey(res) {
   }
   return true;
 }
+router4.get("/usage", async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+    const [todayRow] = await db.select().from(aiUsageTable).where(and(eq(aiUsageTable.userId, userId), eq(aiUsageTable.date, today)));
+    const rows = await db.select().from(aiUsageTable).where(eq(aiUsageTable.userId, userId)).orderBy(sql`${aiUsageTable.date} DESC`).limit(30);
+    res.json({
+      today: {
+        promptTokens: todayRow?.promptTokens ?? 0,
+        completionTokens: todayRow?.completionTokens ?? 0,
+        totalTokens: todayRow?.totalTokens ?? 0,
+        requests: todayRow?.requests ?? 0
+      },
+      history: rows.map((r) => ({
+        date: r.date,
+        promptTokens: r.promptTokens,
+        completionTokens: r.completionTokens,
+        totalTokens: r.totalTokens,
+        requests: r.requests
+      })),
+      dailyLimit: 1e5,
+      provider: GROQ_KEY ? "Groq" : GROK_KEY ? "Grok" : DEEPSEEK_KEY ? "DeepSeek" : GEMINI_KEY ? "Gemini" : "OpenRouter",
+      model: MODEL
+    });
+  } catch (err) {
+    logger2.error({ err }, "usage fetch failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 router4.post("/suggest", async (req, res, next) => {
   try {
     if (!checkKey(res)) return;

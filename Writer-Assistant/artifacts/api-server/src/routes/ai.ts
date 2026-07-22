@@ -1,8 +1,8 @@
 import { Router } from "express";
 import OpenAI from "openai";
 import { AiSuggestBody, AiGrammarCheckBody, AiGenerateImageBody, AiSummarizeBody, AiGeneratePrologueBody, AiChatBody } from "@workspace/api-zod";
-import { db, messages, conversations } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { db, messages, conversations, aiUsageTable } from "@workspace/db";
+import { eq, and, sql } from "drizzle-orm";
 import { getUserId } from "../middlewares/identity";
 import { logger } from "../lib/logger";
 
@@ -267,6 +267,45 @@ function checkKey(res: any): boolean {
   }
   return true;
 }
+
+// GET /api/ai/usage — daily token usage for the current user
+router.get("/usage", async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    const today = new Date().toISOString().split("T")[0];
+    const [todayRow] = await db
+      .select()
+      .from(aiUsageTable)
+      .where(and(eq(aiUsageTable.userId, userId), eq(aiUsageTable.date, today)));
+    const rows = await db
+      .select()
+      .from(aiUsageTable)
+      .where(eq(aiUsageTable.userId, userId))
+      .orderBy(sql`${aiUsageTable.date} DESC`)
+      .limit(30);
+    res.json({
+      today: {
+        promptTokens: todayRow?.promptTokens ?? 0,
+        completionTokens: todayRow?.completionTokens ?? 0,
+        totalTokens: todayRow?.totalTokens ?? 0,
+        requests: todayRow?.requests ?? 0,
+      },
+      history: rows.map(r => ({
+        date: r.date,
+        promptTokens: r.promptTokens,
+        completionTokens: r.completionTokens,
+        totalTokens: r.totalTokens,
+        requests: r.requests,
+      })),
+      dailyLimit: 100000,
+      provider: GROQ_KEY ? "Groq" : GROK_KEY ? "Grok" : DEEPSEEK_KEY ? "DeepSeek" : GEMINI_KEY ? "Gemini" : "OpenRouter",
+      model: MODEL,
+    });
+  } catch (err: any) {
+    logger.error({ err }, "usage fetch failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 // POST /api/ai/suggest
 router.post("/suggest", async (req, res, next) => {
