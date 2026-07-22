@@ -802,7 +802,10 @@ export default function Documents() {
       </main>
       <OnboardingTour key={tourVersion} steps={DOCS_TOUR_STEPS} tourKey="documents" onComplete={() => {
         if (chainedTour && docs.length > 0) {
-          setLocation(`/editor/${docs[0].id}`);
+          // Defer navigation so the browser paints the "Done" click feedback
+          // before the heavy synchronous editor mount (TipTap init + React
+          // reconciliation) runs — this was blocking paint for ~640ms (INP).
+          setTimeout(() => setLocation(`/editor/${docs[0].id}`), 0);
         }
         setChainedTour(false);
       }} />
