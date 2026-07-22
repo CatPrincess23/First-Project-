@@ -1227,9 +1227,6 @@ export default function Editor({ params }: { params: { id: string } }) {
     { target: "#tour-editor-theme", title: "Light & Dark Mode", description: "Toggle between light and dark themes any time. Your preference is saved automatically.", placement: "bottom" as const },
     { target: "#tour-editor-undo", title: "Undo & Redo", description: "Made a mistake? Undo (Ctrl+Z) and Redo (Ctrl+Shift+Z) let you step through your editing history.", placement: "bottom" as const },
     { target: "#tour-editor-export", title: "Export Your Work", description: "When you're ready, export your document as a polished PDF or DOCX file with one click.", placement: "bottom" as const },
-    { target: "#tour-editor-upload", title: "Upload Images", description: "Upload images from your computer and insert them directly at your cursor position in the document.", placement: "bottom" as const },
-    { target: "#tour-editor-table", title: "Insert Tables", description: "Add tables to your document. Click to open the grid, then hover and click to pick your desired rows and columns.", placement: "bottom" as const },
-    { target: "#tour-editor-chart", title: "Insert Charts", description: "Add bar, line, pie, or area charts to your document. Perfect for visualizing data, stats, or comparisons in your writing.", placement: "bottom" as const },
   ];
 
   return (
@@ -1237,7 +1234,15 @@ export default function Editor({ params }: { params: { id: string } }) {
       {/* Toolbar */}
       <header className="flex-none h-14 border-b px-4 flex items-center justify-between bg-card shrink-0">
         <div className="flex items-center gap-3 flex-1 min-w-0">
-          <Button variant="ghost" size="icon" onClick={() => setLocation("/documents")} className="shrink-0 text-muted-foreground">
+          <Button variant="ghost" size="icon" onClick={() => {
+            // Flush any pending save before leaving.
+            if (autoSaveTimer.current) { clearTimeout(autoSaveTimer.current); autoSaveTimer.current = undefined; }
+            saveContent(titleRef.current, contentSnapshotRef.current);
+            // Defer navigation so the browser paints the click feedback before
+            // the heavy synchronous editor unmount (ProseMirror teardown + React
+            // reconciliation) runs — this was blocking paint for ~400ms (INP).
+            setTimeout(() => setLocation("/documents"), 0);
+          }} className="shrink-0 text-muted-foreground">
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <Input

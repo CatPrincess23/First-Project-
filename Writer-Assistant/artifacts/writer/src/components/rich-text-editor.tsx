@@ -619,14 +619,14 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
           <LinkIcon className="w-3.5 h-3.5" />
         </ToolbarButton>
         <input type="file" ref={imageInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
-        <ToolbarButton onClick={handleUploadClick} title="Upload Image" id="tour-editor-upload">
+        <ToolbarButton onClick={handleUploadClick} title="Upload Image">
           <Upload className="w-3.5 h-3.5" />
         </ToolbarButton>
         <ToolbarButton onClick={addImage} title="Image URL">
           <ImageIcon className="w-3.5 h-3.5" />
         </ToolbarButton>
-        <TableGridPopover id="tour-editor-table" onInsert={insertTable} />
-        <ToolbarButton onClick={() => setShowChartDialog(true)} title="Chart" id="tour-editor-chart">
+        <TableGridPopover onInsert={insertTable} />
+        <ToolbarButton onClick={() => setShowChartDialog(true)} title="Chart">
           <BarChart3 className="w-3.5 h-3.5" />
         </ToolbarButton>
       </div>
