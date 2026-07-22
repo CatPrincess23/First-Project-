@@ -34,6 +34,52 @@ function isSafeUrl(url: string): boolean {
   }
 }
 
+// Luminance classification for the dark-mode color override. Hex colors (the
+// common case — every value coming from <input type="color"> is #rrggbb) are
+// parsed inline with zero DOM access; non-hex (rgb()/named colors from pasted
+// HTML) fall back to a one-time getComputedStyle probe. Results are cached so
+// the darkColorFix plugin never forces layout/style recalc on the typing hot
+// path — that was the main INP culprit on long docs with many colored spans.
+const luminanceCache = new Map<string, boolean>();
+function isDarkColor(color: string): boolean {
+  const cached = luminanceCache.get(color);
+  if (cached !== undefined) return cached;
+  let result = false;
+  const c = color.trim().toLowerCase();
+  const hexMatch = c.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/);
+  if (hexMatch) {
+    const hex = hexMatch[1];
+    let r: number, g: number, b: number;
+    if (hex.length === 3) {
+      r = parseInt(hex[0] + hex[0], 16);
+      g = parseInt(hex[1] + hex[1], 16);
+      b = parseInt(hex[2] + hex[2], 16);
+    } else {
+      r = parseInt(hex.slice(0, 2), 16);
+      g = parseInt(hex.slice(2, 4), 16);
+      b = parseInt(hex.slice(4, 6), 16);
+    }
+    result = (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.5;
+  } else {
+    // rgb()/rgba()/named colors — probe once and cache.
+    try {
+      const el = document.createElement("div");
+      el.style.color = color;
+      el.style.display = "none";
+      document.body.appendChild(el);
+      const computed = window.getComputedStyle(el).color;
+      document.body.removeChild(el);
+      const m = computed.match(/\d+/g);
+      if (m && m.length >= 3) {
+        const [r, g, b] = m.map(Number);
+        result = (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.5;
+      }
+    } catch { /* ignore */ }
+  }
+  luminanceCache.set(color, result);
+  return result;
+}
+
 const fonts = [
   "Serif", "Sans-Serif", "Monospace", "Georgia", "Times New Roman",
   "Arial", "Helvetica", "Courier New", "Verdana", "Trebuchet MS",
@@ -198,7 +244,10 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
         },
       }),
       // Dark color override — only overrides dark inline colors in dark mode,
-      // preserving intentional bright colors (red, blue, etc.)
+      // preserving intentional bright colors (red, blue, etc.).
+      // isDarkColor() parses hex inline and caches results, so this decorations
+      // callback (which runs on every transaction) never forces a layout/style
+      // recalc — critical for INP while typing.
       Extension.create({
         name: "darkColorFix",
         addProseMirrorPlugins() {
@@ -213,22 +262,7 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
                     if (!node.isText) return;
                     const ts = node.marks.find(m => m.type.name === "textStyle");
                     if (!ts?.attrs.color) return;
-                    const color = ts.attrs.color as string;
-                    let isDark = false;
-                    try {
-                      const el = document.createElement("div");
-                      el.style.color = color;
-                      el.style.display = "none";
-                      document.body.appendChild(el);
-                      const computed = window.getComputedStyle(el).color;
-                      document.body.removeChild(el);
-                      const m = computed.match(/\d+/g);
-                      if (m && m.length >= 3) {
-                        const [r, g, b] = m.map(Number);
-                        isDark = (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.5;
-                      }
-                    } catch { /* ignore */ }
-                    if (isDark) {
+                    if (isDarkColor(ts.attrs.color as string)) {
                       decos.push(Decoration.inline(pos, pos + node.nodeSize, {
                         style: "color: hsl(40 10% 96%) !important;",
                       }));
