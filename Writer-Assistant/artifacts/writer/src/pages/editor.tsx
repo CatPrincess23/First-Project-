@@ -24,7 +24,7 @@ import RichTextEditor, { type RichTextEditorHandle } from "@/components/rich-tex
 import {
   ArrowLeft, Sparkles, Image as ImageIcon, CheckCircle, Save, Loader2, Wand2,
   Globe, History, FileDown, Sun, Moon, BookOpen, Target, Clock, RotateCcw, MessageCircle,
-  Plus, Trash2, ChevronRight, ChevronLeft, PanelRight, Zap,
+  Plus, Trash2, ChevronRight, ChevronLeft, PanelRight, Zap, HelpCircle,
 } from "lucide-react";
 import { UserButton } from "@clerk/react";
 import { UpgradeModal } from "@/components/upgrade-modal";
@@ -451,6 +451,12 @@ export default function Editor({ params }: { params: { id: string } }) {
   // Version history
   const [showSaveVersionDialog, setShowSaveVersionDialog] = useState(false);
   const [versionLabel, setVersionLabel] = useState("");
+
+  const [editorTourVersion, setEditorTourVersion] = useState(0);
+  const restartEditorTour = () => {
+    localStorage.removeItem("wa-tour-seen-editor");
+    setEditorTourVersion(v => v + 1);
+  };
 
   // Export
   const [isExporting, setIsExporting] = useState(false);
@@ -1289,6 +1295,9 @@ export default function Editor({ params }: { params: { id: string } }) {
           <Button variant="ghost" size="icon" id="tour-editor-theme" onClick={toggleTheme} className="text-muted-foreground h-8 w-8">
             {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </Button>
+          <Button variant="ghost" size="icon" onClick={restartEditorTour} className="text-primary h-8 w-8" title="Show tour">
+            <HelpCircle className="w-4 h-4" />
+          </Button>
           <Button variant="ghost" size="icon" id="tour-editor-goal" onClick={() => setShowGoalDialog(true)} className="text-muted-foreground h-8 w-8 hidden sm:inline-flex" title="Set word goal">
             <Target className="w-4 h-4" />
           </Button>
@@ -1386,7 +1395,7 @@ export default function Editor({ params }: { params: { id: string } }) {
       </Dialog>
 
       <UpgradeModal />
-      <OnboardingTour steps={EDITOR_TOUR_STEPS} tourKey="editor" />
+      <OnboardingTour key={editorTourVersion} steps={EDITOR_TOUR_STEPS} tourKey="editor" />
     </div>
   );
 }
