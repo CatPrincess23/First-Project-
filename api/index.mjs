@@ -125758,6 +125758,32 @@ function checkKey(res) {
   }
   return true;
 }
+async function trackTokens(userId, completion) {
+  const usage = completion.usage;
+  if (!usage) return;
+  const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+  try {
+    await db.insert(aiUsageTable).values({
+      userId,
+      date: today,
+      promptTokens: usage.prompt_tokens ?? 0,
+      completionTokens: usage.completion_tokens ?? 0,
+      totalTokens: usage.total_tokens ?? 0,
+      requests: 1
+    }).onConflictDoUpdate({
+      target: [aiUsageTable.userId, aiUsageTable.date],
+      set: {
+        promptTokens: sql`${aiUsageTable.promptTokens} + EXCLUDED.prompt_tokens`,
+        completionTokens: sql`${aiUsageTable.completionTokens} + EXCLUDED.completion_tokens`,
+        totalTokens: sql`${aiUsageTable.totalTokens} + EXCLUDED.total_tokens`,
+        requests: sql`${aiUsageTable.requests} + 1`,
+        updatedAt: sql`now()`
+      }
+    });
+  } catch (err) {
+    logger2.error({ err }, "trackTokens failed");
+  }
+}
 router4.get("/usage", async (req, res) => {
   try {
     const userId = getUserId(req);
@@ -125819,6 +125845,8 @@ ${text2.slice(0, 8e3)}`
       messages: [{ role: "system", content: systemMsg }, { role: "user", content: prompts[type] || prompts.improve }],
       max_tokens: 1e3
     });
+    const userId = getUserId(req);
+    trackTokens(userId, completion);
     res.json({ suggestion: completion.choices[0]?.message?.content?.trim() || "" });
   } catch (err) {
     logger2.error({ err }, "suggest failed");
@@ -125936,6 +125964,7 @@ function wordDiff(original, corrected) {
 router4.post("/grammar", async (req, res, next) => {
   try {
     if (!checkKey(res)) return;
+    const userId = getUserId(req);
     const parse4 = AiGrammarCheckBody.safeParse(req.body);
     if (!parse4.success) {
       res.status(400).json({ error: "Invalid input" });
@@ -125956,6 +125985,7 @@ router4.post("/grammar", async (req, res, next) => {
       ],
       max_tokens: 5
     });
+    trackTokens(userId, scanCompletion);
     const scanResult = (scanCompletion.choices[0]?.message?.content || "").trim().toUpperCase();
     if (scanResult === "NO") {
       res.json({ errors: [], correctedText: text2 });
@@ -125991,6 +126021,7 @@ Return ONLY the corrected text. No explanations, no commentary, no markdown. If 
       ],
       max_tokens: 2e3
     });
+    trackTokens(userId, fixCompletion);
     const corrected = fixCompletion.choices[0]?.message?.content?.trim() || cappedText.trim();
     if (corrected === cappedText.trim()) {
       res.json({ errors: [], correctedText: text2 });
@@ -126010,6 +126041,7 @@ Return ONLY the corrected text. No explanations, no commentary, no markdown. If 
 });
 router4.post("/scan-entities", async (req, res) => {
   if (!checkKey(res)) return;
+  const userId = getUserId(req);
   const ENTITY_TYPES = ["person", "animal", "place", "thing"];
   const body = req.body ?? {};
   const type = body.type;
@@ -126063,6 +126095,7 @@ ${documentContent}
       ],
       max_tokens: 2e3
     });
+    trackTokens(userId, completion2);
     const raw2 = completion2.choices[0]?.message?.content?.trim() || '{"entities":[]}';
     try {
       const parsed = JSON.parse(raw2);
@@ -126102,6 +126135,7 @@ ${documentContent}
     ],
     max_tokens: 2e3
   });
+  trackTokens(userId, completion);
   const raw = completion.choices[0]?.message?.content?.trim() || '{"entities":[]}';
   try {
     const parsed = JSON.parse(raw);
@@ -126112,6 +126146,7 @@ ${documentContent}
 });
 router4.post("/image", async (req, res) => {
   if (!checkKey(res)) return;
+  const userId = getUserId(req);
   const ENTITY_TYPES = ["person", "animal", "place", "thing"];
   const body = req.body ?? {};
   const prompt = body.prompt;
@@ -126161,6 +126196,7 @@ Focus on the ${entityType} named <entity_name>${entityName}</entity_name>.` }
       ],
       max_tokens: 500
     });
+    trackTokens(userId, completion);
     finalPrompt = completion.choices[0]?.message?.content?.trim() || prompt;
   }
   if (!finalPrompt) {
@@ -126245,6 +126281,7 @@ Example structure:
           ],
           max_tokens: 1500
         });
+        trackTokens(userId, completion);
         const raw = completion.choices[0]?.message?.content?.trim() || "";
         const extracted = extractSvg2(raw);
         if (extracted) {
@@ -126266,6 +126303,7 @@ Example structure:
 });
 router4.post("/summarize", async (req, res) => {
   if (!checkKey(res)) return;
+  const userId = getUserId(req);
   const parse4 = AiSummarizeBody.safeParse(req.body);
   if (!parse4.success) {
     res.status(400).json({ error: "Invalid input" });
@@ -126282,10 +126320,12 @@ ${text2.slice(0, 8e3)}` }
     ],
     max_tokens: 600
   });
+  trackTokens(userId, completion);
   res.json({ summary: completion.choices[0]?.message?.content?.trim() || "" });
 });
 router4.post("/prologue", async (req, res) => {
   if (!checkKey(res)) return;
+  const userId = getUserId(req);
   const parse4 = AiGeneratePrologueBody.safeParse(req.body);
   if (!parse4.success) {
     res.status(400).json({ error: "Invalid input" });
@@ -126302,6 +126342,7 @@ ${text2.slice(0, 6e3)}` }
     ],
     max_tokens: 800
   });
+  trackTokens(userId, completion);
   res.json({ prologue: completion.choices[0]?.message?.content?.trim() || "" });
 });
 router4.post("/chat", async (req, res, next) => {
@@ -126359,6 +126400,7 @@ ${documentContext}
       ],
       max_tokens: 1500
     });
+    trackTokens(userId, completion);
     const reply = completion.choices[0]?.message?.content?.trim() || "";
     if (convId) {
       await db.insert(messages).values({ conversationId: convId, role: "assistant", content: reply });

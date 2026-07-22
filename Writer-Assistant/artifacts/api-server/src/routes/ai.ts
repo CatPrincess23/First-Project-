@@ -268,6 +268,36 @@ function checkKey(res: any): boolean {
   return true;
 }
 
+async function trackTokens(userId: string, completion: OpenAI.Chat.Completions.ChatCompletion) {
+  const usage = completion.usage;
+  if (!usage) return;
+  const today = new Date().toISOString().split("T")[0];
+  try {
+    await db
+      .insert(aiUsageTable)
+      .values({
+        userId,
+        date: today,
+        promptTokens: usage.prompt_tokens ?? 0,
+        completionTokens: usage.completion_tokens ?? 0,
+        totalTokens: usage.total_tokens ?? 0,
+        requests: 1,
+      })
+      .onConflictDoUpdate({
+        target: [aiUsageTable.userId, aiUsageTable.date],
+        set: {
+          promptTokens: sql`${aiUsageTable.promptTokens} + EXCLUDED.prompt_tokens`,
+          completionTokens: sql`${aiUsageTable.completionTokens} + EXCLUDED.completion_tokens`,
+          totalTokens: sql`${aiUsageTable.totalTokens} + EXCLUDED.total_tokens`,
+          requests: sql`${aiUsageTable.requests} + 1`,
+          updatedAt: sql`now()`,
+        },
+      });
+  } catch (err) {
+    logger.error({ err }, "trackTokens failed");
+  }
+}
+
 // GET /api/ai/usage — daily token usage for the current user
 router.get("/usage", async (req, res) => {
   try {
@@ -327,6 +357,8 @@ router.post("/suggest", async (req, res, next) => {
       messages: [{ role: "system", content: systemMsg }, { role: "user", content: prompts[type] || prompts.improve }],
       max_tokens: 1000,
     });
+    const userId = getUserId(req);
+    trackTokens(userId, completion);
     res.json({ suggestion: completion.choices[0]?.message?.content?.trim() || "" });
   } catch (err: any) {
     logger.error({ err }, "suggest failed");
@@ -466,6 +498,7 @@ function wordDiff(original: string, corrected: string) {
 router.post("/grammar", async (req, res, next) => {
   try {
     if (!checkKey(res)) return;
+    const userId = getUserId(req);
     const parse = AiGrammarCheckBody.safeParse(req.body);
     if (!parse.success) { res.status(400).json({ error: "Invalid input" }); return; }
     const { text } = parse.data;
@@ -488,6 +521,7 @@ router.post("/grammar", async (req, res, next) => {
       ],
       max_tokens: 5,
     });
+    trackTokens(userId, scanCompletion);
     const scanResult = (scanCompletion.choices[0]?.message?.content || "").trim().toUpperCase();
 
     if (scanResult === "NO") { res.json({ errors: [], correctedText: text }); return; }
@@ -523,6 +557,7 @@ Return ONLY the corrected text. No explanations, no commentary, no markdown. If 
       ],
       max_tokens: 2000,
     });
+    trackTokens(userId, fixCompletion);
     const corrected = fixCompletion.choices[0]?.message?.content?.trim() || cappedText.trim();
 
     if (corrected === cappedText.trim()) { res.json({ errors: [], correctedText: text }); return; }
@@ -543,6 +578,7 @@ Return ONLY the corrected text. No explanations, no commentary, no markdown. If 
 // POST /api/ai/scan-entities
 router.post("/scan-entities", async (req, res) => {
   if (!checkKey(res)) return;
+  const userId = getUserId(req);
   // Input validation + length caps (untrusted client body).
   const ENTITY_TYPES = ["person", "animal", "place", "thing"] as const;
   const body = (req.body ?? {}) as Record<string, unknown>;
@@ -595,6 +631,7 @@ If the <entity_name> value is not found in the document, return { "entities": []
       ],
       max_tokens: 2000,
     });
+    trackTokens(userId, completion);
 
     const raw = completion.choices[0]?.message?.content?.trim() || '{"entities":[]}';
     try {
@@ -634,6 +671,7 @@ If no ${plural} are found, return { "entities": [] }.`,
     ],
     max_tokens: 2000,
   });
+  trackTokens(userId, completion);
 
   const raw = completion.choices[0]?.message?.content?.trim() || '{"entities":[]}';
   try {
@@ -647,6 +685,7 @@ If no ${plural} are found, return { "entities": [] }.`,
 // POST /api/ai/image
 router.post("/image", async (req, res) => {
   if (!checkKey(res)) return;
+  const userId = getUserId(req);
   // Input validation + length caps (untrusted client body).
   const ENTITY_TYPES = ["person", "animal", "place", "thing"] as const;
   const body = (req.body ?? {}) as Record<string, unknown>;
@@ -692,6 +731,7 @@ Return a single detailed image generation prompt (2-3 sentences) describing this
       ],
       max_tokens: 500,
     });
+    trackTokens(userId, completion);
     finalPrompt = completion.choices[0]?.message?.content?.trim() || prompt;
   }
 
@@ -781,6 +821,7 @@ Example structure:
           ],
           max_tokens: 1500,
         });
+        trackTokens(userId, completion);
 
         const raw = completion.choices[0]?.message?.content?.trim() || "";
         const extracted = extractSvg(raw);
@@ -805,6 +846,7 @@ Example structure:
 // POST /api/ai/summarize
 router.post("/summarize", async (req, res) => {
   if (!checkKey(res)) return;
+  const userId = getUserId(req);
   const parse = AiSummarizeBody.safeParse(req.body);
   if (!parse.success) { res.status(400).json({ error: "Invalid input" }); return; }
   const { text, title } = parse.data;
@@ -816,12 +858,14 @@ router.post("/summarize", async (req, res) => {
     ],
     max_tokens: 600,
   });
+  trackTokens(userId, completion);
   res.json({ summary: completion.choices[0]?.message?.content?.trim() || "" });
 });
 
 // POST /api/ai/prologue
 router.post("/prologue", async (req, res) => {
   if (!checkKey(res)) return;
+  const userId = getUserId(req);
   const parse = AiGeneratePrologueBody.safeParse(req.body);
   if (!parse.success) { res.status(400).json({ error: "Invalid input" }); return; }
   const { text, title } = parse.data;
@@ -833,6 +877,7 @@ router.post("/prologue", async (req, res) => {
     ],
     max_tokens: 800,
   });
+  trackTokens(userId, completion);
   res.json({ prologue: completion.choices[0]?.message?.content?.trim() || "" });
 });
 
@@ -911,6 +956,7 @@ router.post("/chat", async (req, res, next) => {
     ],
     max_tokens: 1500,
   });
+  trackTokens(userId, completion);
   const reply = completion.choices[0]?.message?.content?.trim() || "";
 
   if (convId) {
