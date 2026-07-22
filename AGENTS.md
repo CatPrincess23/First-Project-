@@ -75,6 +75,22 @@ Both servers must run in the background (use `nohup ... &`, `run_in_background: 
 - **API codegen:** Orval (from OpenAPI spec)
 - **Package manager:** pnpm (workspaces)
 
+## Security
+
+- **All secrets come from environment variables — never hardcode them.** Every API key, DB connection string, and Clerk secret is read via `process.env.*` (server) or `import.meta.env.VITE_*` (browser-only, publishable values). The only file that ever holds real secret *values* is the gitignored `.env` / `Writer-Assistant/.env`.
+- **`.env.example` is the canonical list of required env vars.** It documents every key with a blank placeholder and a production deployment checklist. Copy it to `.env` for local dev. Only `.env.example` is committed; all real `.env*` files are gitignored.
+- **`.gitignore` blocks all credential material.** It covers `.env`, `.env.local`, `.env.production`, `.env.vercel`, `.env.*` (with a `!.env.example` exception), plus key files (`*.pem`, `*.key`, `id_rsa`, `id_ed25519`, `.netrc`, `secrets.*`, `credentials.*`, `*.ppk`). Verified via `git check-ignore`.
+- **Secrets were never committed to git history.** Confirmed with `git log --all -S "<each-secret-value>"` — the `.env` files were always gitignored.
+- **No client-side secret exposure.** The frontend makes **zero** direct calls to AI providers (OpenAI/Groq/OpenRouter/Gemini/etc.) or the database. All such traffic is proxied through `/api/*`, so private keys stay server-side. The only browser-exposed value is `VITE_CLERK_PUBLISHABLE_KEY`, which is designed to be public.
+- **`start-dev.sh` sources `.env` instead of hardcoding keys.** The dev-server script loads `Writer-Assistant/.env` (via `set -a; . ./.env; set +a`) rather than baking in a publishable key. If `VITE_CLERK_PUBLISHABLE_KEY` is unset it falls back to guest-only mode.
+- **Input validation everywhere.** Every API route validates request bodies and params with Zod `safeParse` (returns generic `400 { error: "Invalid input" }`). AI endpoints additionally cap input size with `.slice()` (suggest 8K–12K, grammar 20K, chat doc-context 16K, summarize 8K, prologue 6K, entity-scan 100K) to prevent context-window overflow and crashes on huge text.
+- **Error responses never leak internals.** All `catch` blocks return generic messages (`"Internal server error"`, `"AI rate limit reached. Please try again later."`, `"Image generation failed"`). Full errors are logged server-side only (`logger.error(err)`). The Express error handler (`app.ts`) returns `500 { error: "Internal server error" }`.
+- **No SQL injection surface.** All DB access is via Drizzle ORM parameterized queries — there is no raw string-interpolated SQL anywhere.
+- **File uploads are magic-byte sniffed.** `upload.ts` uses `fileTypeFromBuffer()` to validate actual bytes (not the client-supplied `Content-Type`), enforces a 10 MB limit, and rejects SVG (XSS vector as a data: URI). Allowed: png/jpeg/gif/webp.
+- **Security headers + CSP via Helmet.** `app.ts` configures Helmet with a tuned CSP (self for scripts/styles, allows Clerk origins and the AI connect-src origins). `trust proxy` is set to `1` for Vercel's single hop.
+- **CORS is allowlisted.** `isOriginAllowed()` permits same-origin (production domain + every Vercel preview URL via host match), explicitly listed `ALLOWED_ORIGINS`, and localhost in dev. Unknown origins get no CORS headers (browser blocks the response).
+- **Guest cookie is HMAC-signed with `GUEST_ID_SECRET`.** Set `GUEST_ID_SECRET` (e.g. `openssl rand -hex 32`) in production so the signed `wa_guest` cookie survives server restarts; if unset, a random secret is generated per start (invalidating guest cookies on redeploy).
+
 ## Conventions when editing
 
 - **Sign-in is opt-in; guest mode is the default.** `/sign-in` and `/sign-up` host Clerk `<SignIn>`/`<SignUp>` (`App.tsx`), gated on `VITE_CLERK_PUBLISHABLE_KEY`. A "Continue as guest" link is always available, and when no publishable key is configured the auth pages show a guest-only CTA instead of an empty Clerk form. Guests are identified by a random UUID stored in `localStorage` and sent as the `x-guest-id` header; guest documents persist as long as the browser/localStorage isn't cleared.
