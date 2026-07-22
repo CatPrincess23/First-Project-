@@ -125760,33 +125760,30 @@ function checkKey(res) {
 }
 async function trackTokens(userId, completion) {
   const usage = completion.usage;
-  if (!usage) {
-    console.log("trackTokens: USAGE IS NULL/MISSING", { model: completion.model, id: completion.id, hasUsage: completion.usage !== void 0 });
-    return;
-  }
-  console.log("trackTokens: GOT USAGE", { promptTokens: usage.prompt_tokens, completionTokens: usage.completion_tokens, totalTokens: usage.total_tokens });
+  if (!usage) return;
   const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
   try {
-    const result2 = await db.insert(aiUsageTable).values({
-      userId,
-      date: today,
-      promptTokens: usage.prompt_tokens ?? 0,
-      completionTokens: usage.completion_tokens ?? 0,
-      totalTokens: usage.total_tokens ?? 0,
-      requests: 1
-    }).onConflictDoUpdate({
-      target: [aiUsageTable.userId, aiUsageTable.date],
-      set: {
-        promptTokens: sql`${aiUsageTable.promptTokens} + EXCLUDED.prompt_tokens`,
-        completionTokens: sql`${aiUsageTable.completionTokens} + EXCLUDED.completion_tokens`,
-        totalTokens: sql`${aiUsageTable.totalTokens} + EXCLUDED.total_tokens`,
-        requests: sql`${aiUsageTable.requests} + 1`,
-        updatedAt: sql`now()`
-      }
-    });
-    console.log("trackTokens: DB INSERT DONE");
+    const [existing] = await db.select().from(aiUsageTable).where(and(eq(aiUsageTable.userId, userId), eq(aiUsageTable.date, today))).limit(1);
+    if (existing) {
+      await db.update(aiUsageTable).set({
+        promptTokens: existing.promptTokens + (usage.prompt_tokens ?? 0),
+        completionTokens: existing.completionTokens + (usage.completion_tokens ?? 0),
+        totalTokens: existing.totalTokens + (usage.total_tokens ?? 0),
+        requests: existing.requests + 1,
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where(eq(aiUsageTable.id, existing.id));
+    } else {
+      await db.insert(aiUsageTable).values({
+        userId,
+        date: today,
+        promptTokens: usage.prompt_tokens ?? 0,
+        completionTokens: usage.completion_tokens ?? 0,
+        totalTokens: usage.total_tokens ?? 0,
+        requests: 1
+      });
+    }
   } catch (err) {
-    console.log("trackTokens: DB ERROR", err);
+    logger2.error({ err }, "trackTokens failed");
   }
 }
 router4.get("/usage", async (req, res) => {
