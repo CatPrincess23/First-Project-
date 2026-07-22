@@ -271,12 +271,13 @@ function checkKey(res: any): boolean {
 async function trackTokens(userId: string, completion: OpenAI.Chat.Completions.ChatCompletion) {
   const usage = completion.usage;
   if (!usage) {
-    logger.warn({ model: completion.model, id: completion.id }, "trackTokens: no usage data");
+    console.log("trackTokens: USAGE IS NULL/MISSING", { model: completion.model, id: completion.id, hasUsage: completion.usage !== undefined });
     return;
   }
+  console.log("trackTokens: GOT USAGE", { promptTokens: usage.prompt_tokens, completionTokens: usage.completion_tokens, totalTokens: usage.total_tokens });
   const today = new Date().toISOString().split("T")[0];
   try {
-    await db
+    const result = await db
       .insert(aiUsageTable)
       .values({
         userId,
@@ -296,8 +297,9 @@ async function trackTokens(userId: string, completion: OpenAI.Chat.Completions.C
           updatedAt: sql`now()`,
         },
       });
+    console.log("trackTokens: DB INSERT DONE");
   } catch (err) {
-    logger.error({ err }, "trackTokens failed");
+    console.log("trackTokens: DB ERROR", err);
   }
 }
 

@@ -125761,12 +125761,13 @@ function checkKey(res) {
 async function trackTokens(userId, completion) {
   const usage = completion.usage;
   if (!usage) {
-    logger2.warn({ model: completion.model, id: completion.id }, "trackTokens: no usage data");
+    console.log("trackTokens: USAGE IS NULL/MISSING", { model: completion.model, id: completion.id, hasUsage: completion.usage !== void 0 });
     return;
   }
+  console.log("trackTokens: GOT USAGE", { promptTokens: usage.prompt_tokens, completionTokens: usage.completion_tokens, totalTokens: usage.total_tokens });
   const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
   try {
-    await db.insert(aiUsageTable).values({
+    const result2 = await db.insert(aiUsageTable).values({
       userId,
       date: today,
       promptTokens: usage.prompt_tokens ?? 0,
@@ -125783,8 +125784,9 @@ async function trackTokens(userId, completion) {
         updatedAt: sql`now()`
       }
     });
+    console.log("trackTokens: DB INSERT DONE");
   } catch (err) {
-    logger2.error({ err }, "trackTokens failed");
+    console.log("trackTokens: DB ERROR", err);
   }
 }
 router4.get("/usage", async (req, res) => {
