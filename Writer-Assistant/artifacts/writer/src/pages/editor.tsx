@@ -1466,6 +1466,7 @@ export default function Editor({ params }: { params: { id: string } }) {
   const EDITOR_TOUR_STEPS = [
     { target: "#tour-editor-title", title: "Name Your Work", description: "Give your document a title. Changes auto-save within a second after you stop typing.", placement: "bottom" as const },
     { target: "#tour-editor-textarea", title: "Your Canvas", description: "This is where the magic happens. Write freely — grammar highlights, AI suggestions, and word count tracking work in real-time.", placement: "bottom" as const },
+    { target: "#tour-editor-readmode", title: "Read Mode", description: "Working on a long book? Click the eye icon to enter read mode — a distraction-free view that hides the toolbar and AI sidebar and locks editing so you can't accidentally change anything. Click it again to return to editing.", placement: "bottom" as const },
     { target: "#tour-editor-sidebar", title: "AI Writing Assistant", description: "Grammar check with inline highlights, AI rewrites, summarization, prologue generation, chat with the AI about your document, and an image prompt generator — all in one sidebar.", placement: "left" as const },
     { target: "#tour-editor-sidebar", title: "Image Prompt Generator", description: "Switch to the image tab (the landscape icon) to turn your characters, places, and things into detailed prompts you can paste into any AI image generator like Midjourney or DALL·E. Pick traits, skin color, heritage, personality, and more — or scan your document for context.", placement: "left" as const },
     { target: "#tour-editor-tokens", title: "AI Token Usage", description: "Track how many AI tokens you've used today. Each AI action (chat, grammar, rewrite) consumes tokens from your daily limit.", placement: "bottom" as const },
@@ -1524,7 +1525,7 @@ export default function Editor({ params }: { params: { id: string } }) {
             </>
           ) : (
             <>
-              <Button variant="ghost" size="icon" onClick={() => setReadMode(true)} className="text-muted-foreground h-8 w-8" title="Read mode (distraction-free)">
+              <Button variant="ghost" size="icon" id="tour-editor-readmode" onClick={() => setReadMode(true)} className="text-muted-foreground h-8 w-8" title="Read mode (distraction-free)">
                 <Eye className="w-4 h-4" />
               </Button>
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground mr-1 sm:mr-2">
