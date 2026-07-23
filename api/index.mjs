@@ -20502,27 +20502,27 @@ var require_router = __commonJS({
     var slice2 = Array.prototype.slice;
     var flatten3 = Array.prototype.flat;
     var methods = METHODS.map((method) => method.toLowerCase());
-    module2.exports = Router10;
+    module2.exports = Router11;
     module2.exports.Route = Route;
-    function Router10(options) {
-      if (!(this instanceof Router10)) {
-        return new Router10(options);
+    function Router11(options) {
+      if (!(this instanceof Router11)) {
+        return new Router11(options);
       }
       const opts = options || {};
-      function router10(req, res, next) {
-        router10.handle(req, res, next);
+      function router11(req, res, next) {
+        router11.handle(req, res, next);
       }
-      Object.setPrototypeOf(router10, this);
-      router10.caseSensitive = opts.caseSensitive;
-      router10.mergeParams = opts.mergeParams;
-      router10.params = {};
-      router10.strict = opts.strict;
-      router10.stack = [];
-      return router10;
+      Object.setPrototypeOf(router11, this);
+      router11.caseSensitive = opts.caseSensitive;
+      router11.mergeParams = opts.mergeParams;
+      router11.params = {};
+      router11.strict = opts.strict;
+      router11.stack = [];
+      return router11;
     }
-    Router10.prototype = function() {
+    Router11.prototype = function() {
     };
-    Router10.prototype.param = function param(name, fn) {
+    Router11.prototype.param = function param(name, fn) {
       if (!name) {
         throw new TypeError("argument name is required");
       }
@@ -20542,7 +20542,7 @@ var require_router = __commonJS({
       params.push(fn);
       return this;
     };
-    Router10.prototype.handle = function handle(req, res, callback) {
+    Router11.prototype.handle = function handle(req, res, callback) {
       if (!callback) {
         throw new TypeError("argument callback is required");
       }
@@ -20669,7 +20669,7 @@ var require_router = __commonJS({
         }
       }
     };
-    Router10.prototype.use = function use(handler) {
+    Router11.prototype.use = function use(handler) {
       let offset = 0;
       let path3 = "/";
       if (typeof handler !== "function") {
@@ -20702,7 +20702,7 @@ var require_router = __commonJS({
       }
       return this;
     };
-    Router10.prototype.route = function route(path3) {
+    Router11.prototype.route = function route(path3) {
       const route2 = new Route(path3);
       const layer = new Layer(path3, {
         sensitive: this.caseSensitive,
@@ -20717,7 +20717,7 @@ var require_router = __commonJS({
       return route2;
     };
     methods.concat("all").forEach(function(method) {
-      Router10.prototype[method] = function(path3) {
+      Router11.prototype[method] = function(path3) {
         const route = this.route(path3);
         route[method].apply(route, slice2.call(arguments, 1));
         return this;
@@ -20900,13 +20900,13 @@ var require_application = __commonJS({
     var compileTrust = require_utils3().compileTrust;
     var resolve = __require("node:path").resolve;
     var once = require_once();
-    var Router10 = require_router();
+    var Router11 = require_router();
     var slice2 = Array.prototype.slice;
     var flatten3 = Array.prototype.flat;
     var app2 = exports2 = module2.exports = {};
     var trustProxyDefaultSymbol = "@@symbol:trust_proxy_default";
     app2.init = function init() {
-      var router10 = null;
+      var router11 = null;
       this.cache = /* @__PURE__ */ Object.create(null);
       this.engines = /* @__PURE__ */ Object.create(null);
       this.settings = /* @__PURE__ */ Object.create(null);
@@ -20915,13 +20915,13 @@ var require_application = __commonJS({
         configurable: true,
         enumerable: true,
         get: function getrouter() {
-          if (router10 === null) {
-            router10 = new Router10({
+          if (router11 === null) {
+            router11 = new Router11({
               caseSensitive: this.enabled("case sensitive routing"),
               strict: this.enabled("strict routing")
             });
           }
-          return router10;
+          return router11;
         }
       });
     };
@@ -20992,15 +20992,15 @@ var require_application = __commonJS({
       if (fns.length === 0) {
         throw new TypeError("app.use() requires a middleware function");
       }
-      var router10 = this.router;
+      var router11 = this.router;
       fns.forEach(function(fn2) {
         if (!fn2 || !fn2.handle || !fn2.set) {
-          return router10.use(path3, fn2);
+          return router11.use(path3, fn2);
         }
         debug2(".use app under %s", path3);
         fn2.mountpath = path3;
         fn2.parent = this;
-        router10.use(path3, function mounted_app(req, res, next) {
+        router11.use(path3, function mounted_app(req, res, next) {
           var orig = req.app;
           fn2.handle(req, res, function(err) {
             Object.setPrototypeOf(req, orig.request);
@@ -23573,7 +23573,7 @@ var require_express = __commonJS({
     var EventEmitter = __require("node:events").EventEmitter;
     var mixin2 = require_merge_descriptors();
     var proto = require_application();
-    var Router10 = require_router();
+    var Router11 = require_router();
     var req = require_request();
     var res = require_response();
     exports2 = module2.exports = createApplication;
@@ -23595,8 +23595,8 @@ var require_express = __commonJS({
     exports2.application = proto;
     exports2.request = req;
     exports2.response = res;
-    exports2.Route = Router10.Route;
-    exports2.Router = Router10;
+    exports2.Route = Router11.Route;
+    exports2.Router = Router11;
     exports2.json = bodyParser.json;
     exports2.raw = bodyParser.raw;
     exports2.static = require_serve_static();
@@ -82878,7 +82878,7 @@ var require_lib12 = __commonJS({
 });
 
 // artifacts/api-server/src/app.ts
-var import_express10 = __toESM(require_express2(), 1);
+var import_express11 = __toESM(require_express2(), 1);
 var import_cors = __toESM(require_lib3(), 1);
 var import_cookie_parser = __toESM(require_cookie_parser(), 1);
 
@@ -91798,7 +91798,7 @@ var clerkMiddleware = (options = {}) => {
 };
 
 // artifacts/api-server/src/routes/index.ts
-var import_express9 = __toESM(require_express2(), 1);
+var import_express10 = __toESM(require_express2(), 1);
 
 // node_modules/.pnpm/express-rate-limit@8.5.2_express@5.2.1/node_modules/express-rate-limit/dist/index.mjs
 var import_ip_address = __toESM(require_ip_address(), 1);
@@ -103999,6 +103999,7 @@ function drizzle(...params) {
 var schema_exports = {};
 __export(schema_exports, {
   aiUsageTable: () => aiUsageTable,
+  chaptersTable: () => chaptersTable,
   conversations: () => conversations,
   documentVersionsTable: () => documentVersionsTable,
   documentsTable: () => documentsTable,
@@ -115443,6 +115444,17 @@ var documentVersionsTable = pgTable("document_versions", {
   wordCount: integer("word_count").notNull().default(0),
   label: text("label"),
   createdAt: timestamp("created_at").notNull().defaultNow()
+});
+var chaptersTable = pgTable("chapters", {
+  id: serial("id").primaryKey(),
+  documentId: integer("document_id").notNull().references(() => documentsTable.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
+  title: text("title").notNull().default("Untitled Chapter"),
+  content: text("content").notNull().default(""),
+  position: integer("position").notNull().default(0),
+  wordCount: integer("word_count").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow()
 });
 
 // lib/db/src/schema/conversations.ts
@@ -130827,8 +130839,153 @@ router8.post("/", upload2.single("file"), async (req, res) => {
 });
 var import_document_default = router8;
 
-// artifacts/api-server/src/routes/index.ts
+// artifacts/api-server/src/routes/chapters.ts
+var import_express9 = __toESM(require_express2(), 1);
 var router9 = (0, import_express9.Router)();
+function decodeEntities2(text2) {
+  return text2.replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&#x27;/g, "'").replace(/&#x2F;/g, "/").replace(/&#(\d+);/g, (_4, c) => String.fromCharCode(parseInt(c, 10))).replace(/&#x([0-9a-fA-F]+);/g, (_4, c) => String.fromCharCode(parseInt(c, 16)));
+}
+function countWords2(text2) {
+  const stripped = decodeEntities2(text2).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  return stripped ? stripped.split(/\s+/).length : 0;
+}
+function toIso2(value) {
+  return value instanceof Date ? value.toISOString() : value;
+}
+function serializeChapter(c) {
+  return {
+    id: c.id,
+    documentId: c.documentId,
+    title: c.title,
+    content: c.content,
+    position: c.position,
+    wordCount: c.wordCount,
+    createdAt: toIso2(c.createdAt),
+    updatedAt: toIso2(c.updatedAt)
+  };
+}
+function isPositiveInt(v) {
+  return typeof v === "number" && Number.isInteger(v) && v > 0;
+}
+function isNonNegInt(v) {
+  return typeof v === "number" && Number.isInteger(v) && v >= 0;
+}
+router9.get("/documents/:documentId/chapters", async (req, res) => {
+  const documentId = Number(req.params.documentId);
+  if (!isPositiveInt(documentId)) {
+    res.status(400).json({ error: "Invalid ID" });
+    return;
+  }
+  const userId = getUserId(req);
+  const [parent] = await db.select().from(documentsTable).where(and(eq(documentsTable.id, documentId), eq(documentsTable.userId, userId)));
+  if (!parent) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const rows = await db.select().from(chaptersTable).where(eq(chaptersTable.documentId, documentId)).orderBy(asc(chaptersTable.position), asc(chaptersTable.id));
+  res.json(rows.map(serializeChapter));
+});
+router9.post("/documents/:documentId/chapters", async (req, res) => {
+  const documentId = Number(req.params.documentId);
+  if (!isPositiveInt(documentId)) {
+    res.status(400).json({ error: "Invalid ID" });
+    return;
+  }
+  const userId = getUserId(req);
+  const [parent] = await db.select().from(documentsTable).where(and(eq(documentsTable.id, documentId), eq(documentsTable.userId, userId)));
+  if (!parent) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const body = req.body ?? {};
+  const title = typeof body.title === "string" && body.title.trim() ? body.title : "Untitled Chapter";
+  const content = typeof body.content === "string" ? body.content : "";
+  const existing = await db.select().from(chaptersTable).where(eq(chaptersTable.documentId, documentId));
+  const nextPos = existing.reduce((acc, c) => Math.max(acc, c.position), -1) + 1;
+  const [chapter] = await db.insert(chaptersTable).values({
+    documentId,
+    userId,
+    title,
+    content,
+    position: nextPos,
+    wordCount: countWords2(content)
+  }).returning();
+  res.status(201).json(serializeChapter(chapter));
+});
+router9.patch("/documents/:documentId/chapters/reorder", async (req, res) => {
+  const documentId = Number(req.params.documentId);
+  if (!isPositiveInt(documentId)) {
+    res.status(400).json({ error: "Invalid ID" });
+    return;
+  }
+  const userId = getUserId(req);
+  const [parent] = await db.select().from(documentsTable).where(and(eq(documentsTable.id, documentId), eq(documentsTable.userId, userId)));
+  if (!parent) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const order = req.body?.order ?? [];
+  if (!Array.isArray(order) || !order.every(isPositiveInt)) {
+    res.status(400).json({ error: "Invalid input" });
+    return;
+  }
+  const rows = await db.select().from(chaptersTable).where(and(eq(chaptersTable.documentId, documentId), eq(chaptersTable.userId, userId)));
+  const owned = new Set(rows.map((r) => r.id));
+  if (!order.every((id) => owned.has(id))) {
+    res.status(400).json({ error: "Invalid input" });
+    return;
+  }
+  for (let i = 0; i < order.length; i++) {
+    await db.update(chaptersTable).set({ position: i, updatedAt: /* @__PURE__ */ new Date() }).where(and(eq(chaptersTable.id, order[i]), eq(chaptersTable.documentId, documentId)));
+  }
+  res.status(204).send();
+});
+router9.patch("/chapters/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!isPositiveInt(id)) {
+    res.status(400).json({ error: "Invalid ID" });
+    return;
+  }
+  const userId = getUserId(req);
+  const [chapter] = await db.select().from(chaptersTable).where(and(eq(chaptersTable.id, id), eq(chaptersTable.userId, userId)));
+  if (!chapter) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const body = req.body ?? {};
+  const updates = { updatedAt: /* @__PURE__ */ new Date() };
+  if (typeof body.title === "string" && body.title.trim()) updates.title = body.title;
+  if (typeof body.content === "string") {
+    updates.content = body.content;
+    updates.wordCount = countWords2(body.content);
+  }
+  if (typeof body.position === "number" && isNonNegInt(body.position)) updates.position = body.position;
+  const [updated] = await db.update(chaptersTable).set(updates).where(and(eq(chaptersTable.id, id), eq(chaptersTable.userId, userId))).returning();
+  if (!updated) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  res.json(serializeChapter(updated));
+});
+router9.delete("/chapters/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!isPositiveInt(id)) {
+    res.status(400).json({ error: "Invalid ID" });
+    return;
+  }
+  const userId = getUserId(req);
+  const [chapter] = await db.select().from(chaptersTable).where(and(eq(chaptersTable.id, id), eq(chaptersTable.userId, userId)));
+  if (!chapter) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  await db.delete(chaptersTable).where(eq(chaptersTable.id, id));
+  res.status(204).send();
+});
+var chapters_default = router9;
+
+// artifacts/api-server/src/routes/index.ts
+var router10 = (0, import_express10.Router)();
 var aiLimiter = rate_limit_default({
   windowMs: 60 * 1e3,
   limit: 30,
@@ -130836,18 +130993,19 @@ var aiLimiter = rate_limit_default({
   legacyHeaders: false,
   keyGenerator: (req, _res) => req.identity?.id ?? ipKeyGenerator(req.ip ?? "", 56)
 });
-router9.use(health_default);
-router9.use("/auth", auth_default);
-router9.use("/documents", requireIdentity, documents_default);
-router9.use("/ai", aiLimiter, requireIdentity, ai_default);
-router9.use("/world/:documentId/entities", requireIdentity, world_default);
-router9.use("/upload", requireIdentity, upload_default);
-router9.use("/conversations", requireIdentity, conversations_default);
-router9.use("/import-document", requireIdentity, import_document_default);
-var routes_default = router9;
+router10.use(health_default);
+router10.use("/auth", auth_default);
+router10.use("/documents", requireIdentity, documents_default);
+router10.use("/ai", aiLimiter, requireIdentity, ai_default);
+router10.use("/world/:documentId/entities", requireIdentity, world_default);
+router10.use("/upload", requireIdentity, upload_default);
+router10.use("/conversations", requireIdentity, conversations_default);
+router10.use("/import-document", requireIdentity, import_document_default);
+router10.use(requireIdentity, chapters_default);
+var routes_default = router10;
 
 // artifacts/api-server/src/app.ts
-var app = (0, import_express10.default)();
+var app = (0, import_express11.default)();
 app.set("trust proxy", 1);
 app.use(
   (0, import_pino_http.default)({
@@ -130921,11 +131079,11 @@ app.use(
     callback(null, { origin: allowed ? origin : false, credentials: true });
   })
 );
-app.use(import_express10.default.json({ limit: "10mb" }));
-app.use(import_express10.default.urlencoded({ extended: true }));
+app.use(import_express11.default.json({ limit: "10mb" }));
+app.use(import_express11.default.urlencoded({ extended: true }));
 app.use((0, import_cookie_parser.default)());
 try {
-  app.use("/uploads", import_express10.default.static(path2.join(import.meta.dirname, "..", "uploads")));
+  app.use("/uploads", import_express11.default.static(path2.join(import.meta.dirname, "..", "uploads")));
 } catch {
 }
 var skipAuth = !process.env.CLERK_SECRET_KEY;

@@ -257,6 +257,9 @@ export default function Editor({ params }: { params: { id: string } }) {
   const [selectedWordCount, setSelectedWordCount] = useState(0);
   const latestHtmlRef = useRef("");
   const richEditorRef = useRef<RichTextEditorHandle>(null);
+  const editorScrollRef = useRef<HTMLDivElement>(null);
+  // Guards the scroll-to-next-chapter gesture so a single gesture can't fire twice.
+  const chapterAdvanceCooldown = useRef(false);
 
   // Push a programmatic content change into BOTH the TipTap editor (imperatively,
   // since its memo comparator skips `content` prop changes) and parent state.
@@ -1043,6 +1046,44 @@ export default function Editor({ params }: { params: { id: string } }) {
   const stableMoveChapter = useRefCallback(moveChapter);
   const stableRenameChapter = useRefCallback(renameChapter);
 
+  // Derived: the chapter following the active one (for the "continue" footer
+  // button and the scroll-to-next gesture). Cheap — chapters array is small.
+  const activeChapterIndex = chapters.findIndex((c) => c.id === activeChapterId);
+  const nextChapter = activeChapterIndex >= 0 ? chapters[activeChapterIndex + 1] : undefined;
+
+  // Scroll-to-next-chapter: when the reader/writer is at the very bottom and
+  // makes another DOWNWARD gesture (mouse wheel or touch swipe), seamlessly
+  // advance to the next chapter — a continuous, book-like flow. We listen to
+  // wheel/touchend (NOT the raw scroll event) so the editor's cursor
+  // scroll-into-view while typing never falsely triggers a chapter change.
+  useEffect(() => {
+    const el = editorScrollRef.current;
+    if (!el) return;
+    const advance = () => {
+      if (chapterAdvanceCooldown.current) return;
+      const arr = chaptersRef.current;
+      const idx = arr.findIndex((c) => c.id === activeChapterIdRef.current);
+      const next = arr[idx + 1];
+      if (!next) return;
+      chapterAdvanceCooldown.current = true;
+      switchChapter(next.id);
+      // Reset to the top of the new chapter once the swapped content has painted.
+      window.requestAnimationFrame(() =>
+        window.requestAnimationFrame(() => el.scrollTo({ top: 0, behavior: "auto" })),
+      );
+      window.setTimeout(() => { chapterAdvanceCooldown.current = false; }, 700);
+    };
+    const atBottom = () => el.scrollTop + el.clientHeight >= el.scrollHeight - 8;
+    const onWheel = (e: WheelEvent) => { if (e.deltaY > 0 && atBottom()) advance(); };
+    const onTouchEnd = () => { if (atBottom()) advance(); };
+    el.addEventListener("wheel", onWheel, { passive: true });
+    el.addEventListener("touchend", onTouchEnd, { passive: true });
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("touchend", onTouchEnd);
+    };
+  }, [switchChapter]);
+
   const desktopSidebar = useMemo(() => (
 <div className="flex shrink-0">
   <button
@@ -1300,6 +1341,8 @@ export default function Editor({ params }: { params: { id: string } }) {
   chatMessages, chatInput, isChatLoading, activeConversationId, isLoadingConversations, conversations,
   chatChunks, safeChunkIndex, docTruncated, wordCount,
   versions, createVersion.isPending,
+  chapters, activeChapterId, editingChapterId, editingTitle, createChapter.isPending,
+  stableSwitchChapter, stableAddChapter, stableDeleteChapter, stableStartEditTitle, stableCommitEditTitle, stableMoveChapter,
 ]);
 
   const mobileSidebarContent = useMemo(() => (
@@ -1455,6 +1498,8 @@ export default function Editor({ params }: { params: { id: string } }) {
   isRunningAiTool, aiToolType, aiToolResult,
   chatMessages, chatInput, isChatLoading,
   chatChunks, safeChunkIndex, docTruncated, wordCount,
+  chapters, activeChapterId, editingChapterId, editingTitle, createChapter.isPending,
+  stableSwitchChapter, stableAddChapter, stableDeleteChapter, stableStartEditTitle, stableCommitEditTitle,
 ]);
 
   if (isDocumentLoading || !shellReady) {
@@ -1608,13 +1653,27 @@ export default function Editor({ params }: { params: { id: string } }) {
       {/* Main Workspace */}
       <div className="flex flex-1 overflow-hidden">
         {/* Editor Area */}
-        <div className="flex-1 overflow-y-auto flex justify-center" style={{ contain: "layout paint style" }}>
+        <div ref={editorScrollRef} className="flex-1 overflow-y-auto flex justify-center" style={{ contain: "layout paint style" }}>
           <div id="tour-editor-textarea" className="w-full max-w-3xl px-4 md:px-8 py-6">
             {editorReady ? (
             <RichTextEditor key={documentId} ref={richEditorRef} content={content} onBlur={stableOnBlur} onChange={stableOnChange} onSelectionChange={stableOnSelectionChange} placeholder="Start writing..." grammarErrors={grammarErrors} editable={!readMode} />
             ) : (
               <div className="min-h-[60vh] flex items-center justify-center text-muted-foreground">
                 <Loader2 className="w-6 h-6 animate-spin" />
+              </div>
+            )}
+            {editorReady && nextChapter && (
+              <div className="mt-10 mb-6 flex flex-col items-center gap-1 text-center">
+                <div className="h-px w-24 bg-border mb-3" />
+                <span className="text-xs text-muted-foreground">End of chapter {activeChapterIndex + 1}</span>
+                <button
+                  onClick={() => switchChapter(nextChapter.id)}
+                  className="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+                >
+                  Continue to “{nextChapter.title || `Chapter ${activeChapterIndex + 2}`}”
+                  <ChevronDown className="w-4 h-4 animate-bounce" />
+                </button>
+                <span className="text-[10px] text-muted-foreground/70">or scroll down to flow into the next chapter</span>
               </div>
             )}
           </div>
