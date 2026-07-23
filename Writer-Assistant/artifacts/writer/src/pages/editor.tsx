@@ -24,11 +24,13 @@ import RichTextEditor, { type RichTextEditorHandle } from "@/components/rich-tex
 import {
   ArrowLeft, Sparkles, Image as ImageIcon, CheckCircle, Save, Loader2, Wand2,
   Globe, History, FileDown, Sun, Moon, BookOpen, Target, Clock, RotateCcw, MessageCircle,
-  Plus, Trash2, ChevronRight, ChevronLeft, PanelRight, Zap,
+  Plus, Trash2, ChevronRight, ChevronLeft, PanelRight, Zap, KeyRound,
 } from "lucide-react";
 import { UserButton } from "@clerk/react";
 import { UpgradeModal } from "@/components/upgrade-modal";
 import OnboardingTour from "@/components/onboarding-tour";
+import { UserApiKeyDialog } from "@/components/user-api-key-dialog";
+import { getUserApiConfig } from "@/lib/api-key";
 import { format } from "date-fns";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -179,7 +181,7 @@ export default function Editor({ params }: { params: { id: string } }) {
   const { useRequest } = usePro();
   const { theme, toggleTheme } = useTheme();
 
-  const { data: aiUsage } = useQuery<{ today: { totalTokens: number; requests: number }; dailyLimit: number }>({
+  const { data: aiUsage } = useQuery<{ today: { totalTokens: number; requests: number }; dailyLimit: number; isUsingOwnKey: boolean }>({
     queryKey: ["ai-usage"],
     queryFn: async () => (await fetch("/api/ai/usage")).json(),
     staleTime: 10000,
@@ -461,9 +463,9 @@ export default function Editor({ params }: { params: { id: string } }) {
   // Version history
   const [showSaveVersionDialog, setShowSaveVersionDialog] = useState(false);
   const [versionLabel, setVersionLabel] = useState("");
-
-  // Export
+  const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const hasUserKey = !!getUserApiConfig();
 
   useEffect(() => {
     if (document && initRef.current !== documentId) {
@@ -939,8 +941,8 @@ export default function Editor({ params }: { params: { id: string } }) {
                           <Badge variant="outline" className={`
                             capitalize text-[10px] py-0 shrink-0
                             ${err.type === "spelling" ? "border-red-500 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30" : ""}
-                            ${err.type === "grammar" ? "border-amber-500 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30" : ""}
-                            ${err.type === "punctuation" ? "border-purple-500 text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30" : ""}
+                            ${err.type === "grammar" ? "border-amber-400 text-amber-500 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30" : ""}
+                            ${err.type === "punctuation" ? "border-amber-400 text-amber-500 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30" : ""}
                             ${err.type === "style" ? "border-blue-500 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30" : ""}
                           `}>{err.type}</Badge>
                         </div>
@@ -1285,10 +1287,22 @@ export default function Editor({ params }: { params: { id: string } }) {
             )}
             <span className="mx-1 hidden md:inline">·</span>
             <span id="tour-editor-tokens" className="hidden md:inline-flex items-center gap-1" title="AI tokens used today">
-              <Zap className="w-3 h-3 text-indigo-500 dark:text-indigo-400" />
+              <Zap className="w-3 h-3 text-amber-400 dark:text-amber-300" />
               {(aiUsage?.today.totalTokens ?? 0).toLocaleString()}
-              <span className="text-muted-foreground/70">/ {((aiUsage?.dailyLimit ?? 100000) / 1000).toFixed(0)}K</span>
+              {hasUserKey || aiUsage?.isUsingOwnKey ? (
+                <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">own key</span>
+              ) : (
+                <span className="text-muted-foreground/70">/ {((aiUsage?.dailyLimit ?? 10000) / 1000).toFixed(0)}K</span>
+              )}
             </span>
+            <button
+              type="button"
+              onClick={() => setShowApiKeyDialog(true)}
+              className="text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+              title="API key settings"
+            >
+              <KeyRound className="w-3 h-3" />
+            </button>
           </div>
 
           <Button variant="outline" size="sm" onClick={() => saveContent(title, content)} className="h-7 text-xs gap-1 hidden sm:inline-flex" disabled={isSaving}>
@@ -1400,6 +1414,7 @@ export default function Editor({ params }: { params: { id: string } }) {
         </DialogContent>
       </Dialog>
 
+      <UserApiKeyDialog open={showApiKeyDialog} onOpenChange={setShowApiKeyDialog} />
       <UpgradeModal />
       <OnboardingTour steps={EDITOR_TOUR_STEPS} tourKey="editor" />
     </div>

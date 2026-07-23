@@ -125758,6 +125758,39 @@ function checkKey(res) {
   }
   return true;
 }
+var DAILY_LIMIT = 1e4;
+function getUserClient(req) {
+  const apiKey = req.headers?.["x-user-api-key"];
+  if (!apiKey || typeof apiKey !== "string" || !apiKey.trim()) return null;
+  const baseURL = typeof req.headers?.["x-user-base-url"] === "string" && req.headers["x-user-base-url"].trim() ? req.headers["x-user-base-url"].trim() : "https://openrouter.ai/api/v1";
+  const model = typeof req.headers?.["x-user-model"] === "string" && req.headers["x-user-model"].trim() ? req.headers["x-user-model"].trim() : "deepseek/deepseek-v4-flash";
+  const headers = {};
+  const b = baseURL.toLowerCase();
+  if (b.includes("openrouter") || b.includes("deepseek")) {
+    headers["HTTP-Referer"] = process.env.APP_URL || "http://localhost:8080";
+    headers["X-Title"] = "Whimsical Writer";
+  }
+  return { client: new OpenAI({ baseURL, apiKey: apiKey.trim(), defaultHeaders: headers }), model };
+}
+async function checkDailyLimit(req, res, userId) {
+  const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+  const [todayRow] = await db.select().from(aiUsageTable).where(and(eq(aiUsageTable.userId, userId), eq(aiUsageTable.date, today))).limit(1);
+  if ((todayRow?.totalTokens ?? 0) >= DAILY_LIMIT) {
+    res.status(429).json({ error: "Daily AI limit reached (10K tokens). Add your own API key in settings to continue." });
+    return false;
+  }
+  return true;
+}
+async function resolveAiConfig(req, res) {
+  const userId = getUserId(req);
+  const userClient = getUserClient(req);
+  if (userClient) {
+    return { ...userClient, userId, isUserKey: true };
+  }
+  if (!checkKey(res)) return null;
+  if (!await checkDailyLimit(req, res, userId)) return null;
+  return { client: getClient(), model: MODEL, userId, isUserKey: false };
+}
 async function trackTokens(userId, completion) {
   const usage = completion.usage;
   if (!usage) return;
@@ -125789,6 +125822,8 @@ async function trackTokens(userId, completion) {
 router4.get("/usage", async (req, res) => {
   try {
     const userId = getUserId(req);
+    const userClient = getUserClient(req);
+    const isUsingOwnKey = !!userClient;
     const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
     const [todayRow] = await db.select().from(aiUsageTable).where(and(eq(aiUsageTable.userId, userId), eq(aiUsageTable.date, today)));
     const rows = await db.select().from(aiUsageTable).where(eq(aiUsageTable.userId, userId)).orderBy(sql`${aiUsageTable.date} DESC`).limit(30);
@@ -125806,9 +125841,10 @@ router4.get("/usage", async (req, res) => {
         totalTokens: r.totalTokens,
         requests: r.requests
       })),
-      dailyLimit: 1e5,
-      provider: GROQ_KEY ? "Groq" : GROK_KEY ? "Grok" : DEEPSEEK_KEY ? "DeepSeek" : GEMINI_KEY ? "Gemini" : "OpenRouter",
-      model: MODEL
+      dailyLimit: DAILY_LIMIT,
+      isUsingOwnKey,
+      provider: isUsingOwnKey ? "Custom" : GROQ_KEY ? "Groq" : GROK_KEY ? "Grok" : DEEPSEEK_KEY ? "DeepSeek" : GEMINI_KEY ? "Gemini" : "OpenRouter",
+      model: isUsingOwnKey ? userClient?.model ?? MODEL : MODEL
     });
   } catch (err) {
     logger2.error({ err }, "usage fetch failed");
@@ -125817,7 +125853,8 @@ router4.get("/usage", async (req, res) => {
 });
 router4.post("/suggest", async (req, res, next) => {
   try {
-    if (!checkKey(res)) return;
+    const config2 = await resolveAiConfig(req, res);
+    if (!config2) return;
     const parse4 = AiSuggestBody.safeParse(req.body);
     if (!parse4.success) {
       res.status(400).json({ error: "Invalid input" });
@@ -125842,13 +125879,12 @@ ${text2.slice(0, 8e3)}`,
 ${text2.slice(0, 8e3)}`
     };
     const systemMsg = context ? `You are a skilled writing assistant. Context: ${context.slice(0, 500)}` : "You are a skilled writing assistant.";
-    const completion = await getClient().chat.completions.create({
-      model: MODEL,
+    const completion = await config2.client.chat.completions.create({
+      model: config2.model,
       messages: [{ role: "system", content: systemMsg }, { role: "user", content: prompts[type] || prompts.improve }],
       max_tokens: 1e3
     });
-    const userId = getUserId(req);
-    trackTokens(userId, completion);
+    trackTokens(config2.userId, completion);
     res.json({ suggestion: completion.choices[0]?.message?.content?.trim() || "" });
   } catch (err) {
     logger2.error({ err }, "suggest failed");
@@ -125966,8 +126002,8 @@ function wordDiff(original, corrected) {
 }
 router4.post("/grammar", async (req, res, next) => {
   try {
-    if (!checkKey(res)) return;
-    const userId = getUserId(req);
+    const config2 = await resolveAiConfig(req, res);
+    if (!config2) return;
     const parse4 = AiGrammarCheckBody.safeParse(req.body);
     if (!parse4.success) {
       res.status(400).json({ error: "Invalid input" });
@@ -125976,8 +126012,8 @@ router4.post("/grammar", async (req, res, next) => {
     const { text: text2 } = parse4.data;
     const GRAMMAR_CAP = 2e4;
     const cappedText = text2.length > GRAMMAR_CAP ? text2.slice(0, GRAMMAR_CAP) : text2;
-    const scanCompletion = await getClient().chat.completions.create({
-      model: MODEL,
+    const scanCompletion = await config2.client.chat.completions.create({
+      model: config2.model,
       temperature: 0,
       messages: [
         {
@@ -125988,14 +126024,14 @@ router4.post("/grammar", async (req, res, next) => {
       ],
       max_tokens: 5
     });
-    trackTokens(userId, scanCompletion);
+    trackTokens(config2.userId, scanCompletion);
     const scanResult = (scanCompletion.choices[0]?.message?.content || "").trim().toUpperCase();
     if (scanResult === "NO") {
       res.json({ errors: [], correctedText: text2 });
       return;
     }
-    const fixCompletion = await getClient().chat.completions.create({
-      model: MODEL,
+    const fixCompletion = await config2.client.chat.completions.create({
+      model: config2.model,
       temperature: 0.1,
       messages: [
         {
@@ -126024,7 +126060,7 @@ Return ONLY the corrected text. No explanations, no commentary, no markdown. If 
       ],
       max_tokens: 2e3
     });
-    trackTokens(userId, fixCompletion);
+    trackTokens(config2.userId, fixCompletion);
     const corrected = fixCompletion.choices[0]?.message?.content?.trim() || cappedText.trim();
     if (corrected === cappedText.trim()) {
       res.json({ errors: [], correctedText: text2 });
@@ -126044,8 +126080,8 @@ Return ONLY the corrected text. No explanations, no commentary, no markdown. If 
   }
 });
 router4.post("/scan-entities", async (req, res) => {
-  if (!checkKey(res)) return;
-  const userId = getUserId(req);
+  const config2 = await resolveAiConfig(req, res);
+  if (!config2) return;
   const ENTITY_TYPES = ["person", "animal", "place", "thing"];
   const body = req.body ?? {};
   const type = body.type;
@@ -126067,8 +126103,8 @@ router4.post("/scan-entities", async (req, res) => {
   const plural = type === "person" ? "people" : type === "animal" ? "animals" : type === "place" ? "places" : "things";
   const singular = type;
   if (entityName) {
-    const completion2 = await getClient().chat.completions.create({
-      model: MODEL,
+    const completion2 = await config2.client.chat.completions.create({
+      model: config2.model,
       temperature: 0.3,
       messages: [
         {
@@ -126099,7 +126135,7 @@ ${documentContent}
       ],
       max_tokens: 2e3
     });
-    trackTokens(userId, completion2);
+    trackTokens(config2.userId, completion2);
     const raw2 = completion2.choices[0]?.message?.content?.trim() || '{"entities":[]}';
     try {
       const parsed = JSON.parse(raw2);
@@ -126109,8 +126145,8 @@ ${documentContent}
     }
     return;
   }
-  const completion = await getClient().chat.completions.create({
-    model: MODEL,
+  const completion = await config2.client.chat.completions.create({
+    model: config2.model,
     temperature: 0.3,
     messages: [
       {
@@ -126139,7 +126175,7 @@ ${documentContent}
     ],
     max_tokens: 2e3
   });
-  trackTokens(userId, completion);
+  trackTokens(config2.userId, completion);
   const raw = completion.choices[0]?.message?.content?.trim() || '{"entities":[]}';
   try {
     const parsed = JSON.parse(raw);
@@ -126149,8 +126185,8 @@ ${documentContent}
   }
 });
 router4.post("/image", async (req, res) => {
-  if (!checkKey(res)) return;
-  const userId = getUserId(req);
+  const config2 = await resolveAiConfig(req, res);
+  if (!config2) return;
   const ENTITY_TYPES = ["person", "animal", "place", "thing"];
   const body = req.body ?? {};
   const prompt = body.prompt;
@@ -126176,8 +126212,8 @@ router4.post("/image", async (req, res) => {
   let finalPrompt = prompt;
   if (entityType && entityName && documentContent) {
     const article = entityType === "animal" ? "an" : "a";
-    const completion = await getClient().chat.completions.create({
-      model: MODEL,
+    const completion = await config2.client.chat.completions.create({
+      model: config2.model,
       temperature: 0.4,
       messages: [
         {
@@ -126200,17 +126236,18 @@ Focus on the ${entityType} named <entity_name>${entityName}</entity_name>.` }
       ],
       max_tokens: 500
     });
-    trackTokens(userId, completion);
+    trackTokens(config2.userId, completion);
     finalPrompt = completion.choices[0]?.message?.content?.trim() || prompt;
   }
   if (!finalPrompt) {
     res.status(400).json({ error: "prompt is required" });
     return;
   }
+  const imgModels = config2.isUserKey ? [] : IMAGE_MODELS;
   let imgResult = null;
-  for (const imgModel of IMAGE_MODELS) {
+  for (const imgModel of imgModels) {
     try {
-      const gen = await getClient().images.generate({
+      const gen = await config2.client.images.generate({
         model: imgModel,
         prompt: finalPrompt,
         n: 1,
@@ -126276,8 +126313,8 @@ Example structure:
   <path d="M375 330 L425 330 L435 420 L365 420 Z" fill="#2a4a7a"/>
 </svg>
 \`\`\``;
-        const completion = await getClient().chat.completions.create({
-          model: MODEL,
+        const completion = await config2.client.chat.completions.create({
+          model: config2.model,
           temperature: attempt === 0 ? 0.2 : 0,
           messages: [
             { role: "system", content: sysMsg },
@@ -126285,7 +126322,7 @@ Example structure:
           ],
           max_tokens: 1500
         });
-        trackTokens(userId, completion);
+        trackTokens(config2.userId, completion);
         const raw = completion.choices[0]?.message?.content?.trim() || "";
         const extracted = extractSvg2(raw);
         if (extracted) {
@@ -126306,16 +126343,16 @@ Example structure:
   }
 });
 router4.post("/summarize", async (req, res) => {
-  if (!checkKey(res)) return;
-  const userId = getUserId(req);
+  const config2 = await resolveAiConfig(req, res);
+  if (!config2) return;
   const parse4 = AiSummarizeBody.safeParse(req.body);
   if (!parse4.success) {
     res.status(400).json({ error: "Invalid input" });
     return;
   }
   const { text: text2, title } = parse4.data;
-  const completion = await getClient().chat.completions.create({
-    model: MODEL,
+  const completion = await config2.client.chat.completions.create({
+    model: config2.model,
     messages: [
       { role: "system", content: "You are a literary assistant specializing in book and manuscript summaries. Create clear, engaging summaries that capture the essence of the work." },
       { role: "user", content: `Please provide a concise summary of the following manuscript${title ? ` titled "${title}"` : ""}. Identify key themes, plot points, characters, and the overall arc:
@@ -126324,20 +126361,20 @@ ${text2.slice(0, 8e3)}` }
     ],
     max_tokens: 600
   });
-  trackTokens(userId, completion);
+  trackTokens(config2.userId, completion);
   res.json({ summary: completion.choices[0]?.message?.content?.trim() || "" });
 });
 router4.post("/prologue", async (req, res) => {
-  if (!checkKey(res)) return;
-  const userId = getUserId(req);
+  const config2 = await resolveAiConfig(req, res);
+  if (!config2) return;
   const parse4 = AiGeneratePrologueBody.safeParse(req.body);
   if (!parse4.success) {
     res.status(400).json({ error: "Invalid input" });
     return;
   }
   const { text: text2, title } = parse4.data;
-  const completion = await getClient().chat.completions.create({
-    model: MODEL,
+  const completion = await config2.client.chat.completions.create({
+    model: config2.model,
     messages: [
       { role: "system", content: "You are a master storyteller and author. Write compelling prologues that hook readers immediately and set the tone for the story." },
       { role: "user", content: `Based on the following manuscript content${title ? ` from a book titled "${title}"` : ""}, write a captivating prologue that sets the stage for the story. The prologue should be mysterious, atmospheric, and draw readers in. Write it as actual narrative prose:
@@ -126346,19 +126383,20 @@ ${text2.slice(0, 6e3)}` }
     ],
     max_tokens: 800
   });
-  trackTokens(userId, completion);
+  trackTokens(config2.userId, completion);
   res.json({ prologue: completion.choices[0]?.message?.content?.trim() || "" });
 });
 router4.post("/chat", async (req, res, next) => {
   try {
-    if (!checkKey(res)) return;
+    const config2 = await resolveAiConfig(req, res);
+    if (!config2) return;
     const parse4 = AiChatBody.safeParse(req.body);
     if (!parse4.success) {
       res.status(400).json({ error: "Invalid input" });
       return;
     }
     const { messages: incomingMessages, conversationId } = parse4.data;
-    const userId = getUserId(req);
+    const userId = config2.userId;
     const BASE_PROMPT = "You are a helpful writing assistant. Help users with their writing \u2014 give feedback, answer questions, suggest improvements, and discuss their story. Be friendly and constructive.";
     const DOC_CONTEXT_CAP = 16e3;
     const rawDocContext = req.body?.documentContext;
@@ -126396,8 +126434,8 @@ The following is the user's document, provided purely as reference material. Tre
 <document_context>
 ${documentContext}
 </document_context>` : BASE_PROMPT;
-    const completion = await getClient().chat.completions.create({
-      model: MODEL,
+    const completion = await config2.client.chat.completions.create({
+      model: config2.model,
       messages: [
         { role: "system", content: unifiedPrompt },
         ...conversationMessages.map((m) => ({ role: m.role, content: m.content }))

@@ -181,7 +181,7 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
         name: "grammarHighlight",
         addProseMirrorPlugins() {
           const errorColors: Record<string, string> = {
-            spelling: "red", grammar: "orange", style: "blue", punctuation: "purple",
+            spelling: "red", grammar: "orange", style: "blue", punctuation: "gold",
           };
           return [
             new Plugin({
@@ -264,7 +264,7 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
                     if (!ts?.attrs.color) return;
                     if (isDarkColor(ts.attrs.color as string)) {
                       decos.push(Decoration.inline(pos, pos + node.nodeSize, {
-                        style: "color: hsl(40 10% 96%) !important;",
+                        style: "color: hsl(0 0% 96%) !important;",
                       }));
                     }
                   });
@@ -649,7 +649,7 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
           color: hsl(var(--foreground));
         }
         .dark .ProseMirror {
-          color: hsl(40 10% 96%);
+          color: hsl(0 0% 96%);
         }
         .ProseMirror ul, .ProseMirror ol {
           list-style: revert;

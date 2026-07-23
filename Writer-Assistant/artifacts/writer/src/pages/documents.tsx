@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "@/lib/theme";
 import { usePro } from "@/lib/pro-context";
@@ -18,10 +19,12 @@ import { getCurrentGuestId, clearGuestId } from "@/lib/guest-id";
 import {
   Plus, FileText, Trash2, Loader2, ArrowRight, Sun, Moon, Globe, Target,
   LayoutDashboard, Sparkles, BookOpen, Image as ImageIcon, History,
-  CheckCircle, Wand2, Crown, User, ChevronRight, HelpCircle, Menu, Zap,
+  CheckCircle, Wand2, Crown, User, ChevronRight, HelpCircle, Menu, Zap, XCircle, KeyRound,
 } from "lucide-react";
 import { UserButton, useAuth } from "@clerk/react";
 import OnboardingTour from "@/components/onboarding-tour";
+import { UserApiKeyDialog } from "@/components/user-api-key-dialog";
+import { getUserApiConfig } from "@/lib/api-key";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
@@ -48,8 +51,8 @@ const AI_FEATURES = [
   { icon: Wand2, title: "AI Rewrite Assistant", desc: "Improve, expand, shorten, rephrase, or continue any piece of text.", tier: "free" },
   { icon: BookOpen, title: "Book Summarizer", desc: "Scan your full manuscript and generate a concise literary summary.", tier: "pro" },
   { icon: Sparkles, title: "Prologue Generator", desc: "AI drafts a compelling prologue based on your manuscript's plot and tone.", tier: "pro" },
-  { icon: ImageIcon, title: "Image Generation", desc: "Generate illustrations for characters, scenes, or locations using DALL·E 3.", tier: "pro" },
-  { icon: Globe, title: "World Building Portfolio", desc: "Structured profiles for characters, places, and items — with AI images.", tier: "free" },
+  { icon: ImageIcon, title: "Image Generation", desc: "Generate illustrations for characters, scenes, or locations.", tier: "pro", broken: true },
+  { icon: Globe, title: "World Building Portfolio", desc: "Structured profiles for characters, places, and items (AI image generation currently unavailable).", tier: "free" },
   { icon: History, title: "Version History", desc: "Save named snapshots of your manuscript and restore any previous version.", tier: "pro" },
   { icon: FileText, title: "Export PDF & DOCX", desc: "Download your manuscript in publication-ready formats.", tier: "free" },
 ];
@@ -115,12 +118,14 @@ export default function Documents() {
   const { theme, toggleTheme } = useTheme();
   const [activeView, setActiveView] = useState<View>("home");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
+  const hasUserKey = !!getUserApiConfig();
   const isMobile = useIsMobile();
   const clerkEnabled = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
   const { data: documents, isLoading: isLoadingDocs, isError: isDocsError } = useListDocuments({ query: { queryKey: getListDocumentsQueryKey() } });
   const { data: stats, isLoading: isLoadingStats } = useGetDocumentStats({ query: { queryKey: getGetDocumentStatsQueryKey() } });
-  const { data: usage } = useQuery<{ today: { totalTokens: number; promptTokens: number; completionTokens: number; requests: number }; dailyLimit: number; provider: string }>({
+  const { data: usage } = useQuery<{ today: { totalTokens: number; promptTokens: number; completionTokens: number; requests: number }; dailyLimit: number; provider: string; isUsingOwnKey: boolean }>({
     queryKey: ["ai-usage"],
     queryFn: async () => (await fetch("/api/ai/usage")).json(),
     staleTime: 30000,
@@ -185,9 +190,9 @@ export default function Documents() {
         <SheetContent side="left" className="w-72 p-0">
           <div className="h-full flex flex-col">
             <div className="h-16 flex items-center gap-3 px-4 border-b shrink-0">
-              <img src="/favicon.svg" alt="Whimsical Writer" className="w-8 h-8 shrink-0" />
+              <img src="/favicon.svg?v=2" alt="Whimsical Writer" className="w-8 h-8 shrink-0" />
               <div className="min-w-0">
-                <div className="font-serif font-semibold text-base leading-tight tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">Whimsical Writer</div>
+                <div className="font-serif font-semibold text-base leading-tight tracking-tight bg-gradient-to-r from-amber-300 via-yellow-300 to-orange-300 bg-clip-text text-transparent">Whimsical Writer</div>
                 {isPro && <div className="text-[10px] text-primary font-bold uppercase tracking-wider">Pro</div>}
               </div>
             </div>
@@ -223,6 +228,9 @@ export default function Documents() {
                 <Button variant="ghost" size="icon" id="tour-sidebar-help" onClick={restartTour} className="h-8 w-8 text-primary" title="Show tour">
                   <HelpCircle className="w-4 h-4" />
                 </Button>
+                <Button variant="ghost" size="icon" onClick={() => setShowApiKeyDialog(true)} className="text-muted-foreground h-8 w-8" title="API key settings">
+                  <KeyRound className="w-4 h-4" />
+                </Button>
               </div>
             </div>
           </div>
@@ -233,10 +241,10 @@ export default function Documents() {
       <aside className={`${sidebarCollapsed ? "w-16" : "w-60"} flex-none border-r bg-card flex-col transition-all duration-200 sticky top-0 h-screen overflow-hidden hidden md:flex`}>
         {/* Logo */}
         <div className="h-16 flex items-center gap-3 px-4 border-b shrink-0">
-          <img src="/favicon.svg" alt="Whimsical Writer" className="w-8 h-8 shrink-0" />
+          <img src="/favicon.svg?v=2" alt="Whimsical Writer" className="w-8 h-8 shrink-0" />
           {!sidebarCollapsed && (
             <div className="min-w-0">
-              <div className="font-serif font-semibold text-base leading-tight tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">Whimsical Writer</div>
+              <div className="font-serif font-semibold text-base leading-tight tracking-tight bg-gradient-to-r from-amber-300 via-yellow-300 to-orange-300 bg-clip-text text-transparent">Whimsical Writer</div>
               {isPro && <div className="text-[10px] text-primary font-bold uppercase tracking-wider">Pro</div>}
             </div>
           )}
@@ -282,7 +290,7 @@ export default function Documents() {
           {!sidebarCollapsed && !isPro && (
             <button
               onClick={() => {}} 
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 transition-colors mb-2"
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-amber-500 dark:text-amber-300 bg-amber-400/15 hover:bg-amber-400/25 transition-colors mb-2"
             >
               <Crown className="w-3.5 h-3.5 shrink-0" />
               <span className="font-medium">Upgrade to Pro</span>
@@ -301,6 +309,9 @@ export default function Documents() {
             <Button variant="ghost" size="icon" id="tour-sidebar-help" onClick={restartTour} className="h-8 w-8 text-primary" title="Show tour">
               <HelpCircle className="w-4 h-4" />
             </Button>
+            <Button variant="ghost" size="icon" onClick={() => setShowApiKeyDialog(true)} className="text-muted-foreground h-8 w-8" title="API key settings">
+              <KeyRound className="w-4 h-4" />
+            </Button>
             </div>
             <Button variant="ghost" size="icon" onClick={() => setSidebarCollapsed(c => !c)} className="text-muted-foreground h-8 w-8">
               <ChevronRight className={`w-4 h-4 transition-transform ${sidebarCollapsed ? "" : "rotate-180"}`} />
@@ -317,19 +328,19 @@ export default function Documents() {
         {activeView === "home" && (
           <div className="p-6 md:p-8 space-y-8">
             {/* Hero */}
-            <div id="tour-home-hero" className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-700 p-8 md:p-10 text-white">
+            <div id="tour-home-hero" className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500 via-amber-600 to-amber-700 p-8 md:p-10 text-white">
               <div className="relative z-10">
                 <div className="flex items-center gap-4 mb-4">
                   <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur p-0.5 shadow-lg">
-                    <img src="/favicon.svg" alt="Whimsical Writer" className="w-full h-full rounded-[10px]" />
+                    <img src="/favicon.svg?v=2" alt="Whimsical Writer" className="w-full h-full rounded-[10px]" />
                   </div>
                   <div>
                     <h1 className="text-3xl font-serif font-bold">Welcome to Whimsical Writer</h1>
-                    <p className="text-indigo-200 dark:text-indigo-100 text-sm mt-1">Your AI-powered creative writing companion</p>
+                    <p className="text-amber-100 text-sm mt-1">Your AI-powered creative writing companion</p>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-3 mt-6">
-                  <Button onClick={handleCreateDocument} disabled={createDoc.isPending} className="bg-white dark:bg-gray-800 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-gray-700 gap-2 shadow-lg" size="sm">
+                  <Button onClick={handleCreateDocument} disabled={createDoc.isPending} className="bg-white dark:bg-gray-800 text-amber-600 dark:text-amber-200 hover:bg-amber-50 dark:hover:bg-gray-700 gap-2 shadow-lg" size="sm">
                     {createDoc.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                     New Document
                   </Button>
@@ -347,7 +358,7 @@ export default function Documents() {
             {/* Stats Overview */}
             {!isLoadingStats && stats && (stats.totalDocuments ?? 0) > 0 && (
               <div id="tour-home-stats" className="grid grid-cols-3 gap-4">
-                <Card className="shadow-sm border-indigo-500/10">
+                <Card className="shadow-sm border-amber-400/15">
                   <CardHeader className="pb-2 px-4 pt-4">
                     <CardDescription className="text-xs uppercase tracking-wide flex items-center gap-1">
                       <FileText className="w-3 h-3" /> Documents
@@ -355,7 +366,7 @@ export default function Documents() {
                     <CardTitle className="text-3xl font-serif mt-1">{(stats.totalDocuments ?? 0).toLocaleString()}</CardTitle>
                   </CardHeader>
                 </Card>
-                <Card className="shadow-sm border-indigo-500/10">
+                <Card className="shadow-sm border-amber-400/15">
                   <CardHeader className="pb-2 px-4 pt-4">
                     <CardDescription className="text-xs uppercase tracking-wide flex items-center gap-1">
                       <FileText className="w-3 h-3" /> Words Written
@@ -363,20 +374,31 @@ export default function Documents() {
                     <CardTitle className="text-3xl font-serif mt-1">{(stats.totalWords ?? 0).toLocaleString()}</CardTitle>
                   </CardHeader>
                 </Card>
-                <Card className="shadow-sm border-indigo-500/10">
+                <Card className="shadow-sm border-amber-400/15">
                   <CardHeader className="pb-2 px-4 pt-4">
                     <CardDescription className="text-xs uppercase tracking-wide flex items-center gap-1">
                       <Zap className="w-3 h-3" /> AI Tokens Today
+                      {usage?.isUsingOwnKey && (
+                        <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 ml-1">own key</span>
+                      )}
                     </CardDescription>
                     <CardTitle className="text-3xl font-serif mt-1">{(usage?.today.totalTokens ?? 0).toLocaleString()}</CardTitle>
                     <div className="mt-2">
                       <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                        <span>Daily limit: {((usage?.dailyLimit ?? 100000) / 1000).toFixed(0)}K</span>
-                        <span>{Math.min(100, Math.round(((usage?.today.totalTokens ?? 0) / (usage?.dailyLimit ?? 100000)) * 100))}%</span>
+                        {usage?.isUsingOwnKey ? (
+                          <span>Own API key — no limit</span>
+                        ) : (
+                          <>
+                            <span>Daily limit: {((usage?.dailyLimit ?? 10000) / 1000).toFixed(0)}K</span>
+                            <span>{Math.min(100, Math.round(((usage?.today.totalTokens ?? 0) / (usage?.dailyLimit ?? 10000)) * 100))}%</span>
+                          </>
+                        )}
                       </div>
+                      {!usage?.isUsingOwnKey && (
                       <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all" style={{ width: `${Math.min(100, ((usage?.today.totalTokens ?? 0) / (usage?.dailyLimit ?? 100000)) * 100)}%` }} />
+                        <div className="h-full bg-gradient-to-r from-amber-400 to-yellow-400 transition-all" style={{ width: `${Math.min(100, ((usage?.today.totalTokens ?? 0) / (usage?.dailyLimit ?? 10000)) * 100)}%` }} />
                       </div>
+                      )}
                     </div>
                   </CardHeader>
                 </Card>
@@ -412,8 +434,8 @@ export default function Documents() {
                 onClick={() => setActiveView("ai-features")}>
                 <CardHeader className="pb-3">
                   <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-purple-500/10 group-hover:bg-purple-500/20 transition-colors">
-                      <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                    <div className="p-2.5 rounded-xl bg-amber-400/15 group-hover:bg-amber-400/25 transition-colors">
+                      <Sparkles className="w-5 h-5 text-amber-500 dark:text-amber-300" />
                     </div>
                     <div>
                       <CardTitle className="text-base">AI Tools</CardTitle>
@@ -422,7 +444,7 @@ export default function Documents() {
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <p className="text-xs text-muted-foreground">Grammar checking, rewriting, summarization, prologue generation, image creation, and persistent AI chat — all in the editor.</p>
+                  <p className="text-xs text-muted-foreground">Grammar checking, rewriting, summarization, prologue generation, persistent AI chat, and more — all in the editor.</p>
                 </CardContent>
                 <CardFooter className="pt-0 pb-4">
                   <span className="text-xs font-medium text-primary flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
@@ -435,8 +457,8 @@ export default function Documents() {
                 onClick={() => setActiveView("stats")}>
                 <CardHeader className="pb-3">
                   <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-amber-500/10 group-hover:bg-amber-500/20 transition-colors">
-                      <Target className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                    <div className="p-2.5 rounded-xl bg-amber-400/15 group-hover:bg-amber-400/25 transition-colors">
+                      <Target className="w-5 h-5 text-amber-500 dark:text-amber-300" />
                     </div>
                     <div>
                       <CardTitle className="text-base">Writing Stats</CardTitle>
@@ -515,6 +537,9 @@ export default function Documents() {
               <CardHeader className="pb-3 px-4 pt-4">
                 <CardDescription className="text-xs uppercase tracking-wide flex items-center gap-1">
                   <Zap className="w-3 h-3" /> AI Tokens Today
+                  {usage?.isUsingOwnKey && (
+                    <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 ml-1">own key</span>
+                  )}
                 </CardDescription>
                 <div className="flex items-baseline gap-3">
                   <CardTitle className="text-3xl font-serif">{(usage?.today.totalTokens ?? 0).toLocaleString()}</CardTitle>
@@ -524,12 +549,20 @@ export default function Documents() {
                 </div>
                 <div className="mt-2">
                   <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                    <span>Daily limit: {((usage?.dailyLimit ?? 100000) / 1000).toFixed(0)}K</span>
-                    <span>{Math.min(100, Math.round(((usage?.today.totalTokens ?? 0) / (usage?.dailyLimit ?? 100000)) * 100))}%</span>
+                    {usage?.isUsingOwnKey ? (
+                      <span>Own API key — no limit</span>
+                    ) : (
+                      <>
+                        <span>Daily limit: {((usage?.dailyLimit ?? 10000) / 1000).toFixed(0)}K</span>
+                        <span>{Math.min(100, Math.round(((usage?.today.totalTokens ?? 0) / (usage?.dailyLimit ?? 10000)) * 100))}%</span>
+                      </>
+                    )}
                   </div>
+                  {!usage?.isUsingOwnKey && (
                   <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all" style={{ width: `${Math.min(100, ((usage?.today.totalTokens ?? 0) / (usage?.dailyLimit ?? 100000)) * 100)}%` }} />
+                    <div className="h-full bg-gradient-to-r from-amber-400 to-yellow-400 transition-all" style={{ width: `${Math.min(100, ((usage?.today.totalTokens ?? 0) / (usage?.dailyLimit ?? 10000)) * 100)}%` }} />
                   </div>
+                  )}
                 </div>
               </CardHeader>
             </Card>
@@ -683,16 +716,21 @@ export default function Documents() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {AI_FEATURES.map(({ icon: Icon, title, desc }) => (
-                <Card key={title} className="shadow-sm border-border/60">
+              {AI_FEATURES.map(({ icon: Icon, title, desc, broken }) => (
+                <Card key={title} className={`shadow-sm border-border/60 ${broken ? "opacity-70" : ""}`}>
                   <CardHeader className="pb-3">
                     <div className="flex items-start gap-4">
-                      <div className="p-2.5 bg-primary/10 rounded-xl shrink-0">
-                        <Icon className="w-5 h-5 text-primary" />
+                      <div className={`p-2.5 rounded-xl shrink-0 ${broken ? "bg-destructive/10" : "bg-primary/10"}`}>
+                        <Icon className={`w-5 h-5 ${broken ? "text-destructive" : "text-primary"}`} />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <CardTitle className="text-base">{title}</CardTitle>
+                          {broken && (
+                            <Badge variant="destructive" className="text-[10px] h-5 gap-1 px-1.5">
+                              <XCircle className="w-3 h-3" /> Unavailable
+                            </Badge>
+                          )}
                         </div>
                         <CardDescription className="text-sm mt-1 leading-relaxed">{desc}</CardDescription>
                       </div>
@@ -706,7 +744,7 @@ export default function Documents() {
               <Card className="border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 shadow-sm">
                 <CardHeader>
                   <div className="flex items-center gap-3">
-                    <Crown className="w-5 h-5 text-amber-500 dark:text-amber-400" />
+                    <Crown className="w-5 h-5 text-amber-400 dark:text-amber-300" />
                     <div>
                       <CardTitle className="text-base">Unlock Pro features</CardTitle>
                       <CardDescription className="text-sm mt-0.5">Get unlimited AI requests, version history, book summarizer, prologue generator, and more.</CardDescription>
@@ -800,6 +838,7 @@ export default function Documents() {
           </div>
         )}
       </main>
+      <UserApiKeyDialog open={showApiKeyDialog} onOpenChange={setShowApiKeyDialog} />
       <OnboardingTour key={tourVersion} steps={DOCS_TOUR_STEPS} tourKey="documents" onComplete={() => {
         if (chainedTour && docs.length > 0) {
           // Navigating away — documents.tsx unmounts, so skip the wasteful

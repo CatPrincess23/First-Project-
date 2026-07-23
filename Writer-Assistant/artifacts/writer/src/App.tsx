@@ -20,8 +20,8 @@ import { SignIn, SignUp } from "@clerk/react";
 function AuthHero() {
   return (
     <div className="text-center space-y-3">
-      <img src="/favicon.svg" alt="Whimsical Writer" className="w-14 h-14 mx-auto" />
-      <h1 className="text-3xl font-serif font-bold tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">Whimsical Writer</h1>
+      <img src="/favicon.svg?v=2" alt="Whimsical Writer" className="w-14 h-14 mx-auto" />
+      <h1 className="text-3xl font-serif font-bold tracking-tight bg-gradient-to-r from-amber-300 via-yellow-300 to-orange-300 bg-clip-text text-transparent">Whimsical Writer</h1>
       <p className="text-muted-foreground text-sm">Your AI-powered writing companion</p>
     </div>
   );

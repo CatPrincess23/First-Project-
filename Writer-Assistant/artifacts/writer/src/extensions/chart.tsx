@@ -7,7 +7,7 @@ import {
 } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
-const COLORS = ["#2563eb", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#f97316"];
+const COLORS = ["#2563eb", "#f59e0b", "#10b981", "#ef4444", "#fbbf24", "#ec4899", "#06b6d4", "#f97316"];
 
 export interface ChartConfigData {
   type: "bar" | "line" | "pie" | "area";

@@ -77,45 +77,45 @@
 
 .dark {
   color-scheme: dark;
-  --background: 220 20% 15%;
-  --foreground: 40 10% 96%;
-  --border: 220 10% 25%;
-  --input: 220 10% 25%;
-  --ring: 40 10% 96%;
-  --card: 220 20% 18%;
-  --card-foreground: 40 10% 96%;
-  --card-border: 220 10% 25%;
-  --popover: 220 20% 18%;
-  --popover-foreground: 40 10% 96%;
-  --popover-border: 220 10% 25%;
-  --primary: 40 10% 96%;
-  --primary-foreground: 220 20% 15%;
-  --secondary: 220 15% 25%;
-  --secondary-foreground: 40 10% 96%;
-  --muted: 220 10% 25%;
-  --muted-foreground: 40 10% 70%;
-  --accent: 220 15% 25%;
-  --accent-foreground: 40 10% 96%;
+  --background: 0 0% 0%;
+  --foreground: 0 0% 96%;
+  --border: 0 0% 12%;
+  --input: 0 0% 12%;
+  --ring: 0 0% 96%;
+  --card: 0 0% 4%;
+  --card-foreground: 0 0% 96%;
+  --card-border: 0 0% 12%;
+  --popover: 0 0% 4%;
+  --popover-foreground: 0 0% 96%;
+  --popover-border: 0 0% 12%;
+  --primary: 0 0% 96%;
+  --primary-foreground: 0 0% 0%;
+  --secondary: 0 0% 8%;
+  --secondary-foreground: 0 0% 96%;
+  --muted: 0 0% 8%;
+  --muted-foreground: 0 0% 55%;
+  --accent: 0 0% 8%;
+  --accent-foreground: 0 0% 96%;
   --destructive: 0 60% 50%;
   --destructive-foreground: 0 0% 100%;
 
-  /* Directly override Tailwind theme variables so text is clearly white */
-  --color-background: hsl(220 20% 15%);
-  --color-foreground: hsl(40 10% 96%);
-  --color-border: hsl(220 10% 25%);
-  --color-input: hsl(220 10% 25%);
-  --color-card: hsl(220 20% 18%);
-  --color-card-foreground: hsl(40 10% 96%);
-  --color-popover: hsl(220 20% 18%);
-  --color-popover-foreground: hsl(40 10% 96%);
-  --color-muted: hsl(220 10% 25%);
-  --color-muted-foreground: hsl(40 10% 70%);
-  --color-accent: hsl(220 15% 25%);
-  --color-accent-foreground: hsl(40 10% 96%);
-  --color-primary: hsl(40 10% 96%);
-  --color-primary-foreground: hsl(220 20% 15%);
-  --color-secondary: hsl(220 15% 25%);
-  --color-secondary-foreground: hsl(40 10% 96%);
+  /* Directly override Tailwind theme variables for pure black */
+  --color-background: hsl(0 0% 0%);
+  --color-foreground: hsl(0 0% 96%);
+  --color-border: hsl(0 0% 12%);
+  --color-input: hsl(0 0% 12%);
+  --color-card: hsl(0 0% 4%);
+  --color-card-foreground: hsl(0 0% 96%);
+  --color-popover: hsl(0 0% 4%);
+  --color-popover-foreground: hsl(0 0% 96%);
+  --color-muted: hsl(0 0% 8%);
+  --color-muted-foreground: hsl(0 0% 55%);
+  --color-accent: hsl(0 0% 8%);
+  --color-accent-foreground: hsl(0 0% 96%);
+  --color-primary: hsl(0 0% 96%);
+  --color-primary-foreground: hsl(0 0% 0%);
+  --color-secondary: hsl(0 0% 8%);
+  --color-secondary-foreground: hsl(0 0% 96%);
   --color-destructive: hsl(0 60% 50%);
   --color-destructive-foreground: hsl(0 0% 100%);
 }
@@ -128,9 +128,9 @@
     @apply font-sans antialiased bg-background text-foreground;
   }
   .dark body {
-    color: hsl(40 10% 96%);
+    color: hsl(0 0% 96%);
   }
   .dark .text-muted-foreground {
-    color: hsl(40 10% 70%);
+    color: hsl(0 0% 55%);
   }
 }

@@ -34,7 +34,7 @@ const ENTITY_CONFIGS: Record<EntityType, { icon: React.ElementType; label: strin
   item: {
     icon: Package,
     label: "Items & Objects",
-    color: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    color: "bg-amber-400/15 text-amber-500 dark:text-amber-300",
     fields: ["Description", "Origin", "Powers/Properties", "Current Owner", "Significance", "History"],
   },
 };

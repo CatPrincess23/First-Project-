@@ -54,6 +54,24 @@ export function setupGuestId() {
       // Clerk not available
     }
 
+    // Inject user's custom API key if configured
+    try {
+      const userKey = localStorage.getItem("wa_user_api_key");
+      if (userKey && userKey.trim()) {
+        req.headers.set("x-user-api-key", userKey.trim());
+        const userBaseUrl = localStorage.getItem("wa_user_base_url");
+        if (userBaseUrl && userBaseUrl.trim()) {
+          req.headers.set("x-user-base-url", userBaseUrl.trim());
+        }
+        const userModel = localStorage.getItem("wa_user_model");
+        if (userModel && userModel.trim()) {
+          req.headers.set("x-user-model", userModel.trim());
+        }
+      }
+    } catch {
+      // localStorage not available
+    }
+
     const response = await originalFetch(req);
 
     // If the server says our localStorage guest ID is stale, fix it so future
