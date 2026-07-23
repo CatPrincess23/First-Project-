@@ -71,6 +71,10 @@ export default defineConfig({
         target: "http://localhost:5000",
         changeOrigin: true,
       },
+      "/api/chapters": {
+        target: "http://localhost:5000",
+        changeOrigin: true,
+      },
       "/api/world": {
         target: "http://localhost:5000",
         changeOrigin: true,

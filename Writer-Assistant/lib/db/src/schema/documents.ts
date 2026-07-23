@@ -51,3 +51,20 @@ export const documentVersionsTable = pgTable("document_versions", {
 });
 
 export type DocumentVersion = typeof documentVersionsTable.$inferSelect;
+
+// Chapters — a document is split into ordered chapters. Each chapter holds its
+// own HTML content, so the editor edits one chapter at a time and AI features
+// (grammar / rewrite / chat) run per-chapter instead of over the whole doc.
+export const chaptersTable = pgTable("chapters", {
+  id: serial("id").primaryKey(),
+  documentId: integer("document_id").notNull().references(() => documentsTable.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
+  title: text("title").notNull().default("Untitled Chapter"),
+  content: text("content").notNull().default(""),
+  position: integer("position").notNull().default(0),
+  wordCount: integer("word_count").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export type Chapter = typeof chaptersTable.$inferSelect;

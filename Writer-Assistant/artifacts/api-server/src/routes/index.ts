@@ -8,6 +8,7 @@ import worldRouter from "./world";
 import uploadRouter from "./upload";
 import conversationsRouter from "./conversations";
 import importDocumentRouter from "./import-document";
+import chaptersRouter from "./chapters";
 import { requireIdentity } from "../middlewares/identity";
 
 const router: IRouter = Router();
@@ -31,5 +32,7 @@ router.use("/world/:documentId/entities", requireIdentity, worldRouter);
 router.use("/upload", requireIdentity, uploadRouter);
 router.use("/conversations", requireIdentity, conversationsRouter);
 router.use("/import-document", requireIdentity, importDocumentRouter);
+// Chapter routes handle their own full paths (/documents/:id/chapters, /chapters/:id).
+router.use(requireIdentity, chaptersRouter);
 
 export default router;
