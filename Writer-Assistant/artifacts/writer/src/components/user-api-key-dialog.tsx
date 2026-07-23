@@ -50,8 +50,8 @@ export function UserApiKeyDialog({ open, onOpenChange }: { open: boolean; onOpen
           <DialogTitle className="font-serif text-xl">AI API Key</DialogTitle>
           <DialogDescription className="text-sm pt-1">
             {hasExisting
-              ? "Using your own API key — no daily limits. Toggle it on/off below."
-              : "Set your own API key to bypass the 10K token daily limit. Uses OpenRouter by default."}
+              ? "Using your own API key (10K daily limit still applies). Toggle it on/off below."
+              : "Set your own API key to use your own quota (10K daily limit still applies). Uses OpenRouter by default."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
@@ -92,7 +92,7 @@ export function UserApiKeyDialog({ open, onOpenChange }: { open: boolean; onOpen
               <div className="space-y-0.5">
                 <Label className="text-sm font-medium">Use custom API key</Label>
                 <p className="text-[11px] text-muted-foreground">
-                  {keyEnabled ? "Your key is active — no daily limits" : "Free tier active (10K token/day)"}
+                  {keyEnabled ? "Your key is active (10K daily limit)" : "Free tier active (10K token/day)"}
                 </p>
               </div>
               <Switch

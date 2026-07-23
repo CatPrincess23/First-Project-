@@ -306,12 +306,12 @@ type AiConfig = { client: OpenAI; model: string; userId: string; isUserKey: bool
 
 async function resolveAiConfig(req: any, res: any): Promise<AiConfig | null> {
   const userId = getUserId(req);
+  if (!(await checkDailyLimit(req, res, userId))) return null;
   const userClient = getUserClient(req);
   if (userClient) {
     return { ...userClient, userId, isUserKey: true };
   }
   if (!checkKey(res)) return null;
-  if (!(await checkDailyLimit(req, res, userId))) return null;
   return { client: getClient(), model: MODEL, userId, isUserKey: false };
 }
 
