@@ -126386,6 +126386,7 @@ router4.post("/generate-prompt", async (req, res) => {
   const heritage = body.heritage;
   const personType = body.personType;
   const freeText = body.freeText;
+  const portfolioFields = body.portfolioFields;
   const documentContent = body.documentContent;
   const useScanner = !!body.useScanner;
   if (typeof entityType !== "string") {
@@ -126494,6 +126495,15 @@ ${combined}
   }
   if (contextText) {
     parts.push(`Context from document: ${contextText}`);
+  }
+  if (portfolioFields && typeof portfolioFields === "object" && !Array.isArray(portfolioFields)) {
+    const pf = portfolioFields;
+    const keys2 = Object.keys(pf).filter((k) => typeof pf[k] === "string" || typeof pf[k] === "number");
+    if (keys2.length > 0) {
+      const formatted = keys2.map((k) => `  ${k}: ${pf[k]}`).join("\n");
+      parts.push(`Portfolio world-building details:
+${formatted}`);
+    }
   }
   const attributes = parts.join("\n");
   try {

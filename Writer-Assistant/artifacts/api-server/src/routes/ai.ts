@@ -933,6 +933,7 @@ router.post("/generate-prompt", async (req, res) => {
   const heritage = body.heritage;
   const personType = body.personType;
   const freeText = body.freeText;
+  const portfolioFields = body.portfolioFields;
   const documentContent = body.documentContent;
   const useScanner = !!body.useScanner;
 
@@ -1043,6 +1044,16 @@ Return ONLY a compact paragraph (2-4 sentences) of visual description. Do NOT ad
   }
   if (contextText) {
     parts.push(`Context from document: ${contextText}`);
+  }
+
+  // Portfolio/world building data
+  if (portfolioFields && typeof portfolioFields === "object" && !Array.isArray(portfolioFields)) {
+    const pf = portfolioFields as Record<string, unknown>;
+    const keys = Object.keys(pf).filter((k) => typeof pf[k] === "string" || typeof pf[k] === "number");
+    if (keys.length > 0) {
+      const formatted = keys.map((k) => `  ${k}: ${pf[k]}`).join("\n");
+      parts.push(`Portfolio world-building details:\n${formatted}`);
+    }
   }
 
   const attributes = parts.join("\n");

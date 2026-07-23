@@ -125,6 +125,7 @@ export function PromptGeneratorPanel({
   const [generatedPrompt, setGeneratedPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showManualOverrides, setShowManualOverrides] = useState(false);
 
   // World entities for the current document, mapped to the selected type.
   // World building uses "character"/"place"/"item"; the prompt generator
@@ -132,13 +133,21 @@ export function PromptGeneratorPanel({
   const worldTypeMap: Record<EntityType, string[]> = {
     character: ["character"],
     place: ["place"],
-    animal: [],
+    animal: ["character"],
     thing: ["item"],
   };
   const portfolioEntities = useMemo(
     () => worldEntities.filter((e: any) => worldTypeMap[entityType].includes(e.type)),
     [worldEntities, entityType],
   );
+  const selectedPortfolioEntity = useMemo(
+    () => portfolioEntities.find((e: any) => e.name === entityName) || null,
+    [portfolioEntities, entityName],
+  );
+  const hasPortfolioData = selectedPortfolioEntity &&
+    selectedPortfolioEntity.fields &&
+    typeof selectedPortfolioEntity.fields === "object" &&
+    Object.keys(selectedPortfolioEntity.fields).length > 0;
 
   const toggleTrait = (trait: string) => {
     setPersonalityTraits((prev) =>
@@ -172,6 +181,7 @@ export function PromptGeneratorPanel({
           heritage: heritage || undefined,
           personType: personType || undefined,
           freeText: freeText || undefined,
+          portfolioFields: hasPortfolioData ? selectedPortfolioEntity.fields : undefined,
           documentContent: useScanner ? stripHtml(getContent()) : undefined,
           useScanner,
         }),
@@ -265,8 +275,30 @@ export function PromptGeneratorPanel({
         />
       </div>
 
-      {/* Character-specific fields */}
-      {isCharacter && (
+      {/* Portfolio data indicator */}
+      {hasPortfolioData && !showManualOverrides && (
+        <div className="flex items-center gap-2 p-2 rounded-md border border-primary/30 bg-primary/5 text-xs text-muted-foreground">
+          <span className="text-primary font-medium">Using portfolio data</span>
+          <span className="flex-1 truncate">
+            {Object.keys(selectedPortfolioEntity.fields).join(" · ")}
+          </span>
+        </div>
+      )}
+
+      {/* Manual override toggle (only when portfolio entity is selected) */}
+      {hasPortfolioData && (
+        <button
+          type="button"
+          onClick={() => setShowManualOverrides(!showManualOverrides)}
+          className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+        >
+          <span>{showManualOverrides ? "−" : "+"}</span>
+          {showManualOverrides ? "Hide manual details" : "Add manual details"}
+        </button>
+      )}
+
+      {/* Character-specific fields (hidden when portfolio data is used without overrides) */}
+      {isCharacter && (!hasPortfolioData || showManualOverrides) && (
         <>
           {/* Personality chips */}
           <div className="space-y-1.5">
