@@ -52,6 +52,37 @@ const PERSON_TYPE_OPTIONS = [
   "artist", "mystic", "leader", "guardian", "trickster",
 ];
 
+const PLACE_TYPE_OPTIONS = [
+  "mountain", "hill", "valley", "forest", "desert", "beach", "ocean",
+  "city", "town", "village", "castle", "cave", "temple", "river",
+  "lake", "island", "plains", "swamp", "ruins", "port", "bridge",
+  "crossroads", "garden", "farm", "battlefield", "market", "tavern",
+  "library", "palace", "dungeon", "mine", "tower", "lighthouse",
+  "harbor", "waterfall", "volcano", "canyon", "glacier", "oasis",
+  "cemetery", "shrine", "observatory", "fortress", "camp",
+];
+
+const ARCHITECTURE_OPTIONS = [
+  "none", "rustic", "medieval", "gothic", "classical", "fantasy",
+  "modern", "cyberpunk", "steampunk", "baroque", "renaissance",
+  "roman", "egyptian", "mayan", "asian", "middle eastern",
+  "tudor", "victorian", "art deco", "brutalist",
+];
+
+const CLIMATE_OPTIONS = [
+  "tropical", "arid", "temperate", "arctic", "monsoon",
+  "mediterranean", "humid continental", "tundra", "mountain",
+];
+
+const TIME_OF_DAY_OPTIONS = [
+  "dawn", "morning", "noon", "afternoon", "dusk", "night",
+  "midnight", "golden hour",
+];
+
+const SEASON_OPTIONS = [
+  "spring", "summer", "autumn", "winter", "none",
+];
+
 function Chip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
     <button
@@ -120,6 +151,11 @@ export function PromptGeneratorPanel({
   const [faith, setFaith] = useState("");
   const [heritage, setHeritage] = useState("");
   const [personType, setPersonType] = useState("");
+  const [placeType, setPlaceType] = useState("");
+  const [architecture, setArchitecture] = useState("");
+  const [climate, setClimate] = useState("");
+  const [timeOfDay, setTimeOfDay] = useState("");
+  const [season, setSeason] = useState("");
   const [freeText, setFreeText] = useState("");
   const [useScanner, setUseScanner] = useState(false);
   const [generatedPrompt, setGeneratedPrompt] = useState("");
@@ -180,6 +216,11 @@ export function PromptGeneratorPanel({
           faith: faith || undefined,
           heritage: heritage || undefined,
           personType: personType || undefined,
+          placeType: placeType || undefined,
+          architecture: architecture || undefined,
+          climate: climate || undefined,
+          timeOfDay: timeOfDay || undefined,
+          season: season || undefined,
           freeText: freeText || undefined,
           portfolioFields: hasPortfolioData ? selectedPortfolioEntity.fields : undefined,
           documentContent: useScanner ? stripHtml(getContent()) : undefined,
@@ -212,6 +253,7 @@ export function PromptGeneratorPanel({
   };
 
   const isCharacter = entityType === "character";
+  const isPlace = entityType === "place";
 
   return (
     <div className="space-y-3">
@@ -297,7 +339,7 @@ export function PromptGeneratorPanel({
         </button>
       )}
 
-      {/* Character-specific fields (hidden when portfolio data is used without overrides) */}
+      {/* Type-specific manual fields (hidden when portfolio data is used without overrides) */}
       {isCharacter && (!hasPortfolioData || showManualOverrides) && (
         <>
           {/* Personality chips */}
@@ -345,13 +387,24 @@ export function PromptGeneratorPanel({
         </>
       )}
 
+      {/* Place-specific fields (hidden when portfolio data is used without overrides) */}
+      {isPlace && (!hasPortfolioData || showManualOverrides) && (
+        <>
+          <SelectField label="Location Type" value={placeType} options={PLACE_TYPE_OPTIONS} onChange={setPlaceType} placeholder="Mountain, city, valley…" />
+          <SelectField label="Architecture" value={architecture} options={ARCHITECTURE_OPTIONS} onChange={setArchitecture} placeholder="Medieval, gothic, fantasy…" />
+          <SelectField label="Climate" value={climate} options={CLIMATE_OPTIONS} onChange={setClimate} placeholder="Temperate, tropical, arid…" />
+          <SelectField label="Time of Day" value={timeOfDay} options={TIME_OF_DAY_OPTIONS} onChange={setTimeOfDay} placeholder="Dawn, dusk, night…" />
+          <SelectField label="Season" value={season} options={SEASON_OPTIONS} onChange={setSeason} />
+        </>
+      )}
+
       {/* Free text description */}
       <div className="space-y-1.5">
         <label className="text-xs font-medium text-muted-foreground">Describe it yourself</label>
         <Textarea
           value={freeText}
           onChange={(e) => setFreeText(e.target.value)}
-          placeholder='e.g. "a girl with sleek black hair, wearing a silver cloak, standing in a moonlit forest"'
+          placeholder={isCharacter ? 'e.g. "a girl with sleek black hair, wearing a silver cloak, standing in a moonlit forest"' : 'e.g. "a crumbling stone bridge over a misty river, ivy-covered arches"'}
           className="text-xs resize-none"
           rows={3}
         />

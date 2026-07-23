@@ -126382,6 +126382,11 @@ router4.post("/generate-prompt", async (req, res) => {
   const eyeColor = body.eyeColor;
   const hairColor = body.hairColor;
   const age = body.age;
+  const placeType = body.placeType;
+  const architecture = body.architecture;
+  const climate = body.climate;
+  const timeOfDay = body.timeOfDay;
+  const season = body.season;
   const faith = body.faith;
   const heritage = body.heritage;
   const personType = body.personType;
@@ -126490,6 +126495,21 @@ ${combined}
   if (heritage && entityType === "character") {
     parts.push(`Heritage: ${heritage}`);
   }
+  if (placeType && entityType === "place") {
+    parts.push(`Location type: ${placeType}`);
+  }
+  if (architecture && entityType === "place") {
+    parts.push(`Architecture: ${architecture}`);
+  }
+  if (climate && entityType === "place") {
+    parts.push(`Climate: ${climate}`);
+  }
+  if (timeOfDay && entityType === "place") {
+    parts.push(`Time of day: ${timeOfDay}`);
+  }
+  if (season && entityType === "place") {
+    parts.push(`Season: ${season}`);
+  }
   if (freeText) {
     parts.push(`User's description: ${freeText}`);
   }
@@ -126523,9 +126543,10 @@ CRITICAL RULES \u2014 you MUST follow these:
 - HERITAGE: Use it to determine skin tone, facial structure, hair texture, and traditional clothing elements. For example: African \u2192 appropriate skin tones, natural hairstyles/traditional fabrics; East Asian \u2192 appropriate facial features, traditional garments like hanbok/kimono/cheongsam; South Asian \u2192 appropriate features, clothing like shalwar kameez/sari/lehenga; Middle Eastern \u2192 appropriate features, traditional clothing like thawb/abaya. Be specific and authentic \u2014 do NOT default to vaguely "European" features.
 - PERSONALITY: Show it through expression, body language, and styling \u2014 not just by listing it.
 - PERSON TYPE (archetype): Inform the pose, attire, and setting. A warrior wears armor and stands ready. A scholar has books and wears studious attire.
-- Include artistic style cues: "fantasy art", "digital painting", "photorealistic", "anime style", "cinematic lighting" \u2014 pick one that fits the genre
-- Add atmosphere: time of day, weather, lighting quality, color palette
-- For characters: hair, face, expression, stance, clothing, what they're doing
+- PLACE LOCATION TYPE: Use it to determine the landscape, scale, and terrain. A "mountain" should be towering and rugged, a "valley" should be low and expansive between hills, a "city" should have dense buildings and streets. Be specific about what that type of location actually looks like \u2014 don't default to generic scenery.
+- PLACE ARCHITECTURE: Use the architecture style to determine building design, materials, and structural features. Gothic has pointed arches and stained glass; classical has columns and symmetry; fantasy has whimsical exaggerated forms; rustic has wood and stone. Describe it visually.
+- CLIMATE: Dictates the vegetation, ground cover, sky, and overall atmosphere. Arctic has snow and ice; arid has sand and dust; tropical has lush greenery and humidity.
+- SEASON and TIME OF DAY: Both must be reflected in the lighting, colors, and mood. Autumn has orange/gold leaves. Dusk has long shadows and warm orange/purple sky. Night has deep blues, moonlight, and stars.
 - For places: architecture, landscape, scale, mood, weather, time of day
 - For animals: species, markings, pose, habitat
 - For things: shape, texture, material, context, lighting
