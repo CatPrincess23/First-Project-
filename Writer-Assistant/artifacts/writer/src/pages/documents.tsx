@@ -10,7 +10,6 @@ import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "@/lib/theme";
 import { usePro } from "@/lib/pro-context";
@@ -19,7 +18,7 @@ import { getCurrentGuestId, clearGuestId } from "@/lib/guest-id";
 import {
   Plus, FileText, Trash2, Loader2, ArrowRight, Sun, Moon, Globe, Target,
   LayoutDashboard, Sparkles, BookOpen, Image as ImageIcon, History,
-  CheckCircle, Wand2, Crown, User, ChevronRight, HelpCircle, Menu, Zap, XCircle, KeyRound,
+  CheckCircle, Wand2, Crown, User, ChevronRight, HelpCircle, Menu, Zap, KeyRound,
 } from "lucide-react";
 import { UserButton, useAuth } from "@clerk/react";
 import OnboardingTour from "@/components/onboarding-tour";
@@ -51,8 +50,8 @@ const AI_FEATURES = [
   { icon: Wand2, title: "AI Rewrite Assistant", desc: "Improve, expand, shorten, rephrase, or continue any piece of text.", tier: "free" },
   { icon: BookOpen, title: "Book Summarizer", desc: "Scan your full manuscript and generate a concise literary summary.", tier: "pro" },
   { icon: Sparkles, title: "Prologue Generator", desc: "AI drafts a compelling prologue based on your manuscript's plot and tone.", tier: "pro" },
-  { icon: ImageIcon, title: "Image Generation", desc: "Generate illustrations for characters, scenes, or locations.", tier: "pro", broken: true },
-  { icon: Globe, title: "World Building Portfolio", desc: "Structured profiles for characters, places, and items (AI image generation currently unavailable).", tier: "free" },
+  { icon: ImageIcon, title: "Image Prompt Generator", desc: "Turn your characters, places, and things into detailed prompts for AI image generators like Midjourney or DALL·E.", tier: "free" },
+  { icon: Globe, title: "World Building Portfolio", desc: "Structured profiles for characters, places, and items — feeds directly into the Image Prompt Generator.", tier: "free" },
   { icon: History, title: "Version History", desc: "Save named snapshots of your manuscript and restore any previous version.", tier: "pro" },
   { icon: FileText, title: "Export PDF & DOCX", desc: "Download your manuscript in publication-ready formats.", tier: "free" },
 ];
@@ -162,7 +161,7 @@ export default function Documents() {
     { target: "#tour-home-hero", title: "Welcome to Whimsical Writer", description: "Your AI-powered creative writing companion. Create documents, build worlds, and track your progress — all in one place.", placement: "bottom" as const },
     { target: "#tour-docs-new", title: "Create a New Document", description: "Start a fresh manuscript with one click. Each document gets its own AI chat, versions, and world-building space.", placement: "right" as const },
     { target: "#tour-home-world", title: "Build Your World", description: "Create character profiles, map out locations, and define key items for your fictional universe.", placement: "bottom" as const },
-    { target: "#tour-home-ai", title: "AI-Powered Tools", description: "Grammar checks with inline highlights, AI rewrites, summarization, prologue generation, chat, and image creation — all built into the editor sidebar.", placement: "bottom" as const },
+    { target: "#tour-home-ai", title: "AI-Powered Tools", description: "Grammar checks with inline highlights, AI rewrites, summarization, prologue generation, chat, and an image prompt generator — all built into the editor sidebar.", placement: "bottom" as const },
     { target: "#tour-home-stats", title: "Track Your Progress", description: "See your document count, total words written, and AI token usage with a daily limit progress bar.", placement: "bottom" as const },
     { target: "#tour-sidebar-theme", title: "Light & Dark Mode", description: "Toggle between light and dark themes any time. Your preference is saved automatically.", placement: "right" as const },
     { target: "#tour-sidebar-help", title: "Replay Anytime", description: "Click this help icon any time to replay the full tour — including the editor's AI tools, goals, version history, and more.", placement: "right" as const },
@@ -716,21 +715,16 @@ export default function Documents() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {AI_FEATURES.map(({ icon: Icon, title, desc, broken }) => (
-                <Card key={title} className={`shadow-sm border-border/60 ${broken ? "opacity-70" : ""}`}>
+              {AI_FEATURES.map(({ icon: Icon, title, desc }) => (
+                <Card key={title} className="shadow-sm border-border/60">
                   <CardHeader className="pb-3">
                     <div className="flex items-start gap-4">
-                      <div className={`p-2.5 rounded-xl shrink-0 ${broken ? "bg-destructive/10" : "bg-primary/10"}`}>
-                        <Icon className={`w-5 h-5 ${broken ? "text-destructive" : "text-primary"}`} />
+                      <div className="p-2.5 rounded-xl shrink-0 bg-primary/10">
+                        <Icon className="w-5 h-5 text-primary" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <CardTitle className="text-base">{title}</CardTitle>
-                          {broken && (
-                            <Badge variant="destructive" className="text-[10px] h-5 gap-1 px-1.5">
-                              <XCircle className="w-3 h-3" /> Unavailable
-                            </Badge>
-                          )}
                         </div>
                         <CardDescription className="text-sm mt-1 leading-relaxed">{desc}</CardDescription>
                       </div>

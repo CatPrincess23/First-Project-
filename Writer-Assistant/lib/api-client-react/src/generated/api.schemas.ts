@@ -178,6 +178,35 @@ export interface AiImageResult {
   b64_json: string;
 }
 
+export type AiGeneratePromptInputEntityType = typeof AiGeneratePromptInputEntityType[keyof typeof AiGeneratePromptInputEntityType];
+
+
+export const AiGeneratePromptInputEntityType = {
+  character: 'character',
+  place: 'place',
+  animal: 'animal',
+  thing: 'thing',
+} as const;
+
+export interface AiGeneratePromptInput {
+  entityType: AiGeneratePromptInputEntityType;
+  entityName?: string;
+  personalityTraits?: string[];
+  skinColor?: string;
+  eyeColor?: string;
+  hairColor?: string;
+  faith?: string;
+  heritage?: string;
+  personType?: string;
+  freeText?: string;
+  documentContent?: string;
+  useScanner?: boolean;
+}
+
+export interface AiGeneratePromptResult {
+  prompt: string;
+}
+
 export interface AiSummarizeInput {
   text: string;
   /** @nullable */

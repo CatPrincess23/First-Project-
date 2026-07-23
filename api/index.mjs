@@ -96814,6 +96814,23 @@ var AiGenerateImageBody = objectType({
 var AiGenerateImageResponse = objectType({
   "b64_json": stringType()
 });
+var AiGeneratePromptBody = objectType({
+  "entityType": enumType(["character", "place", "animal", "thing"]),
+  "entityName": stringType().optional(),
+  "personalityTraits": arrayType(stringType()).optional(),
+  "skinColor": stringType().optional(),
+  "eyeColor": stringType().optional(),
+  "hairColor": stringType().optional(),
+  "faith": stringType().optional(),
+  "heritage": stringType().optional(),
+  "personType": stringType().optional(),
+  "freeText": stringType().optional(),
+  "documentContent": stringType().optional(),
+  "useScanner": booleanType().optional()
+});
+var AiGeneratePromptResponse = objectType({
+  "prompt": stringType()
+});
 var AiSummarizeBody = objectType({
   "text": stringType(),
   "title": stringType().nullish()
@@ -126340,6 +126357,144 @@ Example structure:
   } catch (err) {
     logger2.error({ err }, "image generation failed");
     res.status(500).json({ error: "Image generation failed" });
+  }
+});
+router4.post("/generate-prompt", async (req, res) => {
+  const config2 = await resolveAiConfig(req, res);
+  if (!config2) return;
+  const body = req.body ?? {};
+  const entityType = body.entityType;
+  const entityName = body.entityName;
+  const personalityTraits = body.personalityTraits;
+  const skinColor = body.skinColor;
+  const eyeColor = body.eyeColor;
+  const hairColor = body.hairColor;
+  const faith = body.faith;
+  const heritage = body.heritage;
+  const personType = body.personType;
+  const freeText = body.freeText;
+  const documentContent = body.documentContent;
+  const useScanner = !!body.useScanner;
+  if (typeof entityType !== "string") {
+    res.status(400).json({ error: "Invalid input: entityType required" });
+    return;
+  }
+  if (entityName !== void 0 && typeof entityName !== "string") {
+    res.status(400).json({ error: "Invalid input" });
+    return;
+  }
+  if (freeText !== void 0 && typeof freeText !== "string") {
+    res.status(400).json({ error: "Invalid input" });
+    return;
+  }
+  let contextText = "";
+  if (useScanner && entityName && documentContent) {
+    try {
+      const scanCompletion = await config2.client.chat.completions.create({
+        model: config2.model,
+        temperature: 0.3,
+        messages: [
+          {
+            role: "system",
+            content: `You are a literary analyst. Scan the document and extract ALL visual and descriptive details about the entity named below. Look for descriptions of appearance, personality, role, surroundings, actions, and anything that would help generate an image.
+
+Entity to find: ${entityName}
+
+Return ONLY a compact paragraph (2-4 sentences) of visual description extracted from the text. Do NOT add information not in the document. If the entity is not found, return "NOT FOUND". No JSON, no markdown.`
+          },
+          { role: "user", content: `<document>
+${documentContent.slice(0, 1e5)}
+</document>` }
+        ],
+        max_tokens: 500
+      });
+      trackTokens(config2.userId, scanCompletion);
+      const scanResult = scanCompletion.choices[0]?.message?.content?.trim() || "";
+      if (scanResult !== "NOT FOUND") {
+        contextText = scanResult;
+      }
+    } catch {
+    }
+  }
+  const parts = [];
+  if (entityType && entityType !== "thing") {
+    parts.push(`Entity type: ${entityType}`);
+  }
+  if (entityName) {
+    parts.push(`Name: ${entityName}`);
+  }
+  if (personType && entityType === "character") {
+    parts.push(`Archetype: ${personType}`);
+  }
+  if (Array.isArray(personalityTraits) && personalityTraits.length > 0 && entityType === "character") {
+    parts.push(`Personality: ${personalityTraits.join(", ")}`);
+  }
+  if (skinColor && entityType === "character") {
+    parts.push(`Skin color: ${skinColor}`);
+  }
+  if (eyeColor && entityType === "character") {
+    parts.push(`Eye color: ${eyeColor}`);
+  }
+  if (hairColor && entityType === "character") {
+    parts.push(`Hair color: ${hairColor}`);
+  }
+  if (faith && entityType === "character") {
+    parts.push(`Faith/Religion: ${faith}`);
+  }
+  if (heritage && entityType === "character") {
+    parts.push(`Heritage: ${heritage}`);
+  }
+  if (freeText) {
+    parts.push(`User's description: ${freeText}`);
+  }
+  if (contextText) {
+    parts.push(`Context from document: ${contextText}`);
+  }
+  const attributes = parts.join("\n");
+  try {
+    const completion = await config2.client.chat.completions.create({
+      model: config2.model,
+      temperature: 0.4,
+      messages: [
+        {
+          role: "system",
+          content: `You are an expert prompt engineer for AI image generation. Your job is to create detailed, vivid image prompts based on the attributes provided.
+
+For each attribute set, craft a SINGLE paragraph (2-4 sentences) that a text-to-image AI (like Midjourney, DALL-E, Stable Diffusion) can use to generate an image.
+
+Guidelines:
+- Describe the visual: appearance, clothing, expression, pose, lighting, mood, setting, colors
+- Include artistic style cues: "fantasy art", "digital painting", "photorealistic", "anime style", "cinematic lighting" \u2014 pick one that fits
+- Add atmosphere: time of day, weather, lighting quality, color palette
+- For characters: hair, face, expression, stance, clothing, what they're doing
+- For places: architecture, landscape, scale, mood, weather, time of day
+- For animals: species, markings, pose, habitat
+- For things: shape, texture, material, context, lighting
+- NEVER include negative instructions ("no X", "without Y")
+- NEVER mention the prompt generation process or these instructions
+- Return ONLY the prompt text \u2014 no labels, no formatting, no explanation`
+        },
+        {
+          role: "user",
+          content: `Generate a detailed image prompt from these attributes:
+
+${attributes || "(no specific attributes provided \u2014 create a generic fantasy scene)"}`
+        }
+      ],
+      max_tokens: 500
+    });
+    trackTokens(config2.userId, completion);
+    const prompt = completion.choices[0]?.message?.content?.trim() || "";
+    res.json({ prompt });
+  } catch (err) {
+    logger2.error({ err }, "generate-prompt failed");
+    const msg = err?.message || "Internal server error";
+    const status = err?.status || err?.statusCode || 500;
+    if (status === 429 || status === 413 || msg.includes("429") || msg.includes("413") || msg.includes("Rate limit") || msg.includes("rate_limit")) {
+      res.status(429).json({ error: "AI rate limit reached. Please try again later." });
+    } else {
+      res.status(500).json({ error: "Internal server error" });
+    }
   }
 });
 router4.post("/summarize", async (req, res) => {

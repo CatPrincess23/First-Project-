@@ -8,6 +8,9 @@
 
 export * from './aiChatInput';
 export * from './aiChatResult';
+export * from './aiGeneratePromptInput';
+export * from './aiGeneratePromptInputEntityType';
+export * from './aiGeneratePromptResult';
 export * from './aiGrammarInput';
 export * from './aiGrammarResult';
 export * from './aiImageInput';

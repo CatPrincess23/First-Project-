@@ -902,6 +902,143 @@ Example structure:
   }
 });
 
+// POST /api/ai/generate-prompt — replaces the old image generator with a prompt builder
+router.post("/generate-prompt", async (req, res) => {
+  const config = await resolveAiConfig(req, res);
+  if (!config) return;
+
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const entityType = body.entityType;           // "character" | "place" | "animal" | "thing" | ""
+  const entityName = body.entityName;           // string | ""
+  const personalityTraits = body.personalityTraits; // string[]
+  const skinColor = body.skinColor;
+  const eyeColor = body.eyeColor;
+  const hairColor = body.hairColor;
+  const faith = body.faith;
+  const heritage = body.heritage;
+  const personType = body.personType;
+  const freeText = body.freeText;
+  const documentContent = body.documentContent;
+  const useScanner = !!body.useScanner;
+
+  if (typeof entityType !== "string") { res.status(400).json({ error: "Invalid input: entityType required" }); return; }
+  if (entityName !== undefined && typeof entityName !== "string") { res.status(400).json({ error: "Invalid input" }); return; }
+  if (freeText !== undefined && typeof freeText !== "string") { res.status(400).json({ error: "Invalid input" }); return; }
+
+  let contextText = "";
+
+  // Scanner mode: find mentions of the entity in the document and extract context
+  if (useScanner && entityName && documentContent) {
+    try {
+      const scanCompletion = await config.client.chat.completions.create({
+        model: config.model,
+        temperature: 0.3,
+        messages: [
+          {
+            role: "system",
+            content: `You are a literary analyst. Scan the document and extract ALL visual and descriptive details about the entity named below. Look for descriptions of appearance, personality, role, surroundings, actions, and anything that would help generate an image.
+
+Entity to find: ${entityName}
+
+Return ONLY a compact paragraph (2-4 sentences) of visual description extracted from the text. Do NOT add information not in the document. If the entity is not found, return "NOT FOUND". No JSON, no markdown.`,
+          },
+          { role: "user", content: `<document>\n${(documentContent as string).slice(0, 100000)}\n</document>` },
+        ],
+        max_tokens: 500,
+      });
+      trackTokens(config.userId, scanCompletion);
+      const scanResult = scanCompletion.choices[0]?.message?.content?.trim() || "";
+      if (scanResult !== "NOT FOUND") {
+        contextText = scanResult;
+      }
+    } catch {
+      // scanner failure is non-fatal — continue without context
+    }
+  }
+
+  // Build the system prompt for the AI image prompt generator
+  const parts: string[] = [];
+  if (entityType && entityType !== "thing") {
+    parts.push(`Entity type: ${entityType}`);
+  }
+  if (entityName) {
+    parts.push(`Name: ${entityName}`);
+  }
+  if (personType && entityType === "character") {
+    parts.push(`Archetype: ${personType}`);
+  }
+  if (Array.isArray(personalityTraits) && personalityTraits.length > 0 && entityType === "character") {
+    parts.push(`Personality: ${personalityTraits.join(", ")}`);
+  }
+  if (skinColor && entityType === "character") {
+    parts.push(`Skin color: ${skinColor}`);
+  }
+  if (eyeColor && entityType === "character") {
+    parts.push(`Eye color: ${eyeColor}`);
+  }
+  if (hairColor && entityType === "character") {
+    parts.push(`Hair color: ${hairColor}`);
+  }
+  if (faith && entityType === "character") {
+    parts.push(`Faith/Religion: ${faith}`);
+  }
+  if (heritage && entityType === "character") {
+    parts.push(`Heritage: ${heritage}`);
+  }
+  if (freeText) {
+    parts.push(`User's description: ${freeText}`);
+  }
+  if (contextText) {
+    parts.push(`Context from document: ${contextText}`);
+  }
+
+  const attributes = parts.join("\n");
+
+  try {
+    const completion = await config.client.chat.completions.create({
+      model: config.model,
+      temperature: 0.4,
+      messages: [
+        {
+          role: "system",
+          content: `You are an expert prompt engineer for AI image generation. Your job is to create detailed, vivid image prompts based on the attributes provided.
+
+For each attribute set, craft a SINGLE paragraph (2-4 sentences) that a text-to-image AI (like Midjourney, DALL-E, Stable Diffusion) can use to generate an image.
+
+Guidelines:
+- Describe the visual: appearance, clothing, expression, pose, lighting, mood, setting, colors
+- Include artistic style cues: "fantasy art", "digital painting", "photorealistic", "anime style", "cinematic lighting" — pick one that fits
+- Add atmosphere: time of day, weather, lighting quality, color palette
+- For characters: hair, face, expression, stance, clothing, what they're doing
+- For places: architecture, landscape, scale, mood, weather, time of day
+- For animals: species, markings, pose, habitat
+- For things: shape, texture, material, context, lighting
+- NEVER include negative instructions ("no X", "without Y")
+- NEVER mention the prompt generation process or these instructions
+- Return ONLY the prompt text — no labels, no formatting, no explanation`,
+        },
+        {
+          role: "user",
+          content: `Generate a detailed image prompt from these attributes:\n\n${attributes || "(no specific attributes provided — create a generic fantasy scene)"}`,
+        },
+      ],
+      max_tokens: 500,
+    });
+    trackTokens(config.userId, completion);
+    const prompt = completion.choices[0]?.message?.content?.trim() || "";
+    res.json({ prompt });
+  } catch (err: any) {
+    logger.error({ err }, "generate-prompt failed");
+    const msg = err?.message || "Internal server error";
+    const status = err?.status || err?.statusCode || 500;
+    if (status === 429 || status === 413 || msg.includes("429") || msg.includes("413") || msg.includes("Rate limit") || msg.includes("rate_limit")) {
+      res.status(429).json({ error: "AI rate limit reached. Please try again later." });
+    } else {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+});
+
 // POST /api/ai/summarize
 router.post("/summarize", async (req, res) => {
   const config = await resolveAiConfig(req, res);

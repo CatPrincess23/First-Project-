@@ -281,6 +281,29 @@ export const AiGenerateImageResponse = zod.object({
 
 
 /**
+ * @summary Generate an image prompt from entity attributes
+ */
+export const AiGeneratePromptBody = zod.object({
+  "entityType": zod.enum(['character', 'place', 'animal', 'thing']),
+  "entityName": zod.string().optional(),
+  "personalityTraits": zod.array(zod.string()).optional(),
+  "skinColor": zod.string().optional(),
+  "eyeColor": zod.string().optional(),
+  "hairColor": zod.string().optional(),
+  "faith": zod.string().optional(),
+  "heritage": zod.string().optional(),
+  "personType": zod.string().optional(),
+  "freeText": zod.string().optional(),
+  "documentContent": zod.string().optional(),
+  "useScanner": zod.boolean().optional()
+})
+
+export const AiGeneratePromptResponse = zod.object({
+  "prompt": zod.string()
+})
+
+
+/**
  * @summary Summarize a manuscript or chapter
  */
 export const AiSummarizeBody = zod.object({

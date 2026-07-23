@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect, useCallback, useMemo, memo, useDeferredValue } from "react";
 import { useLocation } from "wouter";
 import {
-  useGetDocument, useUpdateDocument, useAiSuggest, useAiGrammarCheck, useAiGenerateImage,
+  useGetDocument, useUpdateDocument, useAiSuggest, useAiGrammarCheck,
   useAiSummarize, useAiGeneratePrologue, useAiChat, useListDocumentVersions, useCreateDocumentVersion,
-  useDeleteDocumentVersion, getGetDocumentQueryKey, getListDocumentVersionsQueryKey,
+  useDeleteDocumentVersion,
+  getGetDocumentQueryKey, getListDocumentVersionsQueryKey,
 } from "@workspace/api-client-react";
-import { AiSuggestInputType, AiImageInputSize } from "@workspace/api-client-react";
+import { AiSuggestInputType } from "@workspace/api-client-react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +31,7 @@ import { UserButton } from "@clerk/react";
 import { UpgradeModal } from "@/components/upgrade-modal";
 import OnboardingTour from "@/components/onboarding-tour";
 import { UserApiKeyDialog } from "@/components/user-api-key-dialog";
+import { PromptGeneratorPanel } from "@/components/prompt-generator-panel";
 import { getUserApiConfig, isUserApiKeyEnabled } from "@/lib/api-key";
 import { format } from "date-fns";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -197,7 +199,6 @@ export default function Editor({ params }: { params: { id: string } }) {
   const updateDocument = useUpdateDocument();
   const aiSuggest = useAiSuggest();
   const aiGrammar = useAiGrammarCheck();
-  const aiImage = useAiGenerateImage();
   const aiSummarize = useAiSummarize();
   const aiPrologue = useAiGeneratePrologue();
   const aiChat = useAiChat();
@@ -374,16 +375,9 @@ export default function Editor({ params }: { params: { id: string } }) {
   const [aiToolType, setAiToolType] = useState<"summary" | "prologue">("summary");
   const [isRunningAiTool, setIsRunningAiTool] = useState(false);
 
-  // Image
-  const [imagePrompt, setImagePrompt] = useState("");
-  const [imageSize, setImageSize] = useState<AiImageInputSize>(AiImageInputSize["1024x1024"]);
-  const [generatedImage, setGeneratedImage] = useState("");
-  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
-  const [entityType, setEntityType] = useState<"person" | "animal" | "place" | "thing" | "">("");
-  const [entityNameInput, setEntityNameInput] = useState("");
-  const [scannedEntities, setScannedEntities] = useState<{ name: string; description: string; details: string }[]>([]);
-  const [selectedEntity, setSelectedEntity] = useState<{ name: string; description: string; details: string } | null>(null);
-  const [isScanningEntities, setIsScanningEntities] = useState(false);
+  // Image Prompt Generator (rendered via the PromptGeneratorPanel component,
+  // which manages its own state so it never re-renders the sidebar on input).
+  const getContentForPrompt = useCallback(() => contentSnapshotRef.current, []);
 
   // Chat
   const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant", content: string }[]>([]);
@@ -691,67 +685,6 @@ export default function Editor({ params }: { params: { id: string } }) {
     setAiToolResult("");
   };
 
-  const handleScanEntities = async () => {
-    if (!entityType || !stripHtml(content).trim() || !useRequest()) return;
-    setIsScanningEntities(true);
-    setScannedEntities([]);
-    setSelectedEntity(null);
-    try {
-      const body: Record<string, unknown> = { type: entityType, documentContent: stripHtml(content) };
-      if (entityNameInput.trim()) {
-        body.entityName = entityNameInput.trim();
-      }
-      const res = await fetch("/api/ai/scan-entities", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) throw new Error("Scan failed");
-      const data = await res.json();
-      setScannedEntities(data.entities || []);
-      if (!data.entities?.length) {
-        toast({ title: `No ${entityType}s found in the document` });
-      } else if (entityNameInput.trim() && data.entities.length === 1) {
-        setSelectedEntity(data.entities[0]);
-        setImagePrompt(data.entities[0].description + ". Fantasy illustration, detailed, artistic.");
-      }
-    } catch (e) {
-      toast({ title: (e as any)?.message || "Entity scan failed", variant: "destructive" });
-    } finally {
-      setIsScanningEntities(false);
-    }
-  };
-
-  const handleSelectEntity = (entity: { name: string; description: string; details: string }) => {
-    setSelectedEntity(entity);
-    setImagePrompt(entity.description + ". Fantasy illustration, detailed, artistic.");
-  };
-
-  const handleGenerateImage = () => {
-    if (!imagePrompt.trim() || !useRequest()) return;
-    setIsGeneratingImage(true);
-    const body: any = { prompt: imagePrompt, size: imageSize };
-    if (selectedEntity) {
-      body.entityType = entityType;
-      body.entityName = selectedEntity.name;
-      body.documentContent = stripHtml(content);
-    }
-    aiImage.mutate({ data: body }, {
-      onSuccess: (result) => {
-        const mime = (result as any).mime || "image/png";
-        setGeneratedImage(`data:${mime};base64,${result.b64_json}`);
-        setIsGeneratingImage(false);
-      },
-      onError: (e) => { setIsGeneratingImage(false); toast({ title: (e as any)?.error || "Image generation failed", variant: "destructive" }); }
-    });
-  };
-
-  const handleScanForImage = () => {
-    const excerpt = stripHtml(content).trim().slice(0, 300);
-    if (excerpt) setImagePrompt(excerpt + ". Fantasy illustration style.");
-    setSelectedEntity(null);
-  };
-
   const handleSendChat = async () => {
     if (!chatInput.trim() || !useRequest() || isChatLoading) return;
 
@@ -914,7 +847,7 @@ export default function Editor({ params }: { params: { id: string } }) {
         <TabsTrigger value="grammar" title="Grammar" className="text-xs px-1"><CheckCircle className="w-3.5 h-3.5" /></TabsTrigger>
         <TabsTrigger value="suggest" title="AI Rewrite" className="text-xs px-1"><Sparkles className="w-3.5 h-3.5" /></TabsTrigger>
         <TabsTrigger value="ai-tools" title="Summarize / Prologue" className="text-xs px-1"><BookOpen className="w-3.5 h-3.5" /></TabsTrigger>
-        <TabsTrigger value="image" title="Generate Image" className="text-xs px-1"><ImageIcon className="w-3.5 h-3.5" /></TabsTrigger>
+        <TabsTrigger value="image" title="Image Prompt Generator" className="text-xs px-1"><ImageIcon className="w-3.5 h-3.5" /></TabsTrigger>
         <TabsTrigger value="chat" title="AI Chat" className="text-xs px-1"><MessageCircle className="w-3.5 h-3.5" /></TabsTrigger>
         <TabsTrigger value="history" title="Version History" className="text-xs px-1"><History className="w-3.5 h-3.5" /></TabsTrigger>
       </TabsList>
@@ -1018,11 +951,8 @@ export default function Editor({ params }: { params: { id: string } }) {
           </div>
         )}
       </TabsContent>
-      <TabsContent value="image" className="p-4 m-0 space-y-4 h-full overflow-y-auto">
-        <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
-          <p className="text-xs text-amber-700 dark:text-amber-300 font-medium">Image generation is unavailable right now</p>
-          <p className="text-xs text-amber-600/70 dark:text-amber-400/70 mt-1">No image API key is configured. This feature will work once a valid API key is set up.</p>
-        </div>
+      <TabsContent value="image" className="p-4 m-0 h-full overflow-y-auto">
+        <PromptGeneratorPanel documentId={documentId} getContent={getContentForPrompt} stripHtml={stripHtml} />
       </TabsContent>
       <TabsContent value="chat" className="p-4 m-0 space-y-4 flex flex-col h-full">
         <div>
@@ -1112,7 +1042,7 @@ export default function Editor({ params }: { params: { id: string } }) {
         <TabsTrigger value="grammar" title="Grammar" className="text-xs px-1"><CheckCircle className="w-3.5 h-3.5" /></TabsTrigger>
         <TabsTrigger value="suggest" title="AI Rewrite" className="text-xs px-1"><Sparkles className="w-3.5 h-3.5" /></TabsTrigger>
         <TabsTrigger value="ai-tools" title="Summarize / Prologue" className="text-xs px-1"><BookOpen className="w-3.5 h-3.5" /></TabsTrigger>
-        <TabsTrigger value="image" title="Generate Image" className="text-xs px-1"><ImageIcon className="w-3.5 h-3.5" /></TabsTrigger>
+        <TabsTrigger value="image" title="Image Prompt Generator" className="text-xs px-1"><ImageIcon className="w-3.5 h-3.5" /></TabsTrigger>
         <TabsTrigger value="chat" title="AI Chat" className="text-xs px-1"><MessageCircle className="w-3.5 h-3.5" /></TabsTrigger>
         <TabsTrigger value="history" title="Version History" className="text-xs px-1"><History className="w-3.5 h-3.5" /></TabsTrigger>
       </TabsList>
@@ -1180,11 +1110,8 @@ export default function Editor({ params }: { params: { id: string } }) {
           </div>
         )}
       </TabsContent>
-      <TabsContent value="image" className="p-4 m-0 space-y-4 h-full overflow-y-auto">
-        <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
-          <p className="text-xs text-amber-700 dark:text-amber-300 font-medium">Image generation is unavailable right now</p>
-          <p className="text-xs text-amber-600/70 dark:text-amber-400/70 mt-1">No image API key is configured.</p>
-        </div>
+      <TabsContent value="image" className="p-4 m-0 h-full overflow-y-auto">
+        <PromptGeneratorPanel documentId={documentId} getContent={getContentForPrompt} stripHtml={stripHtml} />
       </TabsContent>
       <TabsContent value="chat" className="p-4 m-0 space-y-4 flex flex-col h-full">
         <div>
@@ -1231,7 +1158,8 @@ export default function Editor({ params }: { params: { id: string } }) {
   const EDITOR_TOUR_STEPS = [
     { target: "#tour-editor-title", title: "Name Your Work", description: "Give your document a title. Changes auto-save within a second after you stop typing.", placement: "bottom" as const },
     { target: "#tour-editor-textarea", title: "Your Canvas", description: "This is where the magic happens. Write freely — grammar highlights, AI suggestions, and word count tracking work in real-time.", placement: "bottom" as const },
-    { target: "#tour-editor-sidebar", title: "AI Writing Assistant", description: "Grammar check with inline highlights, AI rewrites, summarization, prologue generation, chat with the AI about your document, and image creation — all in one sidebar.", placement: "left" as const },
+    { target: "#tour-editor-sidebar", title: "AI Writing Assistant", description: "Grammar check with inline highlights, AI rewrites, summarization, prologue generation, chat with the AI about your document, and an image prompt generator — all in one sidebar.", placement: "left" as const },
+    { target: "#tour-editor-sidebar", title: "Image Prompt Generator", description: "Switch to the image tab (the landscape icon) to turn your characters, places, and things into detailed prompts you can paste into any AI image generator like Midjourney or DALL·E. Pick traits, skin color, heritage, personality, and more — or scan your document for context.", placement: "left" as const },
     { target: "#tour-editor-tokens", title: "AI Token Usage", description: "Track how many AI tokens you've used today. Each AI action (chat, grammar, rewrite) consumes tokens from your daily limit.", placement: "bottom" as const },
     { target: "#tour-editor-apikey", title: "Custom API Key", description: "Hit the free tier limit? Add your own API key to bypass the daily cap. Toggle between free tier and your key anytime from the key settings dialog.", placement: "bottom" as const },
     { target: "#tour-editor-goal", title: "Set Word Count Goals", description: "Click the target icon to set a word count goal. A progress bar appears at the top of the editor to keep you motivated.", placement: "bottom" as const },

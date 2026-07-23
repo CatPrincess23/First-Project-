@@ -352,6 +352,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/AiImageResult"
 
+  /ai/generate-prompt:
+    post:
+      operationId: aiGeneratePrompt
+      tags: [ai]
+      summary: Generate an image prompt from entity attributes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiGeneratePromptInput"
+      responses:
+        "200":
+          description: Generated image prompt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiGeneratePromptResult"
+
   /ai/summarize:
     post:
       operationId: aiSummarize
@@ -723,6 +742,45 @@ components:
       required: [b64_json]
       properties:
         b64_json:
+          type: string
+
+    AiGeneratePromptInput:
+      type: object
+      required: [entityType]
+      properties:
+        entityType:
+          type: string
+          enum: [character, place, animal, thing]
+        entityName:
+          type: string
+        personalityTraits:
+          type: array
+          items:
+            type: string
+        skinColor:
+          type: string
+        eyeColor:
+          type: string
+        hairColor:
+          type: string
+        faith:
+          type: string
+        heritage:
+          type: string
+        personType:
+          type: string
+        freeText:
+          type: string
+        documentContent:
+          type: string
+        useScanner:
+          type: boolean
+
+    AiGeneratePromptResult:
+      type: object
+      required: [prompt]
+      properties:
+        prompt:
           type: string
 
     AiSummarizeInput:

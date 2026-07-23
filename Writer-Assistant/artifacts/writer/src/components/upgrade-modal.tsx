@@ -11,7 +11,7 @@ export function UpgradeModal() {
         <DialogHeader>
           <DialogTitle className="font-serif text-2xl">Upgrade to Whimsical Writer Pro</DialogTitle>
           <DialogDescription className="text-base pt-2">
-            You've reached your free AI request limit for this session. Upgrade to unlock unlimited AI grammar checking, writing suggestions, and image generation.
+            You've reached your free AI request limit for this session. Upgrade to unlock unlimited AI grammar checking, writing suggestions, and image prompt generation.
           </DialogDescription>
         </DialogHeader>
         
@@ -29,7 +29,7 @@ export function UpgradeModal() {
               </li>
               <li className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                AI image generation
+                AI image prompt generation
               </li>
             </ul>
           </div>
