@@ -136,6 +136,7 @@ interface RichTextEditorProps {
   placeholder?: string;
   onSelectionChange?: (selectedText: string) => void;
   grammarErrors?: GrammarError[];
+  editable?: boolean;
 }
 
 export interface RichTextEditorHandle {
@@ -147,7 +148,7 @@ export interface RichTextEditorHandle {
   focus: () => void;
 }
 
-function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionChange, grammarErrors }: RichTextEditorProps, ref: React.Ref<RichTextEditorHandle>) {
+function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionChange, grammarErrors, editable = true }: RichTextEditorProps, ref: React.Ref<RichTextEditorHandle>) {
   const rafRef = useRef<number>(0);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const savedSelectionRef = useRef<any>(null);
@@ -277,6 +278,7 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
       }),
     ],
     content: content || "",
+    editable,
     onUpdate: ({ editor: ed }) => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(() => {
@@ -296,6 +298,12 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
       },
     },
   });
+
+  useEffect(() => {
+    if (editor && !editor.isDestroyed) {
+      editor.setEditable(editable);
+    }
+  }, [editor, editable]);
 
   const onSelectionChangeRef = useRef(onSelectionChange);
   onSelectionChangeRef.current = onSelectionChange;
@@ -517,6 +525,7 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
   return (
     <div>
       {/* Toolbar */}
+      {editable && (
       <div className="sticky top-0 z-10 bg-background flex items-center gap-0.5 py-2 mb-2 overflow-x-auto flex-nowrap scrollbar-thin border-b">
         <div id="tour-editor-undo" className="flex items-center gap-0.5">
         <ToolbarButton onClick={() => editor.chain().focus().undo().run()} title="Undo">
@@ -630,6 +639,7 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
           <BarChart3 className="w-3.5 h-3.5" />
         </ToolbarButton>
       </div>
+      )}
 
       {/* Editor */}
       <div>
@@ -719,5 +729,6 @@ export default memo(forwardRef<RichTextEditorHandle, RichTextEditorProps>(RichTe
     && prev.onBlur === next.onBlur
     && prev.placeholder === next.placeholder
     && prev.onSelectionChange === next.onSelectionChange
-    && prev.grammarErrors === next.grammarErrors;
+    && prev.grammarErrors === next.grammarErrors
+    && prev.editable === next.editable;
 });

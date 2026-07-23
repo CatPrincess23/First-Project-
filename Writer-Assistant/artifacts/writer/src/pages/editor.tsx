@@ -25,7 +25,7 @@ import RichTextEditor, { type RichTextEditorHandle } from "@/components/rich-tex
 import {
   ArrowLeft, Sparkles, Image as ImageIcon, CheckCircle, Save, Loader2, Wand2,
   Globe, History, FileDown, Sun, Moon, BookOpen, Target, Clock, RotateCcw, MessageCircle,
-  Plus, Trash2, ChevronRight, ChevronLeft, PanelRight, Zap, KeyRound,
+  Plus, Trash2, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, PanelRight, Zap, KeyRound, List, Pencil, Eye, EyeOff,
 } from "lucide-react";
 import { UserButton } from "@clerk/react";
 import { UpgradeModal } from "@/components/upgrade-modal";
@@ -33,6 +33,10 @@ import OnboardingTour from "@/components/onboarding-tour";
 import { UserApiKeyDialog } from "@/components/user-api-key-dialog";
 import { PromptGeneratorPanel } from "@/components/prompt-generator-panel";
 import { getUserApiConfig, isUserApiKeyEnabled } from "@/lib/api-key";
+import {
+  useListChapters, useCreateChapter, useUpdateChapter, useDeleteChapter, useReorderChapters,
+  type Chapter,
+} from "@/lib/chapters-api";
 import { format } from "date-fns";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -89,7 +93,7 @@ const ChunkSelector = memo(({
           <ChevronLeft className="w-3.5 h-3.5" />
         </Button>
         <span className="text-xs text-muted-foreground flex-1 text-center">
-          Part {safeIndex + 1} of {totalChunks}
+          Section {safeIndex + 1} of {totalChunks}
         </span>
         <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={safeIndex >= totalChunks - 1} onClick={() => onChange(Math.min(totalChunks - 1, safeIndex + 1))}>
           <ChevronRight className="w-3.5 h-3.5" />
@@ -98,6 +102,28 @@ const ChunkSelector = memo(({
       <p className="text-[10px] text-muted-foreground mt-1 text-center line-clamp-2 leading-snug" title={snippet}>
         {snippet} <span className="opacity-60">({start.toLocaleString()}–{end.toLocaleString()})</span>
       </p>
+    </div>
+  );
+});
+
+const ChapterPicker = memo(({ chapters, activeId, onChange }: {
+  chapters: Chapter[];
+  activeId: number | null;
+  onChange: (id: number) => void;
+}) => {
+  if (chapters.length <= 1) return null;
+  return (
+    <div className="mt-2 mb-1">
+      <label className="text-[11px] text-muted-foreground mb-1 block">Chapter</label>
+      <select
+        value={activeId ?? ""}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full text-xs bg-background border rounded-md px-2 py-1.5 outline-none focus:ring-1 focus:ring-primary"
+      >
+        {chapters.map((c, i) => (
+          <option key={c.id} value={c.id}>{i + 1}. {c.title || "Untitled Chapter"}</option>
+        ))}
+      </select>
     </div>
   );
 });
@@ -208,6 +234,23 @@ export default function Editor({ params }: { params: { id: string } }) {
     query: { enabled: !isNaN(documentId), queryKey: getListDocumentVersionsQueryKey(documentId) }
   });
 
+  // Chapters — the document is split into ordered chapters; the editor edits
+  // one chapter at a time (the active chapter). AI features therefore operate
+  // per-chapter rather than over the whole document.
+  const chaptersQuery = useListChapters(documentId);
+  const createChapter = useCreateChapter(documentId);
+  const updateChapter = useUpdateChapter();
+  const deleteChapter = useDeleteChapter();
+  const reorderChapters = useReorderChapters(documentId);
+  const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [activeChapterId, setActiveChapterId] = useState<number | null>(null);
+  const [editingChapterId, setEditingChapterId] = useState<number | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
+  const chaptersRef = useRef<Chapter[]>([]);
+  chaptersRef.current = chapters;
+  const activeChapterIdRef = useRef<number | null>(null);
+  activeChapterIdRef.current = activeChapterId;
+
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -233,6 +276,9 @@ export default function Editor({ params }: { params: { id: string } }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
+  // Read-only distraction-free mode
+  const [readMode, setReadMode] = useState(false);
+
   // Editor readiness: only render TipTap after content is loaded
   const [editorReady, setEditorReady] = useState(false);
 
@@ -247,7 +293,7 @@ export default function Editor({ params }: { params: { id: string } }) {
   useEffect(() => { setShellReady(true); }, []);
 
   // Sidebar tabs
-  const [activeTab, setActiveTab] = useState<"grammar" | "suggest" | "ai-tools" | "image" | "history" | "chat">("grammar");
+  const [activeTab, setActiveTab] = useState<"chapters" | "grammar" | "suggest" | "ai-tools" | "image" | "history" | "chat">("chapters");
 
   // ENTITY_MAP is imported from @/lib/html (shared with the dashboard previews).
 
@@ -462,28 +508,83 @@ export default function Editor({ params }: { params: { id: string } }) {
   const hasUserKey = !!getUserApiConfig() && isUserApiKeyEnabled();
 
   useEffect(() => {
-    if (document && initRef.current !== documentId) {
+    if (!document || chaptersQuery.isLoading || !chaptersQuery.data) return;
+    if (initRef.current === documentId) return;
+    setTitle(document.title);
+    setGoalWordCount(document.goalWordCount ?? null);
+    const list = chaptersQuery.data;
+    if (list.length === 0) {
+      // Lazy migration: an older (pre-chapters) document stores everything in
+      // documents.content. Seed a first chapter from that content so nothing is
+      // lost. Mark init immediately to avoid duplicate seeds on re-renders.
       initRef.current = documentId;
-      setTitle(document.title);
-      setContent(document.content);
-      latestHtmlRef.current = document.content;
-      setGoalWordCount(document.goalWordCount ?? null);
-      lastSavedRef.current = { title: document.title, content: document.content };
-      setEditorReady(true);
+      createChapter.mutate(
+        { title: "Chapter 1", content: document.content ?? "" },
+        {
+          onSuccess: (ch) => {
+            setChapters([ch]);
+            setActiveChapterId(ch.id);
+            applyEditorContent(ch.content);
+            latestHtmlRef.current = ch.content;
+            lastSavedRef.current = { title: document.title, content: ch.content };
+            setEditorReady(true);
+          },
+          onError: () => setEditorReady(true),
+        },
+      );
+      return;
     }
-  }, [document, documentId]);
+    initRef.current = documentId;
+    const sorted = [...list].sort((a, b) => a.position - b.position || a.id - b.id);
+    setChapters(sorted);
+    const first = sorted[0];
+    setActiveChapterId(first.id);
+    applyEditorContent(first.content);
+    latestHtmlRef.current = first.content;
+    lastSavedRef.current = { title: document.title, content: first.content };
+    setEditorReady(true);
+  }, [document, chaptersQuery.data, chaptersQuery.isLoading, documentId, applyEditorContent, createChapter]);
 
   const updateDocMutate = useRef(updateDocument.mutate);
   updateDocMutate.current = updateDocument.mutate;
+  const updateChapterMutate = useRef(updateChapter.mutate);
+  updateChapterMutate.current = updateChapter.mutate;
+
+  // Rebuild the full-document content (all chapters joined) so consumers that
+  // still read documents.content (dashboard word counts, world-building scans,
+  // stats) stay in sync. The active chapter uses the live `activeContent` so
+  // unsaved typing is reflected.
+  const rebuildFullContent = useCallback((activeContent: string): string => {
+    const activeId = activeChapterIdRef.current;
+    return chaptersRef.current
+      .map((c) => (c.id === activeId ? activeContent : c.content))
+      .join("\n\n");
+  }, []);
 
   const saveContent = useCallback((newTitle: string, newContent: string) => {
     if (newTitle === lastSavedRef.current.title && newContent === lastSavedRef.current.content) return;
+    const activeId = activeChapterIdRef.current;
+    const activeChapter = activeId != null ? chaptersRef.current.find((c) => c.id === activeId) : null;
+    const chapterChanged = activeChapter ? activeChapter.content !== newContent : false;
     setIsSaving(true);
+    // 1. Persist the active chapter's content (only when it changed).
+    if (activeId != null && chapterChanged) {
+      updateChapterMutate.current(
+        { id: activeId, data: { content: newContent } },
+        {
+          onSuccess: (updated) => {
+            setChapters((prev) => prev.map((c) => (c.id === updated.id ? { ...c, content: updated.content, wordCount: updated.wordCount, title: updated.title } : c)));
+          },
+        },
+      );
+    }
+    // 2. Sync the parent document (title + rebuilt full content) so stats /
+    // world / dashboard word counts reflect all chapters.
     updateDocMutate.current(
-      { id: documentId, data: { title: newTitle, content: newContent } },
+      { id: documentId, data: { title: newTitle, content: rebuildFullContent(newContent) } },
       {
         onSuccess: (updatedDoc) => {
-          lastSavedRef.current = { title: updatedDoc.title, content: updatedDoc.content };
+          lastSavedRef.current = { title: updatedDoc.title, content: newContent };
           queryClient.setQueryData(getGetDocumentQueryKey(documentId), (old: any) =>
             old ? { ...old, ...updatedDoc, updatedAt: updatedDoc.updatedAt } : old
           );
@@ -492,7 +593,7 @@ export default function Editor({ params }: { params: { id: string } }) {
         onError: () => { setIsSaving(false); toast({ title: "Failed to save", variant: "destructive" }); }
       }
     );
-  }, [documentId, queryClient, toast]);
+  }, [documentId, queryClient, toast, rebuildFullContent]);
 
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -830,6 +931,118 @@ export default function Editor({ params }: { params: { id: string } }) {
   const stableHandleSendChat = useRefCallback(handleSendChat);
   const stableHandleRestoreVersion = useRefCallback(handleRestoreVersion);
 
+  // --- Chapter operations -----------------------------------------------------
+  const clearChapterGrammarState = useCallback(() => {
+    setGrammarErrors([]);
+    setCorrectedText("");
+    grammarStartRef.current = [];
+    grammarLenRef.current = [];
+    setChatChunkIndex(0);
+    setGrammarChunkIndex(0);
+    setSuggestChunkIndex(0);
+  }, []);
+
+  const flushSave = useCallback(() => {
+    if (autoSaveTimer.current) { clearTimeout(autoSaveTimer.current); autoSaveTimer.current = undefined; }
+    saveContent(titleRef.current, contentSnapshotRef.current);
+  }, [saveContent]);
+
+  const switchChapter = useCallback((id: number) => {
+    if (id === activeChapterIdRef.current) return;
+    flushSave();
+    const target = chaptersRef.current.find((c) => c.id === id);
+    if (!target) return;
+    setActiveChapterId(id);
+    applyEditorContent(target.content);
+    latestHtmlRef.current = target.content;
+    lastSavedRef.current = { title: titleRef.current, content: target.content };
+    clearChapterGrammarState();
+  }, [flushSave, applyEditorContent, clearChapterGrammarState]);
+
+  const addChapter = useCallback(() => {
+    flushSave();
+    const n = chaptersRef.current.length + 1;
+    createChapter.mutate(
+      { title: `Chapter ${n}`, content: "" },
+      {
+        onSuccess: (ch) => {
+          setChapters((prev) => [...prev, ch]);
+          setActiveChapterId(ch.id);
+          applyEditorContent("");
+          latestHtmlRef.current = "";
+          lastSavedRef.current = { title: titleRef.current, content: "" };
+          clearChapterGrammarState();
+          setEditingChapterId(null);
+        },
+        onError: () => toast({ title: "Failed to add chapter", variant: "destructive" }),
+      },
+    );
+  }, [flushSave, createChapter, applyEditorContent, clearChapterGrammarState, toast]);
+
+  const deleteChapterById = useCallback((id: number) => {
+    if (chaptersRef.current.length <= 1) {
+      toast({ title: "A document needs at least one chapter", variant: "destructive" });
+      return;
+    }
+    if (!confirm("Delete this chapter and its content? This cannot be undone.")) return;
+    flushSave();
+    const remaining = chaptersRef.current.filter((c) => c.id !== id);
+    deleteChapter.mutate(id, {
+      onSuccess: () => {
+        setChapters(remaining);
+        if (activeChapterIdRef.current === id) {
+          const next = remaining[0];
+          setActiveChapterId(next.id);
+          applyEditorContent(next.content);
+          latestHtmlRef.current = next.content;
+          lastSavedRef.current = { title: titleRef.current, content: next.content };
+          clearChapterGrammarState();
+        }
+        // Resync the parent document content so stats/dashboard reflect the deletion.
+        updateDocument.mutate({ id: documentId, data: { content: remaining.map((c) => c.content).join("\n\n") } });
+        queryClient.invalidateQueries({ queryKey: getGetDocumentQueryKey(documentId) });
+      },
+      onError: () => toast({ title: "Failed to delete chapter", variant: "destructive" }),
+    });
+  }, [flushSave, deleteChapter, applyEditorContent, clearChapterGrammarState, documentId, queryClient, toast, updateDocument]);
+
+  const renameChapter = useCallback((id: number, newTitle: string) => {
+    const trimmed = newTitle.trim();
+    if (!trimmed) return;
+    setChapters((prev) => prev.map((c) => (c.id === id ? { ...c, title: trimmed } : c)));
+    updateChapter.mutate({ id, data: { title: trimmed } });
+  }, [updateChapter]);
+
+  const moveChapter = useCallback((id: number, dir: "up" | "down") => {
+    const arr = [...chaptersRef.current];
+    const idx = arr.findIndex((c) => c.id === id);
+    const swap = dir === "up" ? idx - 1 : idx + 1;
+    if (idx === -1 || swap < 0 || swap >= arr.length) return;
+    [arr[idx], arr[swap]] = [arr[swap], arr[idx]];
+    const reordered = arr.map((c, i) => ({ ...c, position: i }));
+    setChapters(reordered);
+    reorderChapters.mutate(reordered.map((c) => c.id));
+  }, [reorderChapters]);
+
+  const startEditChapterTitle = useCallback((c: Chapter) => {
+    setEditingChapterId(c.id);
+    setEditingTitle(c.title);
+  }, []);
+
+  const commitEditChapterTitle = useCallback(() => {
+    if (editingChapterId != null) renameChapter(editingChapterId, editingTitle);
+    setEditingChapterId(null);
+    setEditingTitle("");
+  }, [editingChapterId, editingTitle, renameChapter]);
+
+  const stableSwitchChapter = useRefCallback(switchChapter);
+  const stableAddChapter = useRefCallback(addChapter);
+  const stableDeleteChapter = useRefCallback(deleteChapterById);
+  const stableStartEditTitle = useRefCallback(startEditChapterTitle);
+  const stableCommitEditTitle = useRefCallback(commitEditChapterTitle);
+  const stableMoveChapter = useRefCallback(moveChapter);
+  const stableRenameChapter = useRefCallback(renameChapter);
+
   const desktopSidebar = useMemo(() => (
 <div className="flex shrink-0">
   <button
@@ -843,7 +1056,8 @@ export default function Editor({ params }: { params: { id: string } }) {
   <div id="tour-editor-sidebar" className="w-80 border-l bg-card flex flex-col" style={{ contain: "layout paint style" }}>
   <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="flex flex-col h-full">
     <div className="px-3 py-2.5 border-b shrink-0">
-      <TabsList className="grid w-full grid-cols-6 h-8">
+      <TabsList className="grid w-full grid-cols-7 h-8">
+        <TabsTrigger value="chapters" title="Chapters" className="text-xs px-1"><List className="w-3.5 h-3.5" /></TabsTrigger>
         <TabsTrigger value="grammar" title="Grammar" className="text-xs px-1"><CheckCircle className="w-3.5 h-3.5" /></TabsTrigger>
         <TabsTrigger value="suggest" title="AI Rewrite" className="text-xs px-1"><Sparkles className="w-3.5 h-3.5" /></TabsTrigger>
         <TabsTrigger value="ai-tools" title="Summarize / Prologue" className="text-xs px-1"><BookOpen className="w-3.5 h-3.5" /></TabsTrigger>
@@ -853,11 +1067,63 @@ export default function Editor({ params }: { params: { id: string } }) {
       </TabsList>
     </div>
     <div className="flex-1 min-h-0" style={{ contain: "layout paint style" }}>
+      <TabsContent value="chapters" className="p-4 m-0 space-y-3 h-full overflow-y-auto">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-medium text-sm">Chapters</h3>
+            <p className="text-xs text-muted-foreground">Table of contents for this document.</p>
+          </div>
+          <Button onClick={stableAddChapter} size="sm" className="gap-1 h-7" disabled={createChapter.isPending}>
+            {createChapter.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+            Add
+          </Button>
+        </div>
+        <div className="space-y-1.5" style={{ contain: "layout paint style" }}>
+          {chapters.map((c, i) => {
+            const isActive = c.id === activeChapterId;
+            const isEditing = editingChapterId === c.id;
+            const wc = isActive ? wordCount : c.wordCount;
+            return (
+              <div key={c.id} className={`rounded-lg border p-2 transition-colors ${isActive ? "border-primary bg-primary/5" : "border-border hover:bg-secondary/50"}`} style={{ contentVisibility: "auto" }}>
+                {isEditing ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground shrink-0 w-5 text-right">{i + 1}.</span>
+                    <input
+                      autoFocus
+                      value={editingTitle}
+                      onChange={(e) => setEditingTitle(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") stableCommitEditTitle(); if (e.key === "Escape") { setEditingChapterId(null); } }}
+                      onBlur={stableCommitEditTitle}
+                      className="flex-1 text-sm bg-background border rounded px-2 py-1 outline-none focus:ring-1 focus:ring-primary min-w-0"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <button onClick={() => stableSwitchChapter(c.id)} className="flex-1 flex items-center gap-1.5 text-left min-w-0">
+                      <span className="text-xs text-muted-foreground shrink-0 w-5 text-right">{i + 1}.</span>
+                      <span className={`text-sm truncate ${isActive ? "font-medium text-primary" : ""}`}>{c.title || "Untitled Chapter"}</span>
+                      <span className="text-[10px] text-muted-foreground shrink-0">{wc.toLocaleString()}w</span>
+                    </button>
+                    <button onClick={() => stableStartEditTitle(c)} className="text-muted-foreground/60 hover:text-foreground p-0.5 shrink-0" title="Rename"><Pencil className="w-3 h-3" /></button>
+                    <button onClick={() => stableMoveChapter(c.id, "up")} disabled={i === 0} className="text-muted-foreground/60 hover:text-foreground p-0.5 shrink-0 disabled:opacity-30" title="Move up"><ChevronUp className="w-3 h-3" /></button>
+                    <button onClick={() => stableMoveChapter(c.id, "down")} disabled={i === chapters.length - 1} className="text-muted-foreground/60 hover:text-foreground p-0.5 shrink-0 disabled:opacity-30" title="Move down"><ChevronDown className="w-3 h-3" /></button>
+                    <button onClick={() => stableDeleteChapter(c.id)} className="text-muted-foreground/60 hover:text-destructive p-0.5 shrink-0" title="Delete chapter"><Trash2 className="w-3 h-3" /></button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <Button onClick={stableAddChapter} variant="outline" size="sm" className="w-full gap-1 mt-2" disabled={createChapter.isPending}>
+          <Plus className="w-3.5 h-3.5" /> Add Blank Chapter
+        </Button>
+      </TabsContent>
       <TabsContent value="grammar" className="p-4 m-0 space-y-4 h-full overflow-y-auto">
         <div>
           <h3 className="font-medium text-sm mb-1">Grammar & Style</h3>
           <p className="text-xs text-muted-foreground mb-3">Check your writing for errors and improvements.</p>
-          <ChunkSelector label={`Doc too long for one pass — grammar checks the first ${(GRAMMAR_CAP / 1000).toFixed(0)}K chars at a time. Pick which part:`} chunkIndex={safeGrammarChunkIndex} totalChunks={grammarChunks} chunkSize={GRAMMAR_CAP} docLength={docCharCount} plainText={plainText} onChange={setGrammarChunkIndex} />
+          <ChapterPicker chapters={chapters} activeId={activeChapterId} onChange={stableSwitchChapter} />
+          <ChunkSelector label={`Chapter too long for one pass — grammar checks the first ${(GRAMMAR_CAP / 1000).toFixed(0)}K chars at a time. Pick which section:`} chunkIndex={safeGrammarChunkIndex} totalChunks={grammarChunks} chunkSize={GRAMMAR_CAP} docLength={docCharCount} plainText={plainText} onChange={setGrammarChunkIndex} />
           <Button onClick={stableHandleGrammarCheck} disabled={isCheckingGrammar || !hasContent} className="w-full gap-2" size="sm">
             {isCheckingGrammar ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
             {isCheckingGrammar ? "Checking..." : grammarChunks > 1 ? `Check Part ${safeGrammarChunkIndex + 1}` : "Check Document"}
@@ -904,7 +1170,8 @@ export default function Editor({ params }: { params: { id: string } }) {
       <TabsContent value="suggest" className="p-4 m-0 space-y-4 h-full overflow-y-auto">
         <div>
           <h3 className="font-medium text-sm mb-3">AI Rewrite</h3>
-          <ChunkSelector label={`Rewrites process the first ${(SUGGEST_CAP / 1000).toFixed(0)}K chars at a time. Pick which part:`} chunkIndex={safeSuggestChunkIndex} totalChunks={suggestChunks} chunkSize={SUGGEST_CAP} docLength={docCharCount} plainText={plainText} onChange={setSuggestChunkIndex} />
+          <ChapterPicker chapters={chapters} activeId={activeChapterId} onChange={stableSwitchChapter} />
+          <ChunkSelector label={`Rewrites process the first ${(SUGGEST_CAP / 1000).toFixed(0)}K chars at a time. Pick which section:`} chunkIndex={safeSuggestChunkIndex} totalChunks={suggestChunks} chunkSize={SUGGEST_CAP} docLength={docCharCount} plainText={plainText} onChange={setSuggestChunkIndex} />
           <div className="grid grid-cols-2 gap-2">
             {Object.values(AiSuggestInputType).map((type) => (
               <Button key={type} variant={suggestType === type ? "default" : "outline"} size="sm" onClick={() => stableHandleSuggest(type as AiSuggestInputType)} disabled={isSuggesting || !hasContent} className="capitalize text-xs">
@@ -958,9 +1225,10 @@ export default function Editor({ params }: { params: { id: string } }) {
         <div>
           <h3 className="font-medium text-sm mb-1">AI Chat</h3>
           <p className="text-xs text-muted-foreground mb-3">Ask questions about your writing, get feedback, or brainstorm ideas.</p>
-          {hasContent && <Badge variant="secondary" className="text-[10px] mb-2 gap-1"><BookOpen className="w-2.5 h-2.5" /> Document synced ({wordCount.toLocaleString()} words)</Badge>}
+          {hasContent && <Badge variant="secondary" className="text-[10px] mb-2 gap-1"><BookOpen className="w-2.5 h-2.5" /> {chapters.length > 1 ? "Chapter" : "Document"} synced ({wordCount.toLocaleString()} words)</Badge>}
+          <ChapterPicker chapters={chapters} activeId={activeChapterId} onChange={stableSwitchChapter} />
           {docTruncated && (
-            <ChunkSelector label={`Doc too long (~${(docCharCount / 1000).toFixed(0)}K chars) — pick which part the AI reads:`} chunkIndex={safeChunkIndex} totalChunks={chatChunks} chunkSize={DOC_CONTEXT_CAP} docLength={docCharCount} plainText={plainText} onChange={setChatChunkIndex} />
+            <ChunkSelector label={`Chapter too long (~${(docCharCount / 1000).toFixed(0)}K chars) — pick which section the AI reads:`} chunkIndex={safeChunkIndex} totalChunks={chatChunks} chunkSize={DOC_CONTEXT_CAP} docLength={docCharCount} plainText={plainText} onChange={setChatChunkIndex} />
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -1038,7 +1306,8 @@ export default function Editor({ params }: { params: { id: string } }) {
 <div id="tour-editor-sidebar-mobile" className="h-full flex flex-col pt-14" style={{ contain: "layout paint style" }}>
   <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="flex flex-col h-full">
     <div className="px-3 py-2.5 border-b shrink-0">
-      <TabsList className="grid w-full grid-cols-6 h-8">
+      <TabsList className="grid w-full grid-cols-7 h-8">
+        <TabsTrigger value="chapters" title="Chapters" className="text-xs px-1"><List className="w-3.5 h-3.5" /></TabsTrigger>
         <TabsTrigger value="grammar" title="Grammar" className="text-xs px-1"><CheckCircle className="w-3.5 h-3.5" /></TabsTrigger>
         <TabsTrigger value="suggest" title="AI Rewrite" className="text-xs px-1"><Sparkles className="w-3.5 h-3.5" /></TabsTrigger>
         <TabsTrigger value="ai-tools" title="Summarize / Prologue" className="text-xs px-1"><BookOpen className="w-3.5 h-3.5" /></TabsTrigger>
@@ -1048,11 +1317,48 @@ export default function Editor({ params }: { params: { id: string } }) {
       </TabsList>
     </div>
     <div className="flex-1 min-h-0" style={{ contain: "layout paint style" }}>
+      <TabsContent value="chapters" className="p-4 m-0 space-y-3 h-full overflow-y-auto">
+        <div className="flex items-center justify-between">
+          <h3 className="font-medium text-sm">Chapters</h3>
+          <Button onClick={stableAddChapter} size="sm" className="gap-1 h-7" disabled={createChapter.isPending}>
+            {createChapter.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />} Add
+          </Button>
+        </div>
+        <div className="space-y-1.5">
+          {chapters.map((c, i) => {
+            const isActive = c.id === activeChapterId;
+            const isEditing = editingChapterId === c.id;
+            const wc = isActive ? wordCount : c.wordCount;
+            return (
+              <div key={c.id} className={`rounded-lg border p-2 ${isActive ? "border-primary bg-primary/5" : "border-border"}`}>
+                {isEditing ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground shrink-0 w-5 text-right">{i + 1}.</span>
+                    <input autoFocus value={editingTitle} onChange={(e) => setEditingTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") stableCommitEditTitle(); if (e.key === "Escape") setEditingChapterId(null); }} onBlur={stableCommitEditTitle} className="flex-1 text-sm bg-background border rounded px-2 py-1 outline-none focus:ring-1 focus:ring-primary min-w-0" />
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <button onClick={() => stableSwitchChapter(c.id)} className="flex-1 flex items-center gap-1.5 text-left min-w-0">
+                      <span className="text-xs text-muted-foreground shrink-0 w-5 text-right">{i + 1}.</span>
+                      <span className={`text-sm truncate ${isActive ? "font-medium text-primary" : ""}`}>{c.title || "Untitled Chapter"}</span>
+                      <span className="text-[10px] text-muted-foreground shrink-0">{wc.toLocaleString()}w</span>
+                    </button>
+                    <button onClick={() => stableStartEditTitle(c)} className="text-muted-foreground/60 hover:text-foreground p-0.5 shrink-0" title="Rename"><Pencil className="w-3 h-3" /></button>
+                    <button onClick={() => stableDeleteChapter(c.id)} className="text-muted-foreground/60 hover:text-destructive p-0.5 shrink-0" title="Delete chapter"><Trash2 className="w-3 h-3" /></button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <Button onClick={stableAddChapter} variant="outline" size="sm" className="w-full gap-1 mt-2" disabled={createChapter.isPending}><Plus className="w-3.5 h-3.5" /> Add Blank Chapter</Button>
+      </TabsContent>
       <TabsContent value="grammar" className="p-4 m-0 space-y-4 h-full overflow-y-auto">
         <div>
           <h3 className="font-medium text-sm mb-1">Grammar & Style</h3>
           <p className="text-xs text-muted-foreground mb-3">Check your writing for errors and improvements.</p>
-          <ChunkSelector label={`Grammar checks the first ${(GRAMMAR_CAP / 1000).toFixed(0)}K chars at a time. Pick which part:`} chunkIndex={safeGrammarChunkIndex} totalChunks={grammarChunks} chunkSize={GRAMMAR_CAP} docLength={docCharCount} plainText={plainText} onChange={setGrammarChunkIndex} />
+          <ChapterPicker chapters={chapters} activeId={activeChapterId} onChange={stableSwitchChapter} />
+          <ChunkSelector label={`Grammar checks the first ${(GRAMMAR_CAP / 1000).toFixed(0)}K chars at a time. Pick which section:`} chunkIndex={safeGrammarChunkIndex} totalChunks={grammarChunks} chunkSize={GRAMMAR_CAP} docLength={docCharCount} plainText={plainText} onChange={setGrammarChunkIndex} />
           <Button onClick={stableHandleGrammarCheck} disabled={isCheckingGrammar || !hasContent} className="w-full gap-2" size="sm">
             {isCheckingGrammar ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
             {isCheckingGrammar ? "Checking..." : grammarChunks > 1 ? `Check Part ${safeGrammarChunkIndex + 1}` : "Check Document"}
@@ -1063,7 +1369,8 @@ export default function Editor({ params }: { params: { id: string } }) {
       <TabsContent value="suggest" className="p-4 m-0 space-y-4 h-full overflow-y-auto">
         <div>
           <h3 className="font-medium text-sm mb-3">AI Rewrite</h3>
-          <ChunkSelector label={`Rewrites process the first ${(SUGGEST_CAP / 1000).toFixed(0)}K chars at a time. Pick which part:`} chunkIndex={safeSuggestChunkIndex} totalChunks={suggestChunks} chunkSize={SUGGEST_CAP} docLength={docCharCount} plainText={plainText} onChange={setSuggestChunkIndex} />
+          <ChapterPicker chapters={chapters} activeId={activeChapterId} onChange={stableSwitchChapter} />
+          <ChunkSelector label={`Rewrites process the first ${(SUGGEST_CAP / 1000).toFixed(0)}K chars at a time. Pick which section:`} chunkIndex={safeSuggestChunkIndex} totalChunks={suggestChunks} chunkSize={SUGGEST_CAP} docLength={docCharCount} plainText={plainText} onChange={setSuggestChunkIndex} />
           <div className="grid grid-cols-2 gap-2">
             {Object.values(AiSuggestInputType).map((type) => (
               <Button key={type} variant={suggestType === type ? "default" : "outline"} size="sm" onClick={() => stableHandleSuggest(type as AiSuggestInputType)} disabled={isSuggesting || !hasContent} className="capitalize text-xs">
@@ -1117,7 +1424,8 @@ export default function Editor({ params }: { params: { id: string } }) {
         <div>
           <h3 className="font-medium text-sm mb-1">AI Chat</h3>
           <p className="text-xs text-muted-foreground mb-3">Chat about your writing.</p>
-          {docTruncated && <ChunkSelector label="Doc too long — pick which part to share:" chunkIndex={safeChunkIndex} totalChunks={chatChunks} chunkSize={DOC_CONTEXT_CAP} docLength={docCharCount} plainText={plainText} onChange={setChatChunkIndex} />}
+          <ChapterPicker chapters={chapters} activeId={activeChapterId} onChange={stableSwitchChapter} />
+          {docTruncated && <ChunkSelector label="Chapter too long — pick which section to share:" chunkIndex={safeChunkIndex} totalChunks={chatChunks} chunkSize={DOC_CONTEXT_CAP} docLength={docCharCount} plainText={plainText} onChange={setChatChunkIndex} />}
         </div>
         <div className="flex-1 space-y-3 overflow-y-auto min-h-0" style={{ contain: "layout paint style" }}>
           {chatMessages.length === 0 && <p className="text-xs text-muted-foreground text-center py-8">Start a conversation.</p>}
@@ -1186,87 +1494,108 @@ export default function Editor({ params }: { params: { id: string } }) {
           }} className="shrink-0 text-muted-foreground">
             <ArrowLeft className="w-4 h-4" />
           </Button>
-          <Input
-            id="tour-editor-title"
-            value={title}
-            onChange={(e) => {
-              setTitle(e.target.value);
-              if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-              autoSaveTimer.current = setTimeout(() => saveContent(e.target.value, contentSnapshotRef.current), 500);
-            }}
-            className="border-0 shadow-none font-serif text-lg bg-transparent px-0 focus-visible:ring-0 min-w-0"
-            placeholder="Untitled Document"
-          />
+          {readMode ? (
+            <h1 className="font-serif text-lg truncate min-w-0 text-foreground">{title || "Untitled Document"}</h1>
+          ) : (
+            <Input
+              id="tour-editor-title"
+              value={title}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+                autoSaveTimer.current = setTimeout(() => saveContent(e.target.value, contentSnapshotRef.current), 500);
+              }}
+              className="border-0 shadow-none font-serif text-lg bg-transparent px-0 focus-visible:ring-0 min-w-0"
+              placeholder="Untitled Document"
+            />
+          )}
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mr-1 sm:mr-2">
-            {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3 text-green-500 dark:text-green-400" />}
-            <span className="hidden sm:inline">{isSaving ? "Saving..." : "Saved"}</span>
-            <span className="mx-1">·</span>
-            {selectedWordCount > 0 ? (
-              <span className="text-primary font-medium">{selectedWordCount.toLocaleString()} words</span>
-            ) : (
-              <span>{wordCount.toLocaleString()} words</span>
-            )}
-            {goalProgress !== null && (
-              <span className={`ml-1 font-medium ${goalProgress >= 100 ? "text-green-500 dark:text-green-400" : ""}`}>
-                / {goalWordCount?.toLocaleString()} ({goalProgress}%)
-              </span>
-            )}
-            <span className="mx-1 hidden md:inline">·</span>
-            <span id="tour-editor-tokens" className="hidden md:inline-flex items-center gap-1" title="AI tokens used today">
-              <Zap className="w-3 h-3 text-amber-400 dark:text-amber-300" />
-              {(aiUsage?.today.totalTokens ?? 0).toLocaleString()}
-              {hasUserKey || aiUsage?.isUsingOwnKey ? (
-                <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">own key</span>
-              ) : (
-                <span className="text-muted-foreground/70">/ {((aiUsage?.dailyLimit ?? 10000) / 1000).toFixed(0)}K</span>
+          {readMode ? (
+            <>
+              <Button variant="ghost" size="icon" onClick={() => setReadMode(false)} className="text-muted-foreground h-8 w-8" title="Exit read mode">
+                <EyeOff className="w-4 h-4" />
+              </Button>
+              <Button variant="ghost" size="icon" id="tour-editor-theme" onClick={toggleTheme} className="text-muted-foreground h-8 w-8">
+                {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              </Button>
+              {clerkEnabled && <UserButton />}
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" size="icon" onClick={() => setReadMode(true)} className="text-muted-foreground h-8 w-8" title="Read mode (distraction-free)">
+                <Eye className="w-4 h-4" />
+              </Button>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground mr-1 sm:mr-2">
+                {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3 text-green-500 dark:text-green-400" />}
+                <span className="hidden sm:inline">{isSaving ? "Saving..." : "Saved"}</span>
+                <span className="mx-1">·</span>
+                {selectedWordCount > 0 ? (
+                  <span className="text-primary font-medium">{selectedWordCount.toLocaleString()} words</span>
+                ) : (
+                  <span>{wordCount.toLocaleString()} words</span>
+                )}
+                {goalProgress !== null && (
+                  <span className={`ml-1 font-medium ${goalProgress >= 100 ? "text-green-500 dark:text-green-400" : ""}`}>
+                    / {goalWordCount?.toLocaleString()} ({goalProgress}%)
+                  </span>
+                )}
+                <span className="mx-1 hidden md:inline">·</span>
+                <span id="tour-editor-tokens" className="hidden md:inline-flex items-center gap-1" title="AI tokens used today">
+                  <Zap className="w-3 h-3 text-amber-400 dark:text-amber-300" />
+                  {(aiUsage?.today.totalTokens ?? 0).toLocaleString()}
+                  {hasUserKey || aiUsage?.isUsingOwnKey ? (
+                    <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">own key</span>
+                  ) : (
+                    <span className="text-muted-foreground/70">/ {((aiUsage?.dailyLimit ?? 10000) / 1000).toFixed(0)}K</span>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  id="tour-editor-apikey"
+                  onClick={() => setShowApiKeyDialog(true)}
+                  className="text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                  title="API key settings"
+                >
+                  <KeyRound className="w-3 h-3" />
+                </button>
+              </div>
+
+              <Button variant="outline" size="sm" onClick={() => saveContent(title, content)} className="h-7 text-xs gap-1 hidden sm:inline-flex" disabled={isSaving}>
+                <Save className="w-3 h-3" /> Save
+              </Button>
+
+              {/* Mobile AI sidebar trigger */}
+              {isMobile && (
+                <Button variant="ghost" size="icon" onClick={() => setMobileSidebarOpen(true)} className="text-muted-foreground h-8 w-8" title="AI Tools">
+                  <Sparkles className="w-4 h-4" />
+                </Button>
               )}
-            </span>
-            <button
-              type="button"
-              id="tour-editor-apikey"
-              onClick={() => setShowApiKeyDialog(true)}
-              className="text-muted-foreground/50 hover:text-muted-foreground transition-colors"
-              title="API key settings"
-            >
-              <KeyRound className="w-3 h-3" />
-            </button>
-          </div>
+              <Button variant="ghost" size="icon" id="tour-editor-theme" onClick={toggleTheme} className="text-muted-foreground h-8 w-8">
+                {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              </Button>
+              <Button variant="ghost" size="icon" id="tour-editor-goal" onClick={() => setShowGoalDialog(true)} className="text-muted-foreground h-8 w-8 hidden sm:inline-flex" title="Set word goal">
+                <Target className="w-4 h-4" />
+              </Button>
+              <Button variant="ghost" size="icon" id="tour-editor-versions" onClick={() => setShowSaveVersionDialog(true)} className="text-muted-foreground h-8 w-8 hidden sm:inline-flex" title="Save version">
+                <History className="w-4 h-4" />
+              </Button>
+              <Button variant="ghost" size="icon" id="tour-editor-world" onClick={() => setLocation(`/world/${documentId}`)} className="text-muted-foreground h-8 w-8 hidden sm:inline-flex" title="World building">
+                <Globe className="w-4 h-4" />
+              </Button>
 
-          <Button variant="outline" size="sm" onClick={() => saveContent(title, content)} className="h-7 text-xs gap-1 hidden sm:inline-flex" disabled={isSaving}>
-            <Save className="w-3 h-3" /> Save
-          </Button>
-
-          {/* Mobile AI sidebar trigger */}
-          {isMobile && (
-            <Button variant="ghost" size="icon" onClick={() => setMobileSidebarOpen(true)} className="text-muted-foreground h-8 w-8" title="AI Tools">
-              <Sparkles className="w-4 h-4" />
-            </Button>
+              <div id="tour-editor-export" className="hidden sm:block">
+                <ExportDropdown isExporting={isExporting} onExport={handleExport} />
+              </div>
+              {clerkEnabled && <UserButton />}
+            </>
           )}
-          <Button variant="ghost" size="icon" id="tour-editor-theme" onClick={toggleTheme} className="text-muted-foreground h-8 w-8">
-            {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </Button>
-          <Button variant="ghost" size="icon" id="tour-editor-goal" onClick={() => setShowGoalDialog(true)} className="text-muted-foreground h-8 w-8 hidden sm:inline-flex" title="Set word goal">
-            <Target className="w-4 h-4" />
-          </Button>
-          <Button variant="ghost" size="icon" id="tour-editor-versions" onClick={() => setShowSaveVersionDialog(true)} className="text-muted-foreground h-8 w-8 hidden sm:inline-flex" title="Save version">
-            <History className="w-4 h-4" />
-          </Button>
-          <Button variant="ghost" size="icon" id="tour-editor-world" onClick={() => setLocation(`/world/${documentId}`)} className="text-muted-foreground h-8 w-8 hidden sm:inline-flex" title="World building">
-            <Globe className="w-4 h-4" />
-          </Button>
-
-          <div id="tour-editor-export" className="hidden sm:block">
-            <ExportDropdown isExporting={isExporting} onExport={handleExport} />
-          </div>
-          {clerkEnabled && <UserButton />}
         </div>
       </header>
 
       {/* Goal Progress Bar */}
-      {goalProgress !== null && (
+      {!readMode && goalProgress !== null && (
         <div className="flex-none h-1 bg-secondary">
           <div
             className={`h-full transition-all duration-700 ${goalProgress >= 100 ? "bg-green-500" : "bg-primary"}`}
@@ -1281,7 +1610,7 @@ export default function Editor({ params }: { params: { id: string } }) {
         <div className="flex-1 overflow-y-auto flex justify-center" style={{ contain: "layout paint style" }}>
           <div id="tour-editor-textarea" className="w-full max-w-3xl px-4 md:px-8 py-6">
             {editorReady ? (
-            <RichTextEditor key={documentId} ref={richEditorRef} content={content} onBlur={stableOnBlur} onChange={stableOnChange} onSelectionChange={stableOnSelectionChange} placeholder="Start writing..." grammarErrors={grammarErrors} />
+            <RichTextEditor key={documentId} ref={richEditorRef} content={content} onBlur={stableOnBlur} onChange={stableOnChange} onSelectionChange={stableOnSelectionChange} placeholder="Start writing..." grammarErrors={grammarErrors} editable={!readMode} />
             ) : (
               <div className="min-h-[60vh] flex items-center justify-center text-muted-foreground">
                 <Loader2 className="w-6 h-6 animate-spin" />
@@ -1291,11 +1620,11 @@ export default function Editor({ params }: { params: { id: string } }) {
         </div>
 
         {/* AI Sidebar - Desktop (memoized — see desktopSidebar useMemo) */}
-        {!isMobile && desktopSidebar}
+        {!isMobile && !readMode && desktopSidebar}
       </div>
 
       {/* Mobile AI Sheet */}
-      {isMobile && (
+      {isMobile && !readMode && (
         <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
           <SheetContent side="right" className="w-full sm:w-80 p-0">
             {mobileSidebarContent}
