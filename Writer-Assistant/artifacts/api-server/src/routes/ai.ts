@@ -270,6 +270,19 @@ function checkKey(res: any): boolean {
 
 const DAILY_LIMIT = 10000;
 
+type UserLimits = Record<string, number>;
+function parseUserLimits(): UserLimits {
+  try {
+    return JSON.parse(process.env.USER_TOKEN_LIMITS || "{}");
+  } catch {
+    return {};
+  }
+}
+const userLimits = parseUserLimits();
+function getEffectiveLimit(userId: string): number {
+  return userLimits[userId] ?? DAILY_LIMIT;
+}
+
 function getUserClient(req: any): { client: OpenAI; model: string } | null {
   const apiKey = req.headers?.["x-user-api-key"];
   if (!apiKey || typeof apiKey !== "string" || !apiKey.trim()) return null;
@@ -290,13 +303,14 @@ function getUserClient(req: any): { client: OpenAI; model: string } | null {
 
 async function checkDailyLimit(req: any, res: any, userId: string): Promise<boolean> {
   const today = new Date().toISOString().split("T")[0];
+  const limit = getEffectiveLimit(userId);
   const [todayRow] = await db
     .select()
     .from(aiUsageTable)
     .where(and(eq(aiUsageTable.userId, userId), eq(aiUsageTable.date, today)))
     .limit(1);
-  if ((todayRow?.totalTokens ?? 0) >= DAILY_LIMIT) {
-    res.status(429).json({ error: "Daily AI limit reached (10K tokens). Add your own API key in settings to continue." });
+  if ((todayRow?.totalTokens ?? 0) >= limit) {
+    res.status(429).json({ error: `Daily AI limit reached (${limit.toLocaleString()} tokens). Add your own API key in settings to continue.` });
     return false;
   }
   return true;
@@ -382,7 +396,7 @@ router.get("/usage", async (req, res) => {
         totalTokens: r.totalTokens,
         requests: r.requests,
       })),
-      dailyLimit: DAILY_LIMIT,
+      dailyLimit: getEffectiveLimit(userId),
       isUsingOwnKey,
       provider: isUsingOwnKey ? "Custom" : (GROQ_KEY ? "Groq" : GROK_KEY ? "Grok" : DEEPSEEK_KEY ? "DeepSeek" : GEMINI_KEY ? "Gemini" : "OpenRouter"),
       model: isUsingOwnKey ? (userClient?.model ?? MODEL) : MODEL,
