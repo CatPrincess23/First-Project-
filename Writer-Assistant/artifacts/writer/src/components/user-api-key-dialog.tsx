@@ -1,15 +1,26 @@
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getUserApiConfig, setUserApiKey, setUserBaseUrl, setUserModel, clearUserApiConfig } from "@/lib/api-key";
+import { Switch } from "@/components/ui/switch";
+import { getUserApiConfig, setUserApiKey, setUserBaseUrl, setUserModel, clearUserApiConfig, isUserApiKeyEnabled, setUserApiKeyEnabled } from "@/lib/api-key";
+
+function subscribeToStorage(cb: () => void) {
+  window.addEventListener("storage", cb);
+  return () => window.removeEventListener("storage", cb);
+}
+
+function getSnapshot() {
+  return isUserApiKeyEnabled();
+}
 
 export function UserApiKeyDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const existing = getUserApiConfig();
   const [apiKey, setApiKey] = useState(existing?.apiKey ?? "");
   const [baseUrl, setBaseUrl] = useState(existing?.baseUrl ?? "https://openrouter.ai/api/v1");
   const [model, setModel] = useState(existing?.model ?? "deepseek/deepseek-v4-flash");
+  const keyEnabled = useSyncExternalStore(subscribeToStorage, getSnapshot);
 
   const handleSave = () => {
     if (apiKey.trim()) {
@@ -39,7 +50,7 @@ export function UserApiKeyDialog({ open, onOpenChange }: { open: boolean; onOpen
           <DialogTitle className="font-serif text-xl">AI API Key</DialogTitle>
           <DialogDescription className="text-sm pt-1">
             {hasExisting
-              ? "Using your own API key — no daily limits. You can update or remove it below."
+              ? "Using your own API key — no daily limits. Toggle it on/off below."
               : "Set your own API key to bypass the 10K token daily limit. Uses OpenRouter by default."}
           </DialogDescription>
         </DialogHeader>
@@ -76,6 +87,20 @@ export function UserApiKeyDialog({ open, onOpenChange }: { open: boolean; onOpen
             />
             <p className="text-[11px] text-muted-foreground">Model name for your provider. Defaults to deepseek/deepseek-v4-flash.</p>
           </div>
+          {hasExisting && (
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div className="space-y-0.5">
+                <Label className="text-sm font-medium">Use custom API key</Label>
+                <p className="text-[11px] text-muted-foreground">
+                  {keyEnabled ? "Your key is active — no daily limits" : "Free tier active (10K token/day)"}
+                </p>
+              </div>
+              <Switch
+                checked={keyEnabled}
+                onCheckedChange={(v) => setUserApiKeyEnabled(v)}
+              />
+            </div>
+          )}
         </div>
         <DialogFooter className="gap-2">
           {hasExisting && (

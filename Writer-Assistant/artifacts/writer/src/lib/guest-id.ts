@@ -54,18 +54,22 @@ export function setupGuestId() {
       // Clerk not available
     }
 
-    // Inject user's custom API key if configured
+    // Inject user's custom API key if configured and enabled
     try {
-      const userKey = localStorage.getItem("wa_user_api_key");
-      if (userKey && userKey.trim()) {
-        req.headers.set("x-user-api-key", userKey.trim());
-        const userBaseUrl = localStorage.getItem("wa_user_base_url");
-        if (userBaseUrl && userBaseUrl.trim()) {
-          req.headers.set("x-user-base-url", userBaseUrl.trim());
-        }
-        const userModel = localStorage.getItem("wa_user_model");
-        if (userModel && userModel.trim()) {
-          req.headers.set("x-user-model", userModel.trim());
+      const enabled = localStorage.getItem("wa_user_api_key_enabled");
+      const isEnabled = enabled === null || enabled === "true";
+      if (isEnabled) {
+        const userKey = localStorage.getItem("wa_user_api_key");
+        if (userKey && userKey.trim()) {
+          req.headers.set("x-user-api-key", userKey.trim());
+          const userBaseUrl = localStorage.getItem("wa_user_base_url");
+          if (userBaseUrl && userBaseUrl.trim()) {
+            req.headers.set("x-user-base-url", userBaseUrl.trim());
+          }
+          const userModel = localStorage.getItem("wa_user_model");
+          if (userModel && userModel.trim()) {
+            req.headers.set("x-user-model", userModel.trim());
+          }
         }
       }
     } catch {

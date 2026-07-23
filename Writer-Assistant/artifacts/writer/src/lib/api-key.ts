@@ -1,6 +1,7 @@
 const API_KEY_STORAGE_KEY = "wa_user_api_key";
 const BASE_URL_STORAGE_KEY = "wa_user_base_url";
 const MODEL_STORAGE_KEY = "wa_user_model";
+const ENABLED_STORAGE_KEY = "wa_user_api_key_enabled";
 
 export type UserApiConfig = {
   apiKey: string;
@@ -20,6 +21,20 @@ export function getUserApiConfig(): UserApiConfig | null {
   } catch {
     return null;
   }
+}
+
+export function isUserApiKeyEnabled(): boolean {
+  try {
+    const val = localStorage.getItem(ENABLED_STORAGE_KEY);
+    if (val === null) return true;
+    return val === "true";
+  } catch {
+    return true;
+  }
+}
+
+export function setUserApiKeyEnabled(enabled: boolean) {
+  localStorage.setItem(ENABLED_STORAGE_KEY, enabled ? "true" : "false");
 }
 
 export function setUserApiKey(apiKey: string) {
@@ -50,4 +65,5 @@ export function clearUserApiConfig() {
   localStorage.removeItem(API_KEY_STORAGE_KEY);
   localStorage.removeItem(BASE_URL_STORAGE_KEY);
   localStorage.removeItem(MODEL_STORAGE_KEY);
+  localStorage.removeItem(ENABLED_STORAGE_KEY);
 }

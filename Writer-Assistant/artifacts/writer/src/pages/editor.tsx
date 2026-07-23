@@ -30,7 +30,7 @@ import { UserButton } from "@clerk/react";
 import { UpgradeModal } from "@/components/upgrade-modal";
 import OnboardingTour from "@/components/onboarding-tour";
 import { UserApiKeyDialog } from "@/components/user-api-key-dialog";
-import { getUserApiConfig } from "@/lib/api-key";
+import { getUserApiConfig, isUserApiKeyEnabled } from "@/lib/api-key";
 import { format } from "date-fns";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -465,7 +465,7 @@ export default function Editor({ params }: { params: { id: string } }) {
   const [versionLabel, setVersionLabel] = useState("");
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const hasUserKey = !!getUserApiConfig();
+  const hasUserKey = !!getUserApiConfig() && isUserApiKeyEnabled();
 
   useEffect(() => {
     if (document && initRef.current !== documentId) {
@@ -1233,6 +1233,7 @@ export default function Editor({ params }: { params: { id: string } }) {
     { target: "#tour-editor-textarea", title: "Your Canvas", description: "This is where the magic happens. Write freely — grammar highlights, AI suggestions, and word count tracking work in real-time.", placement: "bottom" as const },
     { target: "#tour-editor-sidebar", title: "AI Writing Assistant", description: "Grammar check with inline highlights, AI rewrites, summarization, prologue generation, chat with the AI about your document, and image creation — all in one sidebar.", placement: "left" as const },
     { target: "#tour-editor-tokens", title: "AI Token Usage", description: "Track how many AI tokens you've used today. Each AI action (chat, grammar, rewrite) consumes tokens from your daily limit.", placement: "bottom" as const },
+    { target: "#tour-editor-apikey", title: "Custom API Key", description: "Hit the free tier limit? Add your own API key to bypass the daily cap. Toggle between free tier and your key anytime from the key settings dialog.", placement: "bottom" as const },
     { target: "#tour-editor-goal", title: "Set Word Count Goals", description: "Click the target icon to set a word count goal. A progress bar appears at the top of the editor to keep you motivated.", placement: "bottom" as const },
     { target: "#tour-editor-versions", title: "Version History", description: "Save snapshots of your document at any point. Restore previous versions if you want to go back to an earlier draft.", placement: "bottom" as const },
     { target: "#tour-editor-world", title: "World Building", description: "Jump straight to the world builder for this document — create character profiles, locations, and items.", placement: "bottom" as const },
@@ -1297,6 +1298,7 @@ export default function Editor({ params }: { params: { id: string } }) {
             </span>
             <button
               type="button"
+              id="tour-editor-apikey"
               onClick={() => setShowApiKeyDialog(true)}
               className="text-muted-foreground/50 hover:text-muted-foreground transition-colors"
               title="API key settings"

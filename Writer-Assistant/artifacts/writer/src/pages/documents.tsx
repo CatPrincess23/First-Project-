@@ -24,7 +24,7 @@ import {
 import { UserButton, useAuth } from "@clerk/react";
 import OnboardingTour from "@/components/onboarding-tour";
 import { UserApiKeyDialog } from "@/components/user-api-key-dialog";
-import { getUserApiConfig } from "@/lib/api-key";
+import { getUserApiConfig, isUserApiKeyEnabled } from "@/lib/api-key";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
@@ -119,7 +119,7 @@ export default function Documents() {
   const [activeView, setActiveView] = useState<View>("home");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
-  const hasUserKey = !!getUserApiConfig();
+  const hasUserKey = !!getUserApiConfig() && isUserApiKeyEnabled();
   const isMobile = useIsMobile();
   const clerkEnabled = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
