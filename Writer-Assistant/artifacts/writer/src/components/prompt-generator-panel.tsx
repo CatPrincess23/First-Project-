@@ -113,6 +113,7 @@ export function PromptGeneratorPanel({
   const [entityType, setEntityType] = useState<EntityType>("character");
   const [entityName, setEntityName] = useState("");
   const [personalityTraits, setPersonalityTraits] = useState<string[]>([]);
+  const [age, setAge] = useState("");
   const [skinColor, setSkinColor] = useState("");
   const [eyeColor, setEyeColor] = useState("");
   const [hairColor, setHairColor] = useState("");
@@ -163,6 +164,7 @@ export function PromptGeneratorPanel({
           entityType,
           entityName: entityName || undefined,
           personalityTraits,
+          age: age || undefined,
           skinColor: skinColor || undefined,
           eyeColor: eyeColor || undefined,
           hairColor: hairColor || undefined,
@@ -279,6 +281,17 @@ export function PromptGeneratorPanel({
                 />
               ))}
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Age</label>
+            <input
+              type="text"
+              value={age}
+              onChange={(e) => setAge(e.target.value)}
+              placeholder="e.g. 12, young adult, elderly, 30s…"
+              className="w-full text-xs bg-background border rounded-md px-2 py-1.5 outline-none focus:ring-1 focus:ring-primary"
+            />
           </div>
 
           <SelectField label="Person Type" value={personType} options={PERSON_TYPE_OPTIONS} onChange={setPersonType} placeholder="Hero, villain, mentor…" />

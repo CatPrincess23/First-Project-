@@ -928,6 +928,7 @@ router.post("/generate-prompt", async (req, res) => {
   const skinColor = body.skinColor;
   const eyeColor = body.eyeColor;
   const hairColor = body.hairColor;
+  const age = body.age;
   const faith = body.faith;
   const heritage = body.heritage;
   const personType = body.personType;
@@ -1028,6 +1029,9 @@ Return ONLY a compact paragraph (2-4 sentences) of visual description. Do NOT ad
   if (hairColor && entityType === "character") {
     parts.push(`Hair color: ${hairColor}`);
   }
+  if (age && entityType === "character") {
+    parts.push(`Age: ${age}`);
+  }
   if (faith && entityType === "character") {
     parts.push(`Faith/Religion: ${faith}`);
   }
@@ -1050,13 +1054,17 @@ Return ONLY a compact paragraph (2-4 sentences) of visual description. Do NOT ad
       messages: [
         {
           role: "system",
-          content: `You are an expert prompt engineer for AI image generation. Your job is to create detailed, vivid image prompts based on the attributes provided.
+          content: `You are an expert prompt engineer for AI image generation. Your job is to create detailed, vivid image prompts based on the attributes provided. You MUST incorporate EVERY provided attribute into the visual description.
 
 For each attribute set, craft a SINGLE paragraph (2-4 sentences) that a text-to-image AI (like Midjourney, DALL-E, Stable Diffusion) can use to generate an image.
 
-Guidelines:
-- Describe the visual: appearance, clothing, expression, pose, lighting, mood, setting, colors
-- Include artistic style cues: "fantasy art", "digital painting", "photorealistic", "anime style", "cinematic lighting" — pick one that fits
+CRITICAL RULES — you MUST follow these:
+- FAITH/RELIGION: If given, use it to determine appropriate clothing, headwear, accessories, and modesty standards. For example: Islam → hijab/niqab/thobe/kufi for appropriate figures, modest loose-fitting clothing; Judaism → kippah/tallit/tzitzit for observant figures; Hinduism → bindi/sari/dhoti; Sikhism → turban/kirpan/kara; Buddhism → robes/malas; Christianity → cross necklace/modest dress; Norse paganism → rune symbols/Thor's hammer pendant. Research what followers of that faith actually wear and describe it specifically.
+- AGE: If given, make the person look that age precisely. A 12-year-old should have youthful facial features (rounder face, smaller stature, no wrinkles), age-appropriate clothing, and childlike proportions. An elderly person should show wrinkles, gray/white hair, age spots, different posture. "Young adult" should show mature but youthful features. Match the body proportions, facial maturity, and styling to the age.
+- HERITAGE: Use it to determine skin tone, facial structure, hair texture, and traditional clothing elements. For example: African → appropriate skin tones, natural hairstyles/traditional fabrics; East Asian → appropriate facial features, traditional garments like hanbok/kimono/cheongsam; South Asian → appropriate features, clothing like shalwar kameez/sari/lehenga; Middle Eastern → appropriate features, traditional clothing like thawb/abaya. Be specific and authentic — do NOT default to vaguely "European" features.
+- PERSONALITY: Show it through expression, body language, and styling — not just by listing it.
+- PERSON TYPE (archetype): Inform the pose, attire, and setting. A warrior wears armor and stands ready. A scholar has books and wears studious attire.
+- Include artistic style cues: "fantasy art", "digital painting", "photorealistic", "anime style", "cinematic lighting" — pick one that fits the genre
 - Add atmosphere: time of day, weather, lighting quality, color palette
 - For characters: hair, face, expression, stance, clothing, what they're doing
 - For places: architecture, landscape, scale, mood, weather, time of day
