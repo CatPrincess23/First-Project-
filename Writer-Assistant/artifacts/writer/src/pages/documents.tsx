@@ -351,8 +351,8 @@ export default function Documents() {
                 </div>
               </div>
               {/* Decorative stars */}
-              <div className="absolute top-4 right-8 text-2xl opacity-30 select-none pointer-events-none">✦ ✧ ✦</div>
-              <div className="absolute bottom-4 right-12 text-lg opacity-20 select-none pointer-events-none">✧ ✦ ✧</div>
+              <div className="absolute top-4 right-8 text-2xl opacity-30 select-none pointer-events-none">✶ ⋆ ★</div>
+              <div className="absolute bottom-4 right-12 text-lg opacity-20 select-none pointer-events-none">★ ⋆ ✶</div>
             </div>
 
             {/* Stats Overview */}
