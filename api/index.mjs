@@ -126390,28 +126390,57 @@ router4.post("/generate-prompt", async (req, res) => {
   let contextText = "";
   if (useScanner && entityName && documentContent) {
     try {
-      const scanCompletion = await config2.client.chat.completions.create({
-        model: config2.model,
-        temperature: 0.3,
-        messages: [
-          {
-            role: "system",
-            content: `You are a literary analyst. Scan the document and extract ALL visual and descriptive details about the entity named below. Look for descriptions of appearance, personality, role, surroundings, actions, and anything that would help generate an image.
+      const docText = documentContent.slice(0, 1e5);
+      const name = entityName.trim();
+      const nameLower = name.toLowerCase();
+      const WINDOW = 200;
+      const MAX_EXCERPTS = 6;
+      const MAX_TOTAL = 3e3;
+      const excerpts = [];
+      let searchFrom = 0;
+      while (excerpts.length < MAX_EXCERPTS) {
+        const idx = docText.toLowerCase().indexOf(nameLower, searchFrom);
+        if (idx === -1) break;
+        let lo = Math.max(0, idx - WINDOW);
+        let hi = Math.min(docText.length, idx + name.length + WINDOW);
+        if (lo > 0) {
+          const s2 = docText.indexOf(" ", lo);
+          if (s2 !== -1 && s2 < idx) lo = s2 + 1;
+        }
+        if (hi < docText.length) {
+          const s2 = docText.lastIndexOf(" ", hi);
+          if (s2 > idx) hi = s2;
+        }
+        let snippet = docText.slice(lo, hi).replace(/\s+/g, " ").trim();
+        if (lo > 0) snippet = "\u2026" + snippet;
+        if (hi < docText.length) snippet = snippet + "\u2026";
+        excerpts.push(snippet);
+        searchFrom = idx + name.length;
+      }
+      if (excerpts.length > 0) {
+        let combined = excerpts.join("\n\n---\n\n");
+        if (combined.length > MAX_TOTAL) combined = combined.slice(0, MAX_TOTAL) + "\u2026";
+        const scanCompletion = await config2.client.chat.completions.create({
+          model: config2.model,
+          temperature: 0.3,
+          messages: [
+            {
+              role: "system",
+              content: `You are a literary analyst. Below are excerpts from a document where the entity "${entityName}" is mentioned. Extract ALL visual and descriptive details about them from these passages \u2014 appearance, personality, role, surroundings, actions.
 
-Entity to find: ${entityName}
-
-Return ONLY a compact paragraph (2-4 sentences) of visual description extracted from the text. Do NOT add information not in the document. If the entity is not found, return "NOT FOUND". No JSON, no markdown.`
-          },
-          { role: "user", content: `<document>
-${documentContent.slice(0, 1e5)}
-</document>` }
-        ],
-        max_tokens: 500
-      });
-      trackTokens(config2.userId, scanCompletion);
-      const scanResult = scanCompletion.choices[0]?.message?.content?.trim() || "";
-      if (scanResult !== "NOT FOUND") {
-        contextText = scanResult;
+Return ONLY a compact paragraph (2-4 sentences) of visual description. Do NOT add information not in the text. No JSON, no markdown.`
+            },
+            { role: "user", content: `<excerpts>
+${combined}
+</excerpts>` }
+          ],
+          max_tokens: 400
+        });
+        trackTokens(config2.userId, scanCompletion);
+        const scanResult = scanCompletion.choices[0]?.message?.content?.trim() || "";
+        if (scanResult.toUpperCase() !== "NOT FOUND") {
+          contextText = scanResult;
+        }
       }
     } catch {
     }

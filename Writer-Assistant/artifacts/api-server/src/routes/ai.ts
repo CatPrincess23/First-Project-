@@ -927,29 +927,64 @@ router.post("/generate-prompt", async (req, res) => {
 
   let contextText = "";
 
-  // Scanner mode: find mentions of the entity in the document and extract context
+  // Scanner mode: find mentions of the entity NAME in the document text,
+  // extract a short window around each mention, and send only those excerpts
+  // to the AI — not the whole book. This keeps token usage tiny even for
+  // long manuscripts.
   if (useScanner && entityName && documentContent) {
     try {
-      const scanCompletion = await config.client.chat.completions.create({
-        model: config.model,
-        temperature: 0.3,
-        messages: [
-          {
-            role: "system",
-            content: `You are a literary analyst. Scan the document and extract ALL visual and descriptive details about the entity named below. Look for descriptions of appearance, personality, role, surroundings, actions, and anything that would help generate an image.
+      const docText = (documentContent as string).slice(0, 100000);
+      const name = entityName.trim();
+      const nameLower = name.toLowerCase();
 
-Entity to find: ${entityName}
+      // Local keyword search: find every occurrence of the name (case-insensitive)
+      const WINDOW = 200; // chars of context per side
+      const MAX_EXCERPTS = 6; // cap number of passages
+      const MAX_TOTAL = 3000; // cap total excerpt chars
+      const excerpts: string[] = [];
+      let searchFrom = 0;
+      while (excerpts.length < MAX_EXCERPTS) {
+        const idx = docText.toLowerCase().indexOf(nameLower, searchFrom);
+        if (idx === -1) break;
 
-Return ONLY a compact paragraph (2-4 sentences) of visual description extracted from the text. Do NOT add information not in the document. If the entity is not found, return "NOT FOUND". No JSON, no markdown.`,
-          },
-          { role: "user", content: `<document>\n${(documentContent as string).slice(0, 100000)}\n</document>` },
-        ],
-        max_tokens: 500,
-      });
-      trackTokens(config.userId, scanCompletion);
-      const scanResult = scanCompletion.choices[0]?.message?.content?.trim() || "";
-      if (scanResult !== "NOT FOUND") {
-        contextText = scanResult;
+        // Expand to word boundaries around the mention
+        let lo = Math.max(0, idx - WINDOW);
+        let hi = Math.min(docText.length, idx + name.length + WINDOW);
+        if (lo > 0) { const s = docText.indexOf(" ", lo); if (s !== -1 && s < idx) lo = s + 1; }
+        if (hi < docText.length) { const s = docText.lastIndexOf(" ", hi); if (s > idx) hi = s; }
+
+        let snippet = docText.slice(lo, hi).replace(/\s+/g, " ").trim();
+        if (lo > 0) snippet = "…" + snippet;
+        if (hi < docText.length) snippet = snippet + "…";
+        excerpts.push(snippet);
+
+        searchFrom = idx + name.length;
+      }
+
+      if (excerpts.length > 0) {
+        // Combine excerpts, capped to MAX_TOTAL chars
+        let combined = excerpts.join("\n\n---\n\n");
+        if (combined.length > MAX_TOTAL) combined = combined.slice(0, MAX_TOTAL) + "…";
+
+        const scanCompletion = await config.client.chat.completions.create({
+          model: config.model,
+          temperature: 0.3,
+          messages: [
+            {
+              role: "system",
+              content: `You are a literary analyst. Below are excerpts from a document where the entity "${entityName}" is mentioned. Extract ALL visual and descriptive details about them from these passages — appearance, personality, role, surroundings, actions.
+
+Return ONLY a compact paragraph (2-4 sentences) of visual description. Do NOT add information not in the text. No JSON, no markdown.`,
+            },
+            { role: "user", content: `<excerpts>\n${combined}\n</excerpts>` },
+          ],
+          max_tokens: 400,
+        });
+        trackTokens(config.userId, scanCompletion);
+        const scanResult = scanCompletion.choices[0]?.message?.content?.trim() || "";
+        if (scanResult.toUpperCase() !== "NOT FOUND") {
+          contextText = scanResult;
+        }
       }
     } catch {
       // scanner failure is non-fatal — continue without context
