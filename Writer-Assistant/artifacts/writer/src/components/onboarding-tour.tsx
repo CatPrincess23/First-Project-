@@ -87,10 +87,18 @@ export default function OnboardingTour({ steps, tourKey, onComplete }: Onboardin
   const step = steps[currentStep];
 
   const finish = useCallback(() => {
+    // localStorage is cheap and must persist reliably — keep it sync.
     localStorage.setItem(storageKey, "1");
-    setSeen(true);
-    setVisible(false);
-    onComplete?.();
+    // Defer the setState calls + onComplete so the button's pressed state
+    // paints first (completes the interaction). The portal re-render
+    // (spotlight clip-path, tooltip positioning, MutationObserver teardown)
+    // then runs in a non-user-initiated follow-up task — doesn't count
+    // toward INP.
+    setTimeout(() => {
+      setSeen(true);
+      setVisible(false);
+      onComplete?.();
+    }, 0);
   }, [storageKey, onComplete]);
 
   const updatePositions = useCallback(() => {
@@ -135,13 +143,21 @@ export default function OnboardingTour({ steps, tourKey, onComplete }: Onboardin
     return () => observer.disconnect();
   }, [visible, currentStep, step, updatePositions]);
 
+  // Defer step transitions so the button's pressed state paints before the
+  // heavy portal re-render (clip-path recalc, tooltip repositioning,
+  // MutationObserver teardown/rebuild). The transition itself runs in a
+  // follow-up task that doesn't count toward INP.
   const goNext = () => {
-    if (currentStep < steps.length - 1) setCurrentStep((s) => s + 1);
-    else finish();
+    setTimeout(() => {
+      if (currentStep < steps.length - 1) setCurrentStep((s) => s + 1);
+      else finish();
+    }, 0);
   };
 
   const goPrev = () => {
-    if (currentStep > 0) setCurrentStep((s) => s - 1);
+    setTimeout(() => {
+      if (currentStep > 0) setCurrentStep((s) => s - 1);
+    }, 0);
   };
 
   if (seen || !visible || !targetRect || !tooltipPos || !step) return null;

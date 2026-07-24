@@ -6,9 +6,8 @@ function getInitialTheme(): Theme {
   try {
     const stored = localStorage.getItem("writeai-theme");
     if (stored === "dark" || stored === "light") return stored;
-    if (window.matchMedia("(prefers-color-scheme: dark)").matches) return "dark";
   } catch {}
-  return "light";
+  return "dark";
 }
 
 const initialTheme = getInitialTheme();
