@@ -1131,6 +1131,10 @@ export default function Editor({ params }: { params: { id: string } }) {
             Add
           </Button>
         </div>
+        <div className="flex items-center justify-between rounded-md border bg-secondary/40 px-2.5 py-1.5 text-xs">
+          <span className="font-medium text-muted-foreground">Entire book</span>
+          <span className="font-medium">{chapters.reduce((sum, c) => sum + (c.id === activeChapterId ? wordCount : c.wordCount), 0).toLocaleString()} words</span>
+        </div>
         <div className="space-y-1.5" style={{ contain: "layout paint style" }}>
           {chapters.map((c, i) => {
             const isActive = c.id === activeChapterId;
@@ -1378,6 +1382,10 @@ export default function Editor({ params }: { params: { id: string } }) {
           <Button onClick={stableAddChapter} size="sm" className="gap-1 h-7" disabled={createChapter.isPending}>
             {createChapter.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />} Add
           </Button>
+        </div>
+        <div className="flex items-center justify-between rounded-md border bg-secondary/40 px-2.5 py-1.5 text-xs">
+          <span className="font-medium text-muted-foreground">Entire book</span>
+          <span className="font-medium">{chapters.reduce((sum, c) => sum + (c.id === activeChapterId ? wordCount : c.wordCount), 0).toLocaleString()} words</span>
         </div>
         <div className="space-y-1.5">
           {chapters.map((c, i) => {
