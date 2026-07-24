@@ -879,8 +879,18 @@ export default function Editor({ params }: { params: { id: string } }) {
     setIsExporting(true);
     await new Promise(r => setTimeout(r, 50));
     try {
-      if (format === "pdf") await exportToPDF(title, content);
-      else await exportToDOCX(title, content);
+      const allChapters = chaptersQuery.data;
+      let combinedContent: string;
+      if (allChapters && allChapters.length > 1) {
+        combinedContent = allChapters
+          .sort((a, b) => a.position - b.position)
+          .map(ch => `<h2>${ch.title}</h2>\n${ch.content}`)
+          .join("\n\n");
+      } else {
+        combinedContent = content;
+      }
+      if (format === "pdf") await exportToPDF(title, combinedContent);
+      else await exportToDOCX(title, combinedContent);
     } catch (e) {
       toast({ title: "Export failed", variant: "destructive" });
     } finally {
@@ -952,14 +962,16 @@ export default function Editor({ params }: { params: { id: string } }) {
 
   const switchChapter = useCallback((id: number) => {
     if (id === activeChapterIdRef.current) return;
-    flushSave();
     const target = chaptersRef.current.find((c) => c.id === id);
     if (!target) return;
     setActiveChapterId(id);
-    applyEditorContent(target.content);
-    latestHtmlRef.current = target.content;
-    lastSavedRef.current = { title: titleRef.current, content: target.content };
-    clearChapterGrammarState();
+    setTimeout(() => {
+      flushSave();
+      applyEditorContent(target.content);
+      latestHtmlRef.current = target.content;
+      lastSavedRef.current = { title: titleRef.current, content: target.content };
+      clearChapterGrammarState();
+    }, 0);
   }, [flushSave, applyEditorContent, clearChapterGrammarState]);
 
   const addChapter = useCallback(() => {
