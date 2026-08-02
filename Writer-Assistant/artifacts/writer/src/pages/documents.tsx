@@ -19,6 +19,7 @@ import {
   Plus, FileText, Trash2, Loader2, ArrowRight, Sun, Moon, Globe, Target,
   LayoutDashboard, Sparkles, BookOpen, Image as ImageIcon, History,
   CheckCircle, Wand2, Crown, User, ChevronRight, HelpCircle, Menu, Zap, KeyRound,
+  AlertTriangle, LogOut,
 } from "lucide-react";
 import { UserButton, useAuth } from "@clerk/react";
 import OnboardingTour from "@/components/onboarding-tour";
@@ -107,6 +108,44 @@ function ClaimDocumentsEffect() {
   }, [isSignedIn, getToken, queryClient]);
 
   return null;
+}
+
+// When a signed-in user has zero documents, the most likely cause is that their
+// documents live under a different identity — they signed in with another
+// account, or their browser lost the previous session. Surface a clear recovery
+// prompt instead of a silent empty dashboard. Only rendered when Clerk is
+// enabled, so useAuth() is always inside the ClerkProvider.
+function SignedInZeroDocsBanner() {
+  const { isSignedIn, userId, signOut } = useAuth();
+
+  if (!isSignedIn) return null;
+
+  return (
+    <div className="rounded-xl border border-amber-400/50 bg-amber-50 dark:bg-amber-500/10 p-5 space-y-3">
+      <div className="flex items-start gap-3">
+        <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+        <div>
+          <h3 className="font-semibold text-amber-900 dark:text-amber-200">Your documents aren't here</h3>
+          <p className="text-sm text-amber-800 dark:text-amber-200/80 mt-1">
+            You're signed in, but this account has no documents. Your writing is likely saved under a
+            different account — sign out and sign back in with the one you used before (the same email
+            or the same Google/GitHub login).
+          </p>
+          {userId && (
+            <p className="text-xs text-amber-700 dark:text-amber-300/70 mt-2 font-mono">Account ID: {userId}</p>
+          )}
+        </div>
+      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        className="gap-2 border-amber-400/60 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-500/10"
+        onClick={() => signOut()}
+      >
+        <LogOut className="w-4 h-4" /> Sign out and switch account
+      </Button>
+    </div>
+  );
 }
 
 export default function Documents() {
@@ -510,15 +549,18 @@ export default function Documents() {
             )}
 
             {!isLoadingDocs && docs.length === 0 && (
-              <div className="text-center py-16 px-6 border-2 border-dashed rounded-xl bg-card/50">
-                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <FileText className="w-8 h-8 text-primary" />
+              <div className="space-y-4">
+                {clerkEnabled && <SignedInZeroDocsBanner />}
+                <div className="text-center py-16 px-6 border-2 border-dashed rounded-xl bg-card/50">
+                  <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <FileText className="w-8 h-8 text-primary" />
+                  </div>
+                  <h3 className="text-lg font-medium mb-2">Start your first story</h3>
+                  <p className="text-muted-foreground mb-6 text-sm max-w-sm mx-auto">Create a document and begin writing with the power of AI at your side.</p>
+                  <Button onClick={handleCreateDocument} disabled={createDoc.isPending} className="gap-2">
+                    <Plus className="w-4 h-4" /> Create First Document
+                  </Button>
                 </div>
-                <h3 className="text-lg font-medium mb-2">Start your first story</h3>
-                <p className="text-muted-foreground mb-6 text-sm max-w-sm mx-auto">Create a document and begin writing with the power of AI at your side.</p>
-                <Button onClick={handleCreateDocument} disabled={createDoc.isPending} className="gap-2">
-                  <Plus className="w-4 h-4" /> Create First Document
-                </Button>
               </div>
             )}
           </div>
