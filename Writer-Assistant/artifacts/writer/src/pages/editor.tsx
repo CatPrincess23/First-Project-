@@ -58,6 +58,14 @@ function boundarySnippet(text: string, cutPos: number, radius = 35): string {
   return snippet;
 }
 
+// Stable empty array reference. Returning a fresh `[]` from a useMemo whose
+// result feeds the desktopSidebar useMemo deps would invalidate the sidebar
+// memo on every keystroke (content is in the deps), re-rendering the entire
+// ~250-line sidebar each character typed. Returning this constant keeps the
+// reference identical when there is nothing to show, so the sidebar memo stays
+// stable during typing.
+const EMPTY_SNIPPETS: readonly string[] = [];
+
 function chunkSnippet(text: string, chunkIndex: number, chunkSize: number): { first: string; last: string; start: number; end: number } {
   const rawStart = chunkIndex * chunkSize;
   const rawEnd = Math.min(text.length, rawStart + chunkSize);
@@ -920,7 +928,7 @@ export default function Editor({ params }: { params: { id: string } }) {
   const safeSuggestChunkIndex = Math.min(suggestChunkIndex, suggestChunks - 1);
 
   const grammarSnippets = useMemo(() => {
-    if (grammarErrors.length === 0) return [];
+    if (grammarErrors.length === 0) return EMPTY_SNIPPETS;
     return grammarErrors.map((err) => {
       const range = plainSpanToHtml(err.offset, err.length);
       return range ? stripHtml(content.slice(range[0], range[1])) : (err.message || "");

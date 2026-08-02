@@ -249,15 +249,26 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
       // isDarkColor() parses hex inline and caches results, so this decorations
       // callback (which runs on every transaction) never forces a layout/style
       // recalc — critical for INP while typing.
+      //
+      // The decoration set is a pure function of (doc, isDarkMode), so we cache
+      // it by doc reference. Typing changes the doc and recomputes; but cursor
+      // moves / selection changes (which also trigger this callback and fire
+      // constantly while typing) reuse the cached set instead of re-walking
+      // every text node in a long document.
       Extension.create({
         name: "darkColorFix",
         addProseMirrorPlugins() {
+          let cachedDoc: any = null;
+          let cachedDecos: DecorationSet | null = null;
           return [
             new Plugin({
               key: new PluginKey("dark-color-fix"),
               props: {
                 decorations(state) {
                   if (!document.documentElement.classList.contains("dark")) return null;
+                  if (cachedDoc === state.doc) return cachedDecos;
+                  cachedDoc = state.doc;
+                  cachedDecos = null;
                   const decos: Decoration[] = [];
                   state.doc.descendants((node, pos) => {
                     if (!node.isText) return;
@@ -269,7 +280,8 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
                       }));
                     }
                   });
-                  return decos.length ? DecorationSet.create(state.doc, decos) : null;
+                  if (decos.length) cachedDecos = DecorationSet.create(state.doc, decos);
+                  return cachedDecos;
                 },
               },
             }),
@@ -329,7 +341,7 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
   useEffect(() => {
     if (!editor) return;
     const sync = () => {
-      setToolbarFmt({
+      const next = {
         fontFamily: editor.getAttributes("textStyle").fontFamily || "",
         fontSize: editor.getAttributes("textStyle").fontSize || "",
         color: editor.getAttributes("textStyle").color || "#000000",
@@ -346,6 +358,16 @@ function RichTextEditor({ content, onChange, onBlur, placeholder, onSelectionCha
         isCodeBlock: editor.isActive("codeBlock"),
         textAlign: editor.isActive({ textAlign: "left" }) ? "left" : editor.isActive({ textAlign: "center" }) ? "center" : editor.isActive({ textAlign: "right" }) ? "right" : editor.isActive({ textAlign: "justify" }) ? "justify" : "",
         isLink: editor.isActive("link"),
+      };
+      setToolbarFmt(prev => {
+        // Bail out (return the same reference) when no formatting value changed.
+        // selectionUpdate fires on every keystroke because the cursor moves, but
+        // plain typing rarely changes formatting — skipping the state update lets
+        // React skip re-rendering this component on every character.
+        for (const key in next) {
+          if ((prev as any)[key] !== (next as any)[key]) return next;
+        }
+        return prev;
       });
     };
     editor.on("selectionUpdate", sync);
