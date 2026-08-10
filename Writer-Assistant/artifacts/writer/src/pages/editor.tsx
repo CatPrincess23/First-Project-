@@ -818,7 +818,7 @@ export default function Editor({ params }: { params: { id: string } }) {
     setChatMessages(prev => [...prev, userMsg]);
     setChatInput("");
 
-    const docContext = stripHtml(content).trim();
+    const docContext = stripHtml(rebuildFullContent(content)).trim();
     if (docContext) chatDocContent.current = docContext;
     const fullText = chatDocContent.current || "";
     const chunkStart = safeChunkIndex * DOC_CONTEXT_CAP;
@@ -828,7 +828,7 @@ export default function Editor({ params }: { params: { id: string } }) {
     const chunkWords = chunkText ? chunkText.trim().split(/\s+/).length : 0;
     const partLabel = chatChunks > 1 ? ` This is part ${safeChunkIndex + 1} of ${chatChunks} (characters ${chunkStart.toLocaleString()}-${chunkEnd.toLocaleString()} of ${fullText.length.toLocaleString()}, ~${chunkWords} of ~${totalWords} words). Only comment on this section unless the user asks about the whole document.` : "";
     const contextMsg = chunkText
-      ? { role: "system" as const, content: `The user's document is titled "${title}" (~${totalWords} words total). Here is the content to review — READ IT ALL:\n\n${chunkText}\n\n---\nYou have the section above.${partLabel} Give specific feedback based on the actual text: point out strengths, weaknesses, style, pacing, character development, plot structure. Quote examples. Offer concrete improvements. Be proactive — mention things the user didn't ask for if you notice something important.` }
+      ? { role: "system" as const, content: `The user's manuscript titled "${title}" (~${totalWords} words total${chapters.length > 1 ? ` across ${chapters.length} chapters` : ""}). Here is the content to review — READ IT ALL:\n\n${chunkText}\n\n---\nYou have the section above.${partLabel} Give specific feedback based on the actual text: point out strengths, weaknesses, style, pacing, character development, plot structure. Quote examples. Offer concrete improvements. Be proactive — mention things the user didn't ask for if you notice something important.` }
       : null;
 
     const messagesPayload = contextMsg ? [contextMsg, userMsg] : [userMsg];
@@ -910,19 +910,23 @@ export default function Editor({ params }: { params: { id: string } }) {
   const GRAMMAR_CAP = 20000;
   const SUGGEST_CAP = 8000;
   const deferredContent = useDeferredValue(content);
-  const { wordCount, docCharCount, plainText, chatChunks, grammarChunks, suggestChunks } = useMemo(() => {
+  const { wordCount, docCharCount, plainText, bookText, bookWords, chatChunks, grammarChunks, suggestChunks } = useMemo(() => {
     const text = stripHtml(deferredContent).trim();
+    // Chat scans the WHOLE manuscript (all chapters), not just the active one.
+    const book = stripHtml(rebuildFullContent(deferredContent)).trim();
     const charCount = text.length;
     return {
       wordCount: text ? text.split(/\s+/).length : 0,
       docCharCount: charCount,
       plainText: text,
-      chatChunks: Math.max(1, Math.ceil(charCount / DOC_CONTEXT_CAP)),
+      bookText: book,
+      bookWords: book ? book.split(/\s+/).length : 0,
+      chatChunks: Math.max(1, Math.ceil(book.length / DOC_CONTEXT_CAP)),
       grammarChunks: Math.max(1, Math.ceil(charCount / GRAMMAR_CAP)),
       suggestChunks: Math.max(1, Math.ceil(charCount / SUGGEST_CAP)),
     };
-  }, [deferredContent, stripHtml]);
-  const docTruncated = docCharCount > DOC_CONTEXT_CAP;
+  }, [deferredContent, stripHtml, rebuildFullContent]);
+  const docTruncated = bookText.length > DOC_CONTEXT_CAP;
   const safeChunkIndex = Math.min(chatChunkIndex, chatChunks - 1);
   const safeGrammarChunkIndex = Math.min(grammarChunkIndex, grammarChunks - 1);
   const safeSuggestChunkIndex = Math.min(suggestChunkIndex, suggestChunks - 1);
@@ -1290,10 +1294,10 @@ export default function Editor({ params }: { params: { id: string } }) {
         <div>
           <h3 className="font-medium text-sm mb-1">AI Chat</h3>
           <p className="text-xs text-muted-foreground mb-3">Ask questions about your writing, get feedback, or brainstorm ideas.</p>
-          {hasContent && <Badge variant="secondary" className="text-[10px] mb-2 gap-1"><BookOpen className="w-2.5 h-2.5" /> {chapters.length > 1 ? "Chapter" : "Document"} synced ({wordCount.toLocaleString()} words)</Badge>}
+          {hasContent && <Badge variant="secondary" className="text-[10px] mb-2 gap-1"><BookOpen className="w-2.5 h-2.5" /> {chapters.length > 1 ? "Manuscript" : "Document"} synced ({bookWords.toLocaleString()} words)</Badge>}
           <ChapterPicker chapters={chapters} activeId={activeChapterId} onChange={stableSwitchChapter} />
           {docTruncated && (
-            <ChunkSelector label={`Chapter too long (~${(docCharCount / 1000).toFixed(0)}K chars) — pick which section the AI reads:`} chunkIndex={safeChunkIndex} totalChunks={chatChunks} chunkSize={DOC_CONTEXT_CAP} docLength={docCharCount} plainText={plainText} onChange={setChatChunkIndex} />
+            <ChunkSelector label={`Manuscript too long (~${(bookText.length / 1000).toFixed(0)}K chars) — pick which section the AI reads:`} chunkIndex={safeChunkIndex} totalChunks={chatChunks} chunkSize={DOC_CONTEXT_CAP} docLength={bookText.length} plainText={bookText} onChange={setChatChunkIndex} />
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -1363,7 +1367,7 @@ export default function Editor({ params }: { params: { id: string } }) {
   suggestion, isSuggesting, suggestType, suggestChunks, safeSuggestChunkIndex,
   isRunningAiTool, aiToolType, aiToolResult,
   chatMessages, chatInput, isChatLoading, activeConversationId, isLoadingConversations, conversations,
-  chatChunks, safeChunkIndex, docTruncated, wordCount,
+  chatChunks, safeChunkIndex, docTruncated, wordCount, bookText, bookWords,
   versions, createVersion.isPending,
   chapters, activeChapterId, editingChapterId, editingTitle, createChapter.isPending,
   stableSwitchChapter, stableAddChapter, stableDeleteChapter, stableStartEditTitle, stableCommitEditTitle, stableMoveChapter,
@@ -1496,7 +1500,7 @@ export default function Editor({ params }: { params: { id: string } }) {
           <h3 className="font-medium text-sm mb-1">AI Chat</h3>
           <p className="text-xs text-muted-foreground mb-3">Chat about your writing.</p>
           <ChapterPicker chapters={chapters} activeId={activeChapterId} onChange={stableSwitchChapter} />
-          {docTruncated && <ChunkSelector label="Chapter too long — pick which section to share:" chunkIndex={safeChunkIndex} totalChunks={chatChunks} chunkSize={DOC_CONTEXT_CAP} docLength={docCharCount} plainText={plainText} onChange={setChatChunkIndex} />}
+          {docTruncated && <ChunkSelector label="Manuscript too long — pick which section to share:" chunkIndex={safeChunkIndex} totalChunks={chatChunks} chunkSize={DOC_CONTEXT_CAP} docLength={bookText.length} plainText={bookText} onChange={setChatChunkIndex} />}
         </div>
         <div className="flex-1 space-y-3 overflow-y-auto min-h-0" style={{ contain: "layout paint style" }}>
           {chatMessages.length === 0 && <p className="text-xs text-muted-foreground text-center py-8">Start a conversation.</p>}
@@ -1525,7 +1529,7 @@ export default function Editor({ params }: { params: { id: string } }) {
   suggestion, isSuggesting, suggestType, suggestChunks, safeSuggestChunkIndex,
   isRunningAiTool, aiToolType, aiToolResult,
   chatMessages, chatInput, isChatLoading,
-  chatChunks, safeChunkIndex, docTruncated, wordCount,
+  chatChunks, safeChunkIndex, docTruncated, wordCount, bookText, bookWords,
   chapters, activeChapterId, editingChapterId, editingTitle, createChapter.isPending,
   stableSwitchChapter, stableAddChapter, stableDeleteChapter, stableStartEditTitle, stableCommitEditTitle,
 ]);
