@@ -1228,13 +1228,13 @@ export default function Editor({ params }: { params: { id: string } }) {
   <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="flex flex-col h-full">
     <div className="px-3 py-2.5 border-b shrink-0">
       <TabsList className="grid w-full grid-cols-7 h-8">
-        <TabsTrigger value="chapters" title="Chapters" className="text-xs px-1"><List className="w-3.5 h-3.5" /></TabsTrigger>
-        <TabsTrigger value="grammar" title="Grammar" className="text-xs px-1"><CheckCircle className="w-3.5 h-3.5" /></TabsTrigger>
-        <TabsTrigger value="suggest" title="AI Rewrite" className="text-xs px-1"><Sparkles className="w-3.5 h-3.5" /></TabsTrigger>
-        <TabsTrigger value="ai-tools" title="Summarize / Prologue" className="text-xs px-1"><BookOpen className="w-3.5 h-3.5" /></TabsTrigger>
-        <TabsTrigger value="image" title="Image Prompt Generator" className="text-xs px-1"><ImageIcon className="w-3.5 h-3.5" /></TabsTrigger>
-        <TabsTrigger value="chat" title="AI Chat" className="text-xs px-1"><MessageCircle className="w-3.5 h-3.5" /></TabsTrigger>
-        <TabsTrigger value="history" title="Version History" className="text-xs px-1"><History className="w-3.5 h-3.5" /></TabsTrigger>
+        <TabsTrigger value="chapters" title="Chapters" className="text-xs px-1" id="tour-editor-tab-chapters"><List className="w-3.5 h-3.5" /></TabsTrigger>
+        <TabsTrigger value="grammar" title="Grammar" className="text-xs px-1" id="tour-editor-tab-grammar"><CheckCircle className="w-3.5 h-3.5" /></TabsTrigger>
+        <TabsTrigger value="suggest" title="AI Rewrite" className="text-xs px-1" id="tour-editor-tab-suggest"><Sparkles className="w-3.5 h-3.5" /></TabsTrigger>
+        <TabsTrigger value="ai-tools" title="Summarize / Prologue" className="text-xs px-1" id="tour-editor-tab-ai-tools"><BookOpen className="w-3.5 h-3.5" /></TabsTrigger>
+        <TabsTrigger value="image" title="Image Prompt Generator" className="text-xs px-1" id="tour-editor-tab-image"><ImageIcon className="w-3.5 h-3.5" /></TabsTrigger>
+        <TabsTrigger value="chat" title="AI Chat" className="text-xs px-1" id="tour-editor-tab-chat"><MessageCircle className="w-3.5 h-3.5" /></TabsTrigger>
+        <TabsTrigger value="history" title="Version History" className="text-xs px-1" id="tour-editor-tab-history"><History className="w-3.5 h-3.5" /></TabsTrigger>
       </TabsList>
     </div>
     <div className="flex-1 min-h-0" style={{ contain: "layout paint style" }}>
@@ -1416,6 +1416,7 @@ export default function Editor({ params }: { params: { id: string } }) {
             <Button variant={chatScanMode === "chapter" ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => { setChatScanMode("chapter"); setChatChunkIndex(0); }} title="The AI reads only the chapter on the canvas">Current chapter</Button>
             <Button variant={chatScanMode === "book" ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => { setChatScanMode("book"); setChatChunkIndex(0); }} title="The AI reads the entire manuscript in chunks you can pick">Whole book</Button>
           </div>
+          <p className="text-[11px] text-muted-foreground/80 leading-snug mb-2">Press “Current chapter” or “Whole book” so the AI scans your document before you chat — the scanned text is sent with every message.</p>
           {chatScanMode === "book" ? (
             <>
               {hasContent && <Badge variant="secondary" className="text-[10px] mb-2 gap-1"><BookOpen className="w-2.5 h-2.5" /> Manuscript synced ({bookWords.toLocaleString()} words)</Badge>}
@@ -1515,13 +1516,13 @@ export default function Editor({ params }: { params: { id: string } }) {
   <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="flex flex-col h-full">
     <div className="px-3 py-2.5 border-b shrink-0">
       <TabsList className="grid w-full grid-cols-7 h-8">
-        <TabsTrigger value="chapters" title="Chapters" className="text-xs px-1"><List className="w-3.5 h-3.5" /></TabsTrigger>
-        <TabsTrigger value="grammar" title="Grammar" className="text-xs px-1"><CheckCircle className="w-3.5 h-3.5" /></TabsTrigger>
-        <TabsTrigger value="suggest" title="AI Rewrite" className="text-xs px-1"><Sparkles className="w-3.5 h-3.5" /></TabsTrigger>
-        <TabsTrigger value="ai-tools" title="Summarize / Prologue" className="text-xs px-1"><BookOpen className="w-3.5 h-3.5" /></TabsTrigger>
-        <TabsTrigger value="image" title="Image Prompt Generator" className="text-xs px-1"><ImageIcon className="w-3.5 h-3.5" /></TabsTrigger>
-        <TabsTrigger value="chat" title="AI Chat" className="text-xs px-1"><MessageCircle className="w-3.5 h-3.5" /></TabsTrigger>
-        <TabsTrigger value="history" title="Version History" className="text-xs px-1"><History className="w-3.5 h-3.5" /></TabsTrigger>
+        <TabsTrigger value="chapters" title="Chapters" className="text-xs px-1" id="tour-editor-tab-chapters-mobile"><List className="w-3.5 h-3.5" /></TabsTrigger>
+        <TabsTrigger value="grammar" title="Grammar" className="text-xs px-1" id="tour-editor-tab-grammar-mobile"><CheckCircle className="w-3.5 h-3.5" /></TabsTrigger>
+        <TabsTrigger value="suggest" title="AI Rewrite" className="text-xs px-1" id="tour-editor-tab-suggest-mobile"><Sparkles className="w-3.5 h-3.5" /></TabsTrigger>
+        <TabsTrigger value="ai-tools" title="Summarize / Prologue" className="text-xs px-1" id="tour-editor-tab-ai-tools-mobile"><BookOpen className="w-3.5 h-3.5" /></TabsTrigger>
+        <TabsTrigger value="image" title="Image Prompt Generator" className="text-xs px-1" id="tour-editor-tab-image-mobile"><ImageIcon className="w-3.5 h-3.5" /></TabsTrigger>
+        <TabsTrigger value="chat" title="AI Chat" className="text-xs px-1" id="tour-editor-tab-chat-mobile"><MessageCircle className="w-3.5 h-3.5" /></TabsTrigger>
+        <TabsTrigger value="history" title="Version History" className="text-xs px-1" id="tour-editor-tab-history-mobile"><History className="w-3.5 h-3.5" /></TabsTrigger>
       </TabsList>
     </div>
     <div className="flex-1 min-h-0" style={{ contain: "layout paint style" }}>
@@ -1653,6 +1654,7 @@ export default function Editor({ params }: { params: { id: string } }) {
             <Button variant={chatScanMode === "chapter" ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => { setChatScanMode("chapter"); setChatChunkIndex(0); }}>Current chapter</Button>
             <Button variant={chatScanMode === "book" ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => { setChatScanMode("book"); setChatChunkIndex(0); }}>Whole book</Button>
           </div>
+          <p className="text-[11px] text-muted-foreground/80 leading-snug mb-2">Press “Current chapter” or “Whole book” so the AI scans your document before you chat — the scanned text is sent with every message.</p>
           {chatScanMode === "book" ? (
             docTruncated ? <ChunkSelector label="Manuscript too long — pick which section to share:" chunkIndex={safeChunkIndex} totalChunks={chatChunks} chunkSize={DOC_CONTEXT_CAP} docLength={bookText.length} plainText={bookText} onChange={setChatChunkIndex} /> : null
           ) : (
@@ -1709,7 +1711,12 @@ export default function Editor({ params }: { params: { id: string } }) {
     { target: "#tour-editor-textarea", title: "Your Canvas", description: "This is where the magic happens. Write freely — grammar highlights, AI suggestions, and word count tracking work in real-time.", placement: "bottom" as const },
     { target: "#tour-editor-chapters", title: "Chapters & Drag to Reorder", description: "Organize your manuscript with chapters — create them, rename, switch, or delete. Reorder by dragging the grip handle: drop a later chapter higher up and every chapter shifts down into place. Grammar checks and AI tools target the active chapter.", placement: "left" as const },
     { target: "#tour-editor-readmode", title: "Read Mode", description: "Click the “Read” button to enter a distraction-free read mode. It locks editing so nothing you type or press can change your document, and hides the toolbar and AI sidebar — perfect for reviewing a finished draft. Click “Exit Read” to return to editing.", placement: "bottom" as const },
-    { target: "#tour-editor-sidebar", title: "AI Writing Assistant", description: "Grammar check with inline highlights, AI rewrites, summarization, prologue generation, chat with the AI about your document, and an image prompt generator — all in one sidebar.", placement: "left" as const },
+    { target: "#tour-editor-sidebar", title: "AI Writing Assistant", description: "The AI sidebar packs five writing tools into one place — Grammar, AI Rewrite, Summarize & Prologue, an Image Prompt Generator, and AI Chat. Tap the icons along the top to switch between them.", placement: "left" as const },
+    { target: "#tour-editor-tab-grammar", title: "Grammar & Style Check", description: "Checks the active chapter for spelling, grammar, punctuation, and style issues. Problems are highlighted inline in your text (red = spelling, orange = grammar, blue = style) — click one to jump to it, click its suggestion to apply it, or hit Apply All for every correction at once.", placement: "left" as const },
+    { target: "#tour-editor-tab-suggest", title: "AI Rewrite", description: "Asks the AI to rewrite your active chapter — shorten it, expand it, refresh the wording, or keep the story moving forward. Review the suggestion and click Apply to splice it straight into your document.", placement: "left" as const },
+    { target: "#tour-editor-tab-ai-tools", title: "Summarize & Prologue", description: "Get a full summary of your manuscript, or have the AI write a brand-new prologue for it. You can append the summary to the chapter or prepend the prologue right into your book.", placement: "left" as const },
+    { target: "#tour-editor-tab-image", title: "Image Prompt Generator", description: "Turn a character, place, or prop into a detailed image prompt ready for Midjourney or DALL·E. Pick an entity from your World Building profile, or describe one manually — every attribute is woven into the final prompt, ready to copy.", placement: "left" as const },
+    { target: "#tour-editor-tab-chat", title: "AI Chat", description: "Chat with your writing assistant. First press a button — “Current chapter” or “Whole book” — to let the AI scan your document. Then ask questions, get feedback, or brainstorm. Conversations are saved so you can return to them anytime.", placement: "left" as const },
     { target: "#tour-editor-tokens", title: "AI Token Usage", description: "Track how many AI tokens you've used today. Each AI action (chat, grammar, rewrite) consumes tokens from your daily limit.", placement: "bottom" as const },
     { target: "#tour-editor-apikey", title: "Custom API Key", description: "Hit the free tier limit? Add your own API key to bypass the daily cap. Toggle between free tier and your key anytime from the key settings dialog.", placement: "bottom" as const },
     { target: "#tour-editor-goal", title: "Set Word Count Goals", description: "Click the target icon to set a word count goal. A progress bar appears at the top of the editor to keep you motivated.", placement: "bottom" as const },
