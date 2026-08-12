@@ -26,6 +26,7 @@ import {
   ArrowLeft, Sparkles, Image as ImageIcon, CheckCircle, Save, Loader2, Wand2,
   Globe, History, FileDown, Sun, Moon, BookOpen, Target, Clock, RotateCcw, MessageCircle,
   Plus, Trash2, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, PanelRight, Zap, KeyRound, List, Pencil, Eye, EyeOff,
+  GripVertical,
 } from "lucide-react";
 import { UserButton } from "@clerk/react";
 import { UpgradeModal } from "@/components/upgrade-modal";
@@ -258,6 +259,8 @@ export default function Editor({ params }: { params: { id: string } }) {
   chaptersRef.current = chapters;
   const activeChapterIdRef = useRef<number | null>(null);
   activeChapterIdRef.current = activeChapterId;
+  const dragChapterIdRef = useRef<number | null>(null);
+  const [dragChapterId, setDragChapterId] = useState<number | null>(null);
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -1069,15 +1072,83 @@ export default function Editor({ params }: { params: { id: string } }) {
     updateChapter.mutate({ id, data: { title: trimmed } });
   }, [updateChapter]);
 
-  const moveChapter = useCallback((id: number, dir: "up" | "down") => {
+  // Reorder a chapter to an arbitrary index (insertion semantics: the dragged
+  // chapter takes the target spot and every chapter after it shifts down one).
+  const reorderChapterTo = useCallback((id: number, toIndex: number) => {
     const arr = [...chaptersRef.current];
-    const idx = arr.findIndex((c) => c.id === id);
-    const swap = dir === "up" ? idx - 1 : idx + 1;
-    if (idx === -1 || swap < 0 || swap >= arr.length) return;
-    [arr[idx], arr[swap]] = [arr[swap], arr[idx]];
+    const from = arr.findIndex((c) => c.id === id);
+    if (from === -1 || from === toIndex) return;
+    const [moved] = arr.splice(from, 1);
+    arr.splice(toIndex, 0, moved);
     const reordered = arr.map((c, i) => ({ ...c, position: i }));
     setChapters(reordered);
     reorderChapters.mutate(reordered.map((c) => c.id));
+  }, [reorderChapters]);
+
+  const moveChapter = useCallback((id: number, dir: "up" | "down") => {
+    const arr = chaptersRef.current;
+    const idx = arr.findIndex((c) => c.id === id);
+    const to = dir === "up" ? idx - 1 : idx + 1;
+    if (idx === -1 || to < 0 || to >= arr.length) return;
+    reorderChapterTo(id, to);
+  }, [reorderChapterTo]);
+
+  // Drag-and-drop chapter reordering (HTML5 native DnD, no extra deps).
+  const dragStartOrderRef = useRef<number[]>([]);
+  const startChapterDrag = useCallback((c: Chapter, e: React.DragEvent<HTMLDivElement>) => {
+    if (editingChapterId === c.id) { e.preventDefault(); return; }
+    dragChapterIdRef.current = c.id;
+    dragStartOrderRef.current = chaptersRef.current.map((x) => x.id);
+    setDragChapterId(c.id);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", String(c.id));
+  }, [editingChapterId]);
+
+  const dragOverChapter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    if (dragChapterIdRef.current == null) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  }, []);
+
+  // Live preview: as the dragged chapter hovers over another one, shift it there
+  // immediately so the list reflects the resulting order while dragging.
+  const dragEnterChapter = useCallback((c: Chapter) => {
+    const drag = dragChapterIdRef.current;
+    if (drag == null || drag === c.id) return;
+    const arr = [...chaptersRef.current];
+    const from = arr.findIndex((x) => x.id === drag);
+    const to = arr.findIndex((x) => x.id === c.id);
+    if (from === -1 || to === -1 || from === to) return;
+    const [moved] = arr.splice(from, 1);
+    arr.splice(to, 0, moved);
+    setChapters(arr.map((x, i) => ({ ...x, position: i })));
+  }, []);
+
+  // Auto-scroll the chapter list while dragging near its top/bottom edge so a
+  // chapter can be dropped far beyond the currently visible viewport.
+  const autoScrollChapterDrag = useCallback((e: React.DragEvent<HTMLElement>) => {
+    if (dragChapterIdRef.current == null) return;
+    const el = e.currentTarget;
+    const rect = el.getBoundingClientRect();
+    const edge = 48;
+    if (e.clientY < rect.top + edge && el.scrollTop > 0) {
+      el.scrollTop -= 14;
+    } else if (e.clientY > rect.bottom - edge && el.scrollTop < el.scrollHeight - el.clientHeight) {
+      el.scrollTop += 14;
+    }
+  }, []);
+
+  // Persist the new order once the drag ends (fires after drop or cancel).
+  const endChapterDrag = useCallback(() => {
+    const startIds = dragStartOrderRef.current;
+    dragChapterIdRef.current = null;
+    dragStartOrderRef.current = [];
+    setDragChapterId(null);
+    const currentIds = chaptersRef.current.map((c) => c.id);
+    if (startIds.length > 0 && currentIds.length === startIds.length &&
+        currentIds.some((id, i) => id !== startIds[i])) {
+      reorderChapters.mutate(currentIds);
+    }
   }, [reorderChapters]);
 
   const startEditChapterTitle = useCallback((c: Chapter) => {
@@ -1098,6 +1169,11 @@ export default function Editor({ params }: { params: { id: string } }) {
   const stableCommitEditTitle = useRefCallback(commitEditChapterTitle);
   const stableMoveChapter = useRefCallback(moveChapter);
   const stableRenameChapter = useRefCallback(renameChapter);
+  const stableStartChapterDrag = useRefCallback(startChapterDrag);
+  const stableDragOverChapter = useRefCallback(dragOverChapter);
+  const stableDragEnterChapter = useRefCallback(dragEnterChapter);
+  const stableEndChapterDrag = useRefCallback(endChapterDrag);
+  const stableAutoScrollChapterDrag = useRefCallback(autoScrollChapterDrag);
 
   // Derived: the chapter following the active one (for the "continue" footer
   // button and the scroll-to-next gesture). Cheap — chapters array is small.
@@ -1162,7 +1238,7 @@ export default function Editor({ params }: { params: { id: string } }) {
       </TabsList>
     </div>
     <div className="flex-1 min-h-0" style={{ contain: "layout paint style" }}>
-      <TabsContent value="chapters" className="p-4 m-0 space-y-3 h-full overflow-y-auto">
+      <TabsContent value="chapters" className="p-4 m-0 space-y-3 h-full overflow-y-auto" onDragOver={stableAutoScrollChapterDrag} id="tour-editor-chapters">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-medium text-sm">Chapters</h3>
@@ -1177,13 +1253,24 @@ export default function Editor({ params }: { params: { id: string } }) {
           <span className="font-medium text-muted-foreground">Entire book</span>
           <span className="font-medium">{chapters.reduce((sum, c) => sum + (c.id === activeChapterId ? wordCount : c.wordCount), 0).toLocaleString()} words</span>
         </div>
+        <p className="text-[10px] text-muted-foreground/70 text-center">Drag the <GripVertical className="w-3 h-3 inline -mt-0.5" /> and drop a chapter anywhere to reorder</p>
         <div className="space-y-1.5" style={{ contain: "layout paint style" }}>
           {chapters.map((c, i) => {
             const isActive = c.id === activeChapterId;
             const isEditing = editingChapterId === c.id;
+            const isDragging = dragChapterId === c.id;
             const wc = isActive ? wordCount : c.wordCount;
             return (
-              <div key={c.id} className={`rounded-lg border p-2 transition-colors ${isActive ? "border-primary bg-primary/5" : "border-border hover:bg-secondary/50"}`} style={{ contentVisibility: "auto" }}>
+              <div
+                key={c.id}
+                draggable={!isEditing}
+                onDragStart={(e) => stableStartChapterDrag(c, e)}
+                onDragOver={stableDragOverChapter}
+                onDragEnter={() => stableDragEnterChapter(c)}
+                onDragEnd={stableEndChapterDrag}
+                className={`rounded-lg border p-2 transition-colors cursor-grab active:cursor-grabbing ${isActive ? "border-primary bg-primary/5" : "border-border hover:bg-secondary/50"} ${isDragging ? "opacity-50 ring-2 ring-primary/60" : ""}`}
+                style={{ contentVisibility: "auto" }}
+              >
                 {isEditing ? (
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs text-muted-foreground shrink-0 w-5 text-right">{i + 1}.</span>
@@ -1198,6 +1285,7 @@ export default function Editor({ params }: { params: { id: string } }) {
                   </div>
                 ) : (
                   <div className="flex items-center gap-1.5">
+                    <GripVertical className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0 -ml-0.5" />
                     <button onClick={() => stableSwitchChapter(c.id)} className="flex-1 flex items-center gap-1.5 text-left min-w-0">
                       <span className="text-xs text-muted-foreground shrink-0 w-5 text-right">{i + 1}.</span>
                       <span className={`text-sm truncate ${isActive ? "font-medium text-primary" : ""}`}>{c.title || "Untitled Chapter"}</span>
@@ -1416,7 +1504,10 @@ export default function Editor({ params }: { params: { id: string } }) {
   chatScanMode, chapterChatChunks, safeChapterChunkIndex, chapterTruncated,
   versions, createVersion.isPending,
   chapters, activeChapterId, editingChapterId, editingTitle, createChapter.isPending,
+  dragChapterId,
   stableSwitchChapter, stableAddChapter, stableDeleteChapter, stableStartEditTitle, stableCommitEditTitle, stableMoveChapter,
+  stableStartChapterDrag, stableDragOverChapter, stableDragEnterChapter, stableEndChapterDrag,
+  stableAutoScrollChapterDrag,
 ]);
 
   const mobileSidebarContent = useMemo(() => (
@@ -1434,7 +1525,7 @@ export default function Editor({ params }: { params: { id: string } }) {
       </TabsList>
     </div>
     <div className="flex-1 min-h-0" style={{ contain: "layout paint style" }}>
-      <TabsContent value="chapters" className="p-4 m-0 space-y-3 h-full overflow-y-auto">
+      <TabsContent value="chapters" className="p-4 m-0 space-y-3 h-full overflow-y-auto" onDragOver={stableAutoScrollChapterDrag} id="tour-editor-chapters-mobile">
         <div className="flex items-center justify-between">
           <h3 className="font-medium text-sm">Chapters</h3>
           <Button onClick={stableAddChapter} size="sm" className="gap-1 h-7" disabled={createChapter.isPending}>
@@ -1445,13 +1536,23 @@ export default function Editor({ params }: { params: { id: string } }) {
           <span className="font-medium text-muted-foreground">Entire book</span>
           <span className="font-medium">{chapters.reduce((sum, c) => sum + (c.id === activeChapterId ? wordCount : c.wordCount), 0).toLocaleString()} words</span>
         </div>
+        <p className="text-[10px] text-muted-foreground/70 text-center">Drag the <GripVertical className="w-3 h-3 inline -mt-0.5" /> and drop a chapter anywhere to reorder</p>
         <div className="space-y-1.5">
           {chapters.map((c, i) => {
             const isActive = c.id === activeChapterId;
             const isEditing = editingChapterId === c.id;
+            const isDragging = dragChapterId === c.id;
             const wc = isActive ? wordCount : c.wordCount;
             return (
-              <div key={c.id} className={`rounded-lg border p-2 ${isActive ? "border-primary bg-primary/5" : "border-border"}`}>
+              <div
+                key={c.id}
+                draggable={!isEditing}
+                onDragStart={(e) => stableStartChapterDrag(c, e)}
+                onDragOver={stableDragOverChapter}
+                onDragEnter={() => stableDragEnterChapter(c)}
+                onDragEnd={stableEndChapterDrag}
+                className={`rounded-lg border p-2 cursor-grab active:cursor-grabbing ${isActive ? "border-primary bg-primary/5" : "border-border"} ${isDragging ? "opacity-50 ring-2 ring-primary/60" : ""}`}
+              >
                 {isEditing ? (
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs text-muted-foreground shrink-0 w-5 text-right">{i + 1}.</span>
@@ -1459,12 +1560,15 @@ export default function Editor({ params }: { params: { id: string } }) {
                   </div>
                 ) : (
                   <div className="flex items-center gap-1.5">
+                    <GripVertical className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0 -ml-0.5" />
                     <button onClick={() => stableSwitchChapter(c.id)} className="flex-1 flex items-center gap-1.5 text-left min-w-0">
                       <span className="text-xs text-muted-foreground shrink-0 w-5 text-right">{i + 1}.</span>
                       <span className={`text-sm truncate ${isActive ? "font-medium text-primary" : ""}`}>{c.title || "Untitled Chapter"}</span>
                       <span className="text-[10px] text-muted-foreground shrink-0">{wc.toLocaleString()}w</span>
                     </button>
                     <button onClick={() => stableStartEditTitle(c)} className="text-muted-foreground/60 hover:text-foreground p-0.5 shrink-0" title="Rename"><Pencil className="w-3 h-3" /></button>
+                    <button onClick={() => stableMoveChapter(c.id, "up")} disabled={i === 0} className="text-muted-foreground/60 hover:text-foreground p-0.5 shrink-0 disabled:opacity-30" title="Move up"><ChevronUp className="w-3 h-3" /></button>
+                    <button onClick={() => stableMoveChapter(c.id, "down")} disabled={i === chapters.length - 1} className="text-muted-foreground/60 hover:text-foreground p-0.5 shrink-0 disabled:opacity-30" title="Move down"><ChevronDown className="w-3 h-3" /></button>
                     <button onClick={() => stableDeleteChapter(c.id)} className="text-muted-foreground/60 hover:text-destructive p-0.5 shrink-0" title="Delete chapter"><Trash2 className="w-3 h-3" /></button>
                   </div>
                 )}
@@ -1588,7 +1692,10 @@ export default function Editor({ params }: { params: { id: string } }) {
   chatChunks, safeChunkIndex, docTruncated, wordCount, bookText, bookWords,
   chatScanMode, chapterChatChunks, safeChapterChunkIndex, chapterTruncated,
   chapters, activeChapterId, editingChapterId, editingTitle, createChapter.isPending,
+  dragChapterId,
   stableSwitchChapter, stableAddChapter, stableDeleteChapter, stableStartEditTitle, stableCommitEditTitle,
+  stableStartChapterDrag, stableDragOverChapter, stableDragEnterChapter, stableEndChapterDrag,
+  stableAutoScrollChapterDrag,
 ]);
 
   if (isDocumentLoading || !shellReady) {
@@ -1600,6 +1707,7 @@ export default function Editor({ params }: { params: { id: string } }) {
   const EDITOR_TOUR_STEPS = [
     { target: "#tour-editor-title", title: "Name Your Work", description: "Give your document a title. Changes auto-save within a second after you stop typing.", placement: "bottom" as const },
     { target: "#tour-editor-textarea", title: "Your Canvas", description: "This is where the magic happens. Write freely — grammar highlights, AI suggestions, and word count tracking work in real-time.", placement: "bottom" as const },
+    { target: "#tour-editor-chapters", title: "Chapters & Drag to Reorder", description: "Organize your manuscript with chapters — create them, rename, switch, or delete. Reorder by dragging the grip handle: drop a later chapter higher up and every chapter shifts down into place. Grammar checks and AI tools target the active chapter.", placement: "left" as const },
     { target: "#tour-editor-readmode", title: "Read Mode", description: "Click the “Read” button to enter a distraction-free read mode. It locks editing so nothing you type or press can change your document, and hides the toolbar and AI sidebar — perfect for reviewing a finished draft. Click “Exit Read” to return to editing.", placement: "bottom" as const },
     { target: "#tour-editor-sidebar", title: "AI Writing Assistant", description: "Grammar check with inline highlights, AI rewrites, summarization, prologue generation, chat with the AI about your document, and an image prompt generator — all in one sidebar.", placement: "left" as const },
     { target: "#tour-editor-tokens", title: "AI Token Usage", description: "Track how many AI tokens you've used today. Each AI action (chat, grammar, rewrite) consumes tokens from your daily limit.", placement: "bottom" as const },
