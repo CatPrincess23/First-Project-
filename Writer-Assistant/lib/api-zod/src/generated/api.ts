@@ -35,12 +35,15 @@ export const ListDocumentsResponse = zod.array(ListDocumentsResponseItem)
 /**
  * @summary Create a new document
  */
+export const createDocumentBodyTitleMax = 250;
+
+export const createDocumentBodyContentMax = 2000000;
 
 
 
 export const CreateDocumentBody = zod.object({
-  "title": zod.string().min(1),
-  "content": zod.string().optional()
+  "title": zod.string().min(1).max(createDocumentBodyTitleMax),
+  "content": zod.string().max(createDocumentBodyContentMax).optional()
 })
 
 
@@ -70,9 +73,15 @@ export const UpdateDocumentParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const updateDocumentBodyTitleMax = 250;
+
+export const updateDocumentBodyContentMax = 2000000;
+
+
+
 export const UpdateDocumentBody = zod.object({
-  "title": zod.string().optional(),
-  "content": zod.string().optional(),
+  "title": zod.string().max(updateDocumentBodyTitleMax).optional(),
+  "content": zod.string().max(updateDocumentBodyContentMax).optional(),
   "goalWordCount": zod.number().nullish()
 })
 
@@ -122,11 +131,15 @@ export const ListDocumentVersionsParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const listDocumentVersionsResponseContentMax = 2000000;
+
+
+
 export const ListDocumentVersionsResponseItem = zod.object({
   "id": zod.number(),
   "documentId": zod.number(),
   "title": zod.string(),
-  "content": zod.string(),
+  "content": zod.string().max(listDocumentVersionsResponseContentMax),
   "wordCount": zod.number(),
   "label": zod.string().nullish(),
   "createdAt": zod.string()
@@ -141,9 +154,15 @@ export const CreateDocumentVersionParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const createDocumentVersionBodyTitleMax = 250;
+
+export const createDocumentVersionBodyContentMax = 2000000;
+
+
+
 export const CreateDocumentVersionBody = zod.object({
-  "title": zod.string(),
-  "content": zod.string(),
+  "title": zod.string().max(createDocumentVersionBodyTitleMax),
+  "content": zod.string().max(createDocumentVersionBodyContentMax),
   "wordCount": zod.number(),
   "label": zod.string().nullish()
 })

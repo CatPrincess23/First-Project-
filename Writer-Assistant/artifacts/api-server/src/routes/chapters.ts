@@ -4,6 +4,8 @@ import { eq, and, asc } from "drizzle-orm";
 import { getUserId } from "../middlewares/identity";
 
 const router = Router();
+const MAX_CHAPTER_CONTENT_CHARS = 1_000_000;
+const MAX_CHAPTER_TITLE_CHARS = 250;
 
 function decodeEntities(text: string): string {
   return text
@@ -75,6 +77,14 @@ router.post("/documents/:documentId/chapters", async (req, res) => {
   if (!parent) { res.status(404).json({ error: "Not found" }); return; }
 
   const body = (req.body ?? {}) as any;
+  if (typeof body.content === "string" && body.content.length > MAX_CHAPTER_CONTENT_CHARS) {
+    res.status(413).json({ error: `Chapter content must be ${MAX_CHAPTER_CONTENT_CHARS.toLocaleString()} characters or fewer.` });
+    return;
+  }
+  if (typeof body.title === "string" && body.title.length > MAX_CHAPTER_TITLE_CHARS) {
+    res.status(400).json({ error: `Chapter title must be ${MAX_CHAPTER_TITLE_CHARS} characters or fewer.` });
+    return;
+  }
   const title = typeof body.title === "string" && body.title.trim() ? body.title : "Untitled Chapter";
   const content = typeof body.content === "string" ? body.content : "";
 
@@ -123,6 +133,14 @@ router.patch("/chapters/:id", async (req, res) => {
   if (!chapter) { res.status(404).json({ error: "Not found" }); return; }
 
   const body = (req.body ?? {}) as any;
+  if (typeof body.content === "string" && body.content.length > MAX_CHAPTER_CONTENT_CHARS) {
+    res.status(413).json({ error: `Chapter content must be ${MAX_CHAPTER_CONTENT_CHARS.toLocaleString()} characters or fewer.` });
+    return;
+  }
+  if (typeof body.title === "string" && body.title.length > MAX_CHAPTER_TITLE_CHARS) {
+    res.status(400).json({ error: `Chapter title must be ${MAX_CHAPTER_TITLE_CHARS} characters or fewer.` });
+    return;
+  }
   const updates: any = { updatedAt: new Date() };
   if (typeof body.title === "string" && body.title.trim()) updates.title = body.title;
   if (typeof body.content === "string") { updates.content = body.content; updates.wordCount = countWords(body.content); }

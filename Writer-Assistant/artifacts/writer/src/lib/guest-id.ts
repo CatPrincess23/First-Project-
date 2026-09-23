@@ -1,3 +1,5 @@
+import { getUserApiConfig, isUserApiKeyEnabled } from "./api-key";
+
 // Stable guest ID stored in localStorage — survives page reloads.
 const GUEST_ID_KEY = "wa_guest_id";
 
@@ -31,7 +33,15 @@ export function setupGuestId() {
 
   window.fetch = async (...args) => {
     const url = args[0] instanceof Request ? args[0].url : String(args[0]);
-    const isApiCall = url.includes("/api/");
+    let requestUrl: URL;
+    try {
+      requestUrl = new URL(url, window.location.origin);
+    } catch {
+      return originalFetch(...args);
+    }
+    if (requestUrl.origin !== window.location.origin) return originalFetch(...args);
+    const pathname = requestUrl.pathname;
+    const isApiCall = pathname.startsWith("/api/");
 
     if (!isApiCall) {
       return originalFetch(...args);
@@ -42,6 +52,9 @@ export function setupGuestId() {
         ? new Request(args[0], { credentials: "same-origin" })
         : new Request(args[0], { ...args[1], credentials: "same-origin" });
 
+    // This value is only a client-sync hint. The API never uses it to select
+    // the request identity; it can only return the signed cookie's ID so this
+    // localStorage value stays aligned for the later Clerk claim flow.
     req.headers.set("x-guest-id", getGuestId());
 
     try {
@@ -56,21 +69,13 @@ export function setupGuestId() {
 
     // Inject user's custom API key if configured and enabled
     try {
-      const enabled = localStorage.getItem("wa_user_api_key_enabled");
-      const isEnabled = enabled === null || enabled === "true";
-      if (isEnabled) {
-        const userKey = localStorage.getItem("wa_user_api_key");
-        if (userKey && userKey.trim()) {
-          req.headers.set("x-user-api-key", userKey.trim());
-          const userBaseUrl = localStorage.getItem("wa_user_base_url");
-          if (userBaseUrl && userBaseUrl.trim()) {
-            req.headers.set("x-user-base-url", userBaseUrl.trim());
-          }
-          const userModel = localStorage.getItem("wa_user_model");
-          if (userModel && userModel.trim()) {
-            req.headers.set("x-user-model", userModel.trim());
-          }
-        }
+      const userApiConfig = pathname.startsWith("/api/ai/") && isUserApiKeyEnabled()
+        ? getUserApiConfig()
+        : null;
+      if (userApiConfig) {
+        req.headers.set("x-user-api-key", userApiConfig.apiKey);
+        req.headers.set("x-user-base-url", userApiConfig.baseUrl);
+        req.headers.set("x-user-model", userApiConfig.model);
       }
     } catch {
       // localStorage not available

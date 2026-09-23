@@ -48,23 +48,22 @@ function GuestOnlyNotice({ onContinue }: { onContinue: () => void }) {
   );
 }
 
-// Catch render errors so the page never goes completely white.
-window.addEventListener("error", () => {});
-window.addEventListener("unhandledrejection", () => {});
-
 class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean }> {
   constructor(props: { children: React.ReactNode }) {
     super(props);
     this.state = { hasError: false };
   }
   static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error("Whimsical Writer render error", error, info.componentStack);
+  }
   render() {
     if (this.state.hasError) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-background p-4">
           <div className="text-center space-y-3 max-w-sm">
             <h2 className="text-lg font-semibold">Something went wrong</h2>
-            <p className="text-sm text-muted-foreground">A temporary error occurred. Your work is safe.</p>
+            <p className="text-sm text-muted-foreground">A temporary error occurred. Reload the page, then check your latest save before continuing.</p>
             <Button onClick={() => { this.setState({ hasError: false }); window.location.reload(); }}>
               Reload page
             </Button>
@@ -83,6 +82,12 @@ const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 function HomeRedirect() {
   const [, setLocation] = useLocation();
   useEffect(() => { setLocation("/sign-in"); }, [setLocation]);
+  return null;
+}
+
+function DocumentsRedirect() {
+  const [, setLocation] = useLocation();
+  useEffect(() => { setLocation("/documents"); }, [setLocation]);
   return null;
 }
 
@@ -115,6 +120,7 @@ function SignInPage() {
             path="/sign-in"
             fallbackRedirectUrl="/documents"
             signUpUrl="/sign-up"
+            appearance={{ elements: { headerTitle: "hidden", headerSubtitle: "hidden" } }}
           />
         ) : (
           <GuestOnlyNotice onContinue={() => setLocation("/documents")} />
@@ -151,6 +157,7 @@ function SignUpPage() {
             path="/sign-up"
             fallbackRedirectUrl="/documents"
             signInUrl="/sign-in"
+            appearance={{ elements: { headerTitle: "hidden", headerSubtitle: "hidden" } }}
           />
         ) : (
           <GuestOnlyNotice onContinue={() => setLocation("/documents")} />
@@ -179,8 +186,12 @@ function Router() {
       </Route>
       <Route path="/" component={HomeRedirect} />
       <Route path="/documents" component={Documents} />
+      <Route path="/dashboard" component={Documents} />
+      <Route path="/chat" component={DocumentsRedirect} />
       <Route path="/editor/new" component={EditorNewRedirect} />
+      <Route path="/editor" component={EditorNewRedirect} />
       <Route path="/editor/:id" component={Editor} />
+      <Route path="/world" component={DocumentsRedirect} />
       <Route path="/world/:id" component={WorldBuilding} />
       <Route component={NotFound} />
     </Switch>

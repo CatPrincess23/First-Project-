@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, documentsTable, documentVersionsTable, conversations } from "@workspace/db";
+import { db, documentsTable, documentVersionsTable } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { getUserId } from "../middlewares/identity";
 import {
@@ -173,9 +173,7 @@ router.delete("/:id", async (req, res) => {
   const [doc] = await db.select().from(documentsTable)
     .where(and(eq(documentsTable.id, parse.data.id), eq(documentsTable.userId, userId)));
   if (!doc) { res.status(404).json({ error: "Not found" }); return; }
-  // conversations.documentId has no FK cascade, so delete them first (messages cascade via FK),
-  // scoped by both documentId and userId. (messages cascade via FK on conversationId)
-  await db.delete(conversations).where(and(eq(conversations.documentId, parse.data.id), eq(conversations.userId, userId)));
+  // Conversations and their messages cascade from the document FK.
   await db.delete(documentsTable).where(and(eq(documentsTable.id, parse.data.id), eq(documentsTable.userId, userId)));
   res.status(204).send();
 });

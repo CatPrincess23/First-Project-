@@ -1,45 +1,9 @@
-import crypto from "node:crypto";
-import { Router, type Request, type Response, type RequestHandler } from "express";
-import { rateLimit, ipKeyGenerator } from "express-rate-limit";
+import { Router } from "express";
 import { db, documentsTable, documentVersionsTable, worldEntitiesTable, conversations } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { issueGuestCookie, guestSigningEnabled } from "../middlewares/identity";
+import { getSignedGuestId } from "../middlewares/identity";
 
 const router = Router();
-
-// Per-IP cap on guest issuance. Uses the ipKeyGenerator helper so IPv6 clients
-// are bucketed by subnet rather than each address counting separately.
-const guestLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 50,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req: Request, _res: Response) => ipKeyGenerator(req.ip ?? "", 56),
-});
-
-// Cheap bot filter applied before issuance: reject missing/empty UAs and the
-// obvious scripted clients. A normal browser under the rate limit passes.
-const BOT_UA = /bot|crawl|spider|curl|wget|python-requests|axios|headless/i;
-const botFilter: RequestHandler = (req, res, next) => {
-  const ua = req.headers["user-agent"];
-  if (!ua || ua.trim() === "" || BOT_UA.test(ua)) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  next();
-};
-
-// POST /api/auth/guest — mint a fresh server-side guest id and set the signed
-// cookie. The client never supplies its own id.
-router.post("/guest", guestLimiter, botFilter, (_req, res) => {
-  if (!guestSigningEnabled) {
-    res.status(503).json({ error: "Guest sign-in is currently unavailable" });
-    return;
-  }
-  const uuid = crypto.randomUUID();
-  issueGuestCookie(res, uuid);
-  res.json({ ok: true });
-});
 
 // POST /api/auth/claim-documents — reassign guest-owned records to the
 // authenticated Clerk user. Called from the frontend after sign-in to migrate
@@ -54,15 +18,9 @@ router.post("/claim-documents", async (req, res) => {
     return;
   }
 
+  const signedGuestId = getSignedGuestId(req);
   const guestId = req.headers["x-guest-id"];
-  if (typeof guestId !== "string" || guestId.length === 0) {
-    res.json({ claimed: 0 });
-    return;
-  }
-
-  // Skip if the guest id looks like an `anon:` fallback — those are
-  // per-request ephemeral identities that shouldn't be claimed.
-  if (guestId.startsWith("anon:")) {
+  if (!signedGuestId || typeof guestId !== "string" || guestId !== signedGuestId) {
     res.json({ claimed: 0 });
     return;
   }

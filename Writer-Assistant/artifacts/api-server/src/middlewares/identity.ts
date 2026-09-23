@@ -1,10 +1,10 @@
 import crypto from "node:crypto";
-import type { RequestHandler, Response } from "express";
+import type { Request, RequestHandler, Response } from "express";
 
 const isProd = process.env.NODE_ENV === "production";
 
-// Guest cookie carries a server-issued UUID signed with HMAC-SHA256. The client
-// can never forge or supply its own id (the old `x-guest-id` header is gone).
+// Guest cookie carries a server-issued UUID signed with HMAC-SHA256. Client
+// supplied IDs are advisory only and never select a database identity.
 const GUEST_COOKIE = "wa_guest";
 const GUEST_COOKIE_MAX_AGE = 365 * 24 * 60 * 60 * 1000; // ~1 year
 
@@ -53,6 +53,11 @@ function verifyGuestCookie(value: string): string | null {
   return uuid;
 }
 
+export function getSignedGuestId(req: Request): string | null {
+  const cookie = (req as any).cookies?.[GUEST_COOKIE];
+  return typeof cookie === "string" ? verifyGuestCookie(cookie) : null;
+}
+
 export function issueGuestCookie(res: Response, uuid: string): void {
   res.cookie(GUEST_COOKIE, signGuestId(uuid), {
     httpOnly: true,
@@ -74,47 +79,24 @@ export const resolveIdentity: RequestHandler = async (req, res, next) => {
     return next();
   }
 
-  // Read both sources before deciding so we can detect conflicts.
+  // Read the localStorage ID only to correct it when it disagrees with the
+  // authenticated cookie. It is never an identity credential.
   const guestId = (req.headers as any)["x-guest-id"];
-  const cookie = (req as any).cookies?.[GUEST_COOKIE];
-
-  // Cookie is preferred because it is server-signed (HMAC verified) and more
-  // trustworthy than a raw header. This prevents identity loss when localStorage
-  // is cleared (e.g. browser data reset) but the cookie survives.
-  if (typeof cookie === "string" && cookie.length > 0) {
-    const uuid = verifyGuestCookie(cookie);
-    if (uuid) {
-      req.identity = { type: "guest", id: uuid };
-      issueGuestCookie(res, uuid);
-      // If the header has a different (stale) value, tell the client to fix
-      // localStorage so they stay in sync.
-      if (typeof guestId === "string" && guestId.length > 0 && guestId !== uuid) {
-        res.setHeader("X-Guest-Identity-Correction", uuid);
-      }
-      return next();
+  const cookieId = getSignedGuestId(req);
+  if (cookieId) {
+    req.identity = { type: "guest", id: cookieId };
+    if (typeof guestId === "string" && guestId !== cookieId) {
+      res.setHeader("X-Guest-Identity-Correction", cookieId);
     }
-  }
-
-  // x-guest-id header (from localStorage on the frontend) is the fallback source.
-  // It survives cookie-only clears (which some browsers do aggressively). Only
-  // accept a well-formed UUID — the frontend always sends one via
-  // crypto.randomUUID(), so anything else is a malformed/forged value we'd rather
-  // not adopt as an identity (it would silently bind the caller to arbitrary data).
-  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (typeof guestId === "string" && UUID_RE.test(guestId)) {
-    req.identity = { type: "guest", id: guestId };
-    issueGuestCookie(res, guestId);
     return next();
   }
 
-  // Last resort: generate a fresh server-side UUID and issue a cookie.
+  // Missing or invalid cookies start a new server-owned guest identity. The
+  // correction header lets the frontend replace any stale localStorage value.
   const uuid = crypto.randomUUID();
   issueGuestCookie(res, uuid);
   req.identity = { type: "guest", id: uuid };
-  next();
-};
-
-export const requireIdentity: RequestHandler = (_req, _res, next) => {
+  if (typeof guestId === "string") res.setHeader("X-Guest-Identity-Correction", uuid);
   next();
 };
 

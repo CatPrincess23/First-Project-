@@ -8,7 +8,11 @@ import { getUserApiConfig, setUserApiKey, setUserBaseUrl, setUserModel, clearUse
 
 function subscribeToStorage(cb: () => void) {
   window.addEventListener("storage", cb);
-  return () => window.removeEventListener("storage", cb);
+  window.addEventListener("wa:custom-api-key-change", cb);
+  return () => {
+    window.removeEventListener("storage", cb);
+    window.removeEventListener("wa:custom-api-key-change", cb);
+  };
 }
 
 function getSnapshot() {
@@ -50,8 +54,8 @@ export function UserApiKeyDialog({ open, onOpenChange }: { open: boolean; onOpen
           <DialogTitle className="font-serif text-xl">AI API Key</DialogTitle>
           <DialogDescription className="text-sm pt-1">
             {hasExisting
-              ? "Using your own API key (10K daily limit still applies). Toggle it on/off below."
-              : "Set your own API key to use your own quota (10K daily limit still applies). Uses OpenRouter by default."}
+              ? "Using your own API key (daily token limit still applies). Your key is kept for this tab and cleared when it closes."
+              : "Set your own API key to choose an OpenAI-compatible provider. The daily token limit still applies; this tab’s key clears when it closes."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
