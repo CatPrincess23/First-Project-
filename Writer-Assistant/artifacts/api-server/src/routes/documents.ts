@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, documentsTable, documentVersionsTable } from "@workspace/db";
+import { db, conversations, documentsTable, documentVersionsTable } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { getUserId } from "../middlewares/identity";
 import {
@@ -173,8 +173,13 @@ router.delete("/:id", async (req, res) => {
   const [doc] = await db.select().from(documentsTable)
     .where(and(eq(documentsTable.id, parse.data.id), eq(documentsTable.userId, userId)));
   if (!doc) { res.status(404).json({ error: "Not found" }); return; }
-  // Conversations and their messages cascade from the document FK.
-  await db.delete(documentsTable).where(and(eq(documentsTable.id, parse.data.id), eq(documentsTable.userId, userId)));
+  // Delete conversations explicitly so this stays correct while an existing
+  // database is waiting for the document FK migration. Messages cascade from
+  // the conversation FK.
+  await db.transaction(async (tx) => {
+    await tx.delete(conversations).where(eq(conversations.documentId, parse.data.id));
+    await tx.delete(documentsTable).where(and(eq(documentsTable.id, parse.data.id), eq(documentsTable.userId, userId)));
+  });
   res.status(204).send();
 });
 
