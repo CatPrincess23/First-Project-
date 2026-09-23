@@ -115818,7 +115818,10 @@ router3.delete("/:id", async (req, res) => {
     res.status(404).json({ error: "Not found" });
     return;
   }
-  await db.delete(documentsTable).where(and(eq(documentsTable.id, parse4.data.id), eq(documentsTable.userId, userId)));
+  await db.transaction(async (tx) => {
+    await tx.delete(conversations).where(eq(conversations.documentId, parse4.data.id));
+    await tx.delete(documentsTable).where(and(eq(documentsTable.id, parse4.data.id), eq(documentsTable.userId, userId)));
+  });
   res.status(204).send();
 });
 var documents_default = router3;
