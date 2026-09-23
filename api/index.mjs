@@ -28105,7 +28105,7 @@ var require_pino = __commonJS({
     function pinoBundlerAbsolutePath(p) {
       try {
         const path3 = __require("path");
-        const outputDir = "/Users/ak/Projects/First-Project-/Writer-Assistant/artifacts/api-server/dist-vercel";
+        const outputDir = path3.resolve(process.cwd(), "artifacts/api-server/dist-vercel");
         return path3.resolve(outputDir, p.replace(/^\.\//, ""));
       } catch (e) {
         const f = new Function("p", "return new URL(p, import.meta.url).pathname");
