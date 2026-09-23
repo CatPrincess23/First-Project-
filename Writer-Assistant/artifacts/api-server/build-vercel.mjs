@@ -1,4 +1,5 @@
 import { createRequire } from "node:module";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build as esbuild } from "esbuild";
@@ -44,5 +45,23 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     `,
   },
 });
+
+// esbuild-plugin-pino embeds its absolute build directory into the bundle.
+// Resolve the pino worker paths from the deployed project root instead so the
+// committed Vercel entry is reproducible across local machines and CI runners.
+const bundlePath = path.resolve(artifactDir, "dist-vercel/vercel.mjs");
+const bundle = await readFile(bundlePath, "utf8");
+const embeddedOutputDir = path.resolve(artifactDir, "dist-vercel").replace(/\\/g, "\\\\");
+const absolutePinoOutputDir = `const outputDir = "${embeddedOutputDir}";`;
+if (!bundle.includes(absolutePinoOutputDir)) {
+  throw new Error("Could not find the pino output directory in the Vercel API bundle");
+}
+await writeFile(
+  bundlePath,
+  bundle.replaceAll(
+    absolutePinoOutputDir,
+    'const outputDir = path3.resolve(process.cwd(), "artifacts/api-server/dist-vercel");',
+  ),
+);
 
 console.log("Vercel API entry built → dist/vercel.mjs");

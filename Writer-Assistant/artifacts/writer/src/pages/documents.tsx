@@ -424,7 +424,7 @@ export default function Documents() {
                     <div className="mt-2">
                       <div className="flex justify-between text-xs text-muted-foreground mb-1">
                         {usage?.isUsingOwnKey ? (
-                          <span>Own API key — no limit</span>
+                          <span>Own API key · daily limit still applies</span>
                         ) : (
                           <>
                             <span>Daily limit: {((usage?.dailyLimit ?? 10000) / 1000).toFixed(0)}K</span>
@@ -591,7 +591,7 @@ export default function Documents() {
                 <div className="mt-2">
                   <div className="flex justify-between text-xs text-muted-foreground mb-1">
                     {usage?.isUsingOwnKey ? (
-                      <span>Own API key — no limit</span>
+                      <span>Own API key · daily limit still applies</span>
                     ) : (
                       <>
                         <span>Daily limit: {((usage?.dailyLimit ?? 10000) / 1000).toFixed(0)}K</span>

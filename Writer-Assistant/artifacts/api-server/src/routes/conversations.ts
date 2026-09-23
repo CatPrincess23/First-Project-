@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, conversations, messages, documentsTable, insertMessageSchema } from "@workspace/db";
+import { db, conversations, messages, documentsTable } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { getUserId } from "../middlewares/identity";
 

@@ -565,16 +565,20 @@ components:
         title:
           type: string
           minLength: 1
+          maxLength: 250
         content:
           type: string
+          maxLength: 2000000
 
     DocumentUpdate:
       type: object
       properties:
         title:
           type: string
+          maxLength: 250
         content:
           type: string
+          maxLength: 2000000
         goalWordCount:
           type: ["integer", "null"]
 
@@ -603,6 +607,7 @@ components:
           type: string
         content:
           type: string
+          maxLength: 2000000
         wordCount:
           type: integer
         label:
@@ -616,8 +621,10 @@ components:
       properties:
         title:
           type: string
+          maxLength: 250
         content:
           type: string
+          maxLength: 2000000
         wordCount:
           type: integer
         label:

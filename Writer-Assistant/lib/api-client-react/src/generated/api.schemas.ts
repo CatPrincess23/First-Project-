@@ -22,13 +22,19 @@ export interface Document {
 }
 
 export interface DocumentInput {
-  /** @minLength 1 */
+  /**
+     * @minLength 1
+     * @maxLength 250
+     */
   title: string;
+  /** @maxLength 2000000 */
   content?: string;
 }
 
 export interface DocumentUpdate {
+  /** @maxLength 250 */
   title?: string;
+  /** @maxLength 2000000 */
   content?: string;
   /** @nullable */
   goalWordCount?: number | null;
@@ -44,6 +50,7 @@ export interface DocumentVersion {
   id: number;
   documentId: number;
   title: string;
+  /** @maxLength 2000000 */
   content: string;
   wordCount: number;
   /** @nullable */
@@ -52,7 +59,9 @@ export interface DocumentVersion {
 }
 
 export interface DocumentVersionInput {
+  /** @maxLength 250 */
   title: string;
+  /** @maxLength 2000000 */
   content: string;
   wordCount: number;
   /** @nullable */
